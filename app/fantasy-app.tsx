@@ -7,7 +7,7 @@ import {
   useWalletStatus,
   useWallets,
 } from "@solana/kit-plugin-wallet/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { solanaClient } from "./solana-client";
 
 type ScorePeriod = "daily" | "weekly";
@@ -90,10 +90,18 @@ async function getPfBalance(owner: string): Promise<number> {
   }, 0);
 }
 
+const subscribeHydration = () => () => {};
+const clientHydrated = () => true;
+const serverHydrated = () => false;
+
 function WalletControl() {
+  const hydrated = useSyncExternalStore(subscribeHydration, clientHydrated, serverHydrated);
   const wallets = useWallets(solanaClient);
-  const connected = useConnectedWallet(solanaClient);
-  const status = useWalletStatus(solanaClient);
+  const detectedWallet = useConnectedWallet(solanaClient);
+  const detectedStatus = useWalletStatus(solanaClient);
+  // Wallet discovery is browser-only. Keep the initial render identical to SSR.
+  const connected = hydrated ? detectedWallet : undefined;
+  const status = hydrated ? detectedStatus : "pending";
   const connect = useConnect(solanaClient);
   const disconnect = useDisconnect(solanaClient);
   const [open, setOpen] = useState(false);

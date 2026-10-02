@@ -17,7 +17,7 @@ No transaction is signed or submitted by the current application. Wallet connect
 
 ## Local development
 
-Requires Node.js 22.13 or newer.
+Requires Node.js 24, matching the Vercel runtime and Solana wallet dependencies.
 
 ```bash
 npm install
