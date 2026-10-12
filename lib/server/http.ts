@@ -11,7 +11,11 @@ export function sameOrigin(request: Request) {
   const origin = request.headers.get("origin");
   if (!origin) return true;
   try {
-    return new URL(origin).host === new URL(request.url).host;
+    const originHost = new URL(origin).host;
+    const requestHost = new URL(request.url).host;
+    const configuredSite = process.env.NEXT_PUBLIC_SITE_URL;
+    const configuredHost = configuredSite ? new URL(configuredSite).host : null;
+    return originHost === requestHost || originHost === configuredHost;
   } catch {
     return false;
   }
