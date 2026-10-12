@@ -21,13 +21,13 @@ export type FantasyPlayer = {
   pnl_usd: number;
 };
 
-export async function fetchPumpLeaderboard(limit = 50) {
+export async function fetchPumpLeaderboard(limit = 50, options: { fresh?: boolean } = {}) {
   const url = new URL(LEADERBOARD_URL);
   url.search = new URLSearchParams({ period: "monthly", sort: "combined", limit: String(Math.min(100, Math.max(50, limit))) }).toString();
   const response = await fetch(url, {
     headers: { Accept: "application/json" },
-    cache: "force-cache",
-    next: { revalidate: 30 },
+    cache: options.fresh ? "no-store" : "force-cache",
+    ...(options.fresh ? {} : { next: { revalidate: 30 } }),
     signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok) throw new Error(`Pump.fun leaderboard returned HTTP ${response.status}.`);

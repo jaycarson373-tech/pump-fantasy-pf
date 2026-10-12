@@ -1,44 +1,37 @@
 # Pump Fantasy
 
-Pump Fantasy is a daily five-pick fantasy contest based on the pump.fun 1M profit leaderboard. Each round starts with the top-50 one-month PnL snapshot, split into five fixed rank bands. Pick one trader from each band. A pick scores closing 1M PnL minus opening 1M PnL; the five changes are added and the highest lineup wins the disclosed funded prize pool. Wallet sign-in and SPL/Token-2022 balance checks are implemented; entry stays closed until the token mint, minimum, active round, data feed, rules, and prize funding are configured.
+Pump Fantasy is a five-pick fantasy contest based on the pump.fun 1M profit leaderboard. Each season starts with the top-50 one-month PnL snapshot, split into five fixed rank bands. Pick one trader from each band. A pick scores closing 1M PnL minus opening 1M PnL; the five changes are added and the highest lineup wins the disclosed funded prize pool. Wallet sign-in and SPL/Token-2022 balance checks are implemented; entry stays closed until production configuration is complete and the operator starts a season.
 
 ## Honest launch status
 
-This local revision has not been deployed. The playable contest is **not open** until the production setup below is complete. A timestamped Pump.fun one-month top-50 roster and its profile images are included as a dated snapshot; leaderboard values move and this snapshot must be refreshed before a real round. This revision implements wallet challenge/signature verification, server-side SPL Token and Token-2022 balance checks, one saved lineup per wallet/round, fixed rank-band validation, standings calculation, and a protected 50-player data-ingest route. It does not fabricate live rankings or scores.
+This revision implements wallet challenge/signature verification, server-side SPL Token and Token-2022 balance checks, one saved lineup per wallet/season, fixed rank-band validation, standings calculation, protected roster ingest, and an operator-only season-start endpoint. It does not fabricate live rankings or scores. Entry stays closed until production configuration is complete and the operator starts the season.
 
-No verified public Pump.fun leaderboard API is configured in this project. The current data-ingest route accepts a verified 50-player snapshot from an approved operator/feed; it is not a background Pump.fun scraper. The included roster is a dated snapshot, not a live ranking. The source and capture timestamp are recorded for each ingested snapshot. To make data updates automatic, connect an authorized, stable provider/API and schedule ingestion. Railway is unnecessary for the Next.js site and Supabase-backed API; add a worker host only if the approved data provider needs a persistent polling process.
+The app reads the public Pump.fun frontend leaderboard endpoint directly; Pump.fun may change or rate-limit it. The season-start endpoint refuses to open the draft if it cannot capture and validate a fresh, consecutive top-50 snapshot. A protected operator import route is also available as a fallback. The included roster is a dated preview snapshot, not the season-opening field.
 
-No prize pool or payout transaction is implemented in this revision. The protected import is an operator-controlled data upload, not a production scoring feed. Do not advertise funded prizes or automatic payouts until the creator-fee source/split, treasury, opening/closing snapshots, tie-break rules, and payout execution have been implemented and verified.
+The start endpoint captures a fresh top-50 monthly leaderboard from Pump.fun, saves it as the opening snapshot, then starts the three-hour draft. Submitted entries are rejected after the deadline. A season lasts 48 hours after the draft closes. Closing snapshots, final winner settlement, creator-fee claiming, prize payout, season rollover, and playoffs are not automated in this revision. Do not advertise funded prizes or automatic payouts until those systems are implemented and verified.
 
 ## Required production setup
 
-1. Create a Supabase project and apply [`supabase/migrations/202610120001_pump_fantasy.sql`](supabase/migrations/202610120001_pump_fantasy.sql).
-2. Create one season row, initially `draft`; verify the schedule and scoring rules before changing it to `open`.
-3. Set the variables in `.env.example` in Vercel Production. Keep `SUPABASE_SERVICE_ROLE_KEY`, `PF_SESSION_SECRET`, `SOLANA_RPC_URL`, and `PF_DATA_INGEST_SECRET` server-only. Use a high-entropy session secret (32+ random bytes) and an RPC provider appropriate for production traffic.
-4. Set the verified FANTASY mint as `FANTASY_MINT_ADDRESS`. The holder gate requires at least 500,000 whole FANTASY tokens (or a higher configured threshold) and checks both SPL Token and Token-2022 accounts.
-5. Capture and verify exactly 50 players from the agreed Pump.fun 1M leaderboard snapshot. Post them to `POST /api/admin/players` with `Authorization: Bearer <PF_DATA_INGEST_SECRET>`. Each row needs a unique `rank` (1–50), wallet, opening `pnlUsd`, and `contestChangeUsd` (closing 1M PnL minus opening 1M PnL; null until there is a source-verified close). Include the profile image URL only from an approved Pump.fun image host. Store the actual source URL and observation time in the body.
-6. Open the season only after the player list, scoring window, minimum balance, entry-lock time, and prize terms are published. Recheck Vercel deployment health and Supabase logs.
+1. Create a Supabase project and apply both migrations in [`supabase/migrations`](supabase/migrations). The second migration creates `season-1` in `draft` state.
+2. Set `PF_ACTIVE_SEASON_ID=season-1` in Railway.
+3. Import this repository into Railway. `railway.json` builds and runs the complete Next.js app (site plus API) and exposes `/api/health` for the deployment health check. Add the environment values in `.env.example`; keep all server-only values in Railway variables. Set `NEXT_PUBLIC_SITE_URL` to the Railway public domain and add the custom domain there if desired.
+4. After the token launches, add its verified mint address as `FANTASY_MINT_ADDRESS`. The holder gate requires at least 500,000 whole FANTASY tokens (or a higher configured threshold) and checks both SPL Token and Token-2022 accounts.
+5. Verify `/api/health` reports `backendConfigured: true`. Then, after the operator confirms the token is live, start the first season with the protected endpoint below. It captures the fresh Pump.fun one-month top 50, opens the draft immediately for three hours, and sets the following scoring window to 48 hours.
 
 ### First season timing
 
-The first season is configured to use a three-hour lineup-draft window followed by a 48-hour scoring window. Keep the season in `draft` until the owner says to start. At that moment, set `opens_at` to now, `locked_at` to three hours later, and `closes_at` to 48 hours after `locked_at`, then set `status` to `open`. The entry API checks all three timestamps, so early entries are rejected, lineups lock at the three-hour mark, and entries remain closed after the 48-hour contest ends. No Railway scheduler is needed for these entry cutoffs; the API evaluates the timestamps on each request.
+The owner starts the season only after launch by calling this operator-only endpoint from a trusted terminal. It fetches and stores the current leaderboard, then sets `opens_at` to now, `locked_at` to three hours later, and `closes_at` 48 hours after lock. The API enforces these timestamps on every entry request, so a Railway scheduler is not needed to close the draft.
 
-Run this statement in Supabase only when the owner gives the go-ahead, replacing the season ID with the exact `pf_seasons.id`:
-
-```sql
-update public.pf_seasons
-set status = 'open',
-    opens_at = now(),
-    locked_at = now() + interval '3 hours',
-    closes_at = now() + interval '51 hours'
-where id = 'season-1' and status = 'draft';
+```bash
+curl -X POST "$NEXT_PUBLIC_SITE_URL/api/admin/season/start" \
+  -H "Authorization: Bearer $PF_DATA_INGEST_SECRET"
 ```
 
-This controls entry timing only. It does not capture the closing leaderboard, calculate/verify winners, claim Pump.fun creator fees, or transfer prizes; those still need a trusted PnL feed and a separately secured settlement/payout process.
+This endpoint does not claim creator fees or transfer prizes. The season-end snapshot, verified final score, prize settlement, future seasons, and playoff qualifier logic still require implementation. The payout private key is not used for wallet connection, holder verification, or squad submission; do not add it until a separately reviewed payout worker is built.
 
 ### Environment variables
 
-See `.env.example`. The API refuses entry writes when the required secrets, mint, threshold, active season, or database are missing. The active season ID must match the Supabase `pf_seasons.id` row. The service-role key is never sent to the browser.
+See `.env.example`. The API refuses entry writes when the required secrets, mint, threshold, active season, or database are missing. The active season ID must match the Supabase `pf_seasons.id` row. The service-role key is never sent to the browser. A private key is not required for the draft flow.
 
 ### Data ingest example
 
