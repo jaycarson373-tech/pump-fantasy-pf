@@ -1,3 +1,4 @@
+import "./disposable-stack-polyfill";
 import type { Metadata } from "next";
 import { FantasyApp } from "./fantasy-app";
 

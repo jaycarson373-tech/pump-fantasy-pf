@@ -1,5 +1,6 @@
 "use client";
 
+import "./disposable-stack-polyfill";
 import { ClientProvider } from "@solana/react";
 import type { ReactNode } from "react";
 import { solanaClient } from "./solana-client";

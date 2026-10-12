@@ -1,5 +1,6 @@
 "use client";
 
+import "./disposable-stack-polyfill";
 import {
   useConnect,
   useConnectedWallet,
