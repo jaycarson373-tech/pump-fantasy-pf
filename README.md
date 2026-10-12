@@ -15,7 +15,7 @@ No prize pool or payout transaction is implemented in this revision. The protect
 1. Create a Supabase project and apply [`supabase/migrations/202610120001_pump_fantasy.sql`](supabase/migrations/202610120001_pump_fantasy.sql).
 2. Create one season row, initially `draft`; verify the schedule and scoring rules before changing it to `open`.
 3. Set the variables in `.env.example` in Vercel Production. Keep `SUPABASE_SERVICE_ROLE_KEY`, `PF_SESSION_SECRET`, `SOLANA_RPC_URL`, and `PF_DATA_INGEST_SECRET` server-only. Use a high-entropy session secret (32+ random bytes) and an RPC provider appropriate for production traffic.
-4. Confirm the exact $PF mint and minimum whole-token threshold. Set `PF_MINT_ADDRESS` and `PF_MINIMUM_TOKENS` only after verifying both; the balance check counts SPL Token and Token-2022 accounts.
+4. Set the verified FANTASY mint as `FANTASY_MINT_ADDRESS`. The holder gate requires at least 500,000 whole FANTASY tokens (or a higher configured threshold) and checks both SPL Token and Token-2022 accounts.
 5. Capture and verify exactly 50 players from the agreed Pump.fun 1M leaderboard snapshot. Post them to `POST /api/admin/players` with `Authorization: Bearer <PF_DATA_INGEST_SECRET>`. Each row needs a unique `rank` (1–50), wallet, opening `pnlUsd`, and `contestChangeUsd` (closing 1M PnL minus opening 1M PnL; null until there is a source-verified close). Include the profile image URL only from an approved Pump.fun image host. Store the actual source URL and observation time in the body.
 6. Open the season only after the player list, scoring window, minimum balance, entry-lock time, and prize terms are published. Recheck Vercel deployment health and Supabase logs.
 

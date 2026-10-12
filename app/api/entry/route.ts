@@ -11,18 +11,17 @@ type Player = { id: string; rank: number; wallet: string };
 export async function GET() {
   try {
     const config = getBackendConfig();
-    if (!config.ready) return NextResponse.json({ configured: false, entry: null });
-    const wallet = await getWalletSession();
-    if (!wallet) return NextResponse.json({ configured: true, authenticated: false, entry: null }, { status: 401 });
+    if (!config.ready) return NextResponse.json({ configured: false, seasonConfigured: false, phase: "unconfigured", entry: null });
     const season = process.env.PF_ACTIVE_SEASON_ID;
-    if (!season) return NextResponse.json({ configured: true, authenticated: true, seasonConfigured: false, entry: null });
-    const [entries, seasons] = await Promise.all([
-      supabaseRequest<Array<{ picks: string[]; created_at: string; updated_at: string }>>(`pf_entries?wallet=eq.${encodeURIComponent(wallet)}&season_id=eq.${encodeURIComponent(season)}&select=picks,created_at,updated_at&limit=1`),
-      supabaseRequest<SeasonSchedule[]>(`pf_seasons?id=eq.${encodeURIComponent(season)}&select=status,opens_at,locked_at,closes_at&limit=1`),
-    ]);
+    if (!season) return NextResponse.json({ configured: true, seasonConfigured: false, phase: "inactive", entry: null });
+    const seasons = await supabaseRequest<SeasonSchedule[]>(`pf_seasons?id=eq.${encodeURIComponent(season)}&select=status,opens_at,locked_at,closes_at&limit=1`);
     const seasonRow = seasons[0];
     const phase = seasonRow ? getSeasonPhase(seasonRow) : "inactive";
-    return NextResponse.json({ configured: true, authenticated: true, seasonConfigured: phase !== "misconfigured" && phase !== "inactive", phase, entry: entries[0] ?? null });
+    const schedule = seasonRow ? { opensAt: seasonRow.opens_at, lockedAt: seasonRow.locked_at, closesAt: seasonRow.closes_at } : null;
+    const wallet = await getWalletSession();
+    if (!wallet) return NextResponse.json({ configured: true, authenticated: false, seasonConfigured: phase !== "misconfigured" && phase !== "inactive", phase, schedule, entry: null });
+    const entries = await supabaseRequest<Array<{ picks: string[]; created_at: string; updated_at: string }>>(`pf_entries?wallet=eq.${encodeURIComponent(wallet)}&season_id=eq.${encodeURIComponent(season)}&select=picks,created_at,updated_at&limit=1`);
+    return NextResponse.json({ configured: true, authenticated: true, wallet, seasonConfigured: phase !== "misconfigured" && phase !== "inactive", phase, schedule, entry: entries[0] ?? null });
   } catch (error) {
     return routeError(error);
   }

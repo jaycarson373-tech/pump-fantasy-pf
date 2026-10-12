@@ -1,6 +1,7 @@
 "use client";
 
 import "./disposable-stack-polyfill";
+import Image from "next/image";
 import {
   useConnect,
   useConnectedWallet,
@@ -17,7 +18,14 @@ const subscribeHydration = () => () => {};
 const clientHydrated = () => true;
 const serverHydrated = () => false;
 const DRAFT_ROUNDS = ["TOP 10", "11–20", "21–30", "31–40", "41–50"];
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_PF_CA?.trim() ?? "";
+const FEATURED_KOLS = [
+  { name: "chairman", image: "/players/featured/chairman.png" },
+  { name: "slingoor", image: "/players/featured/slingoor.png" },
+  { name: "Dior", image: "/players/featured/dior.png" },
+  { name: "cupsey", image: "/players/featured/cupsey.png" },
+  { name: "jackduvalcalls", image: "/players/featured/jackduvalcalls.png" },
+];
+const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_FANTASY_CA || process.env.NEXT_PUBLIC_PF_CA)?.trim() ?? "";
 const DRAFT_STORAGE_KEY = "pump-fantasy-five-pick-draft-v1";
 type SnapshotTuple = [number, string, string, number, string];
 
@@ -157,7 +165,7 @@ function WalletControl({ onAuthChange }: { onAuthChange: (state: AuthState) => v
                 <div><b>{connected.wallet.name}</b><small>{connected.account.address}</small></div>
                 <button onClick={disconnectWallet} disabled={disconnect.isRunning}>Disconnect</button>
               </div>
-              {auth.authenticated ? <div className={`holder-status ${auth.eligible ? "eligible" : "ineligible"}`}><b>{auth.eligible ? "ELIGIBLE HOLDER" : "HOLDER CHECK FAILED"}</b><span>{auth.balance ?? "—"} tokens · minimum {auth.minimumTokens ?? "—"}</span></div> : (
+              {auth.authenticated ? <div className={`holder-status ${auth.eligible ? "eligible" : "ineligible"}`}><b>{auth.eligible ? "ELIGIBLE HOLDER" : "HOLDER CHECK FAILED"}</b><span>{auth.balance ?? "Not checked"} $FANTASY · minimum {auth.minimumTokens ?? "not set"}</span></div> : (
                 <button className="verify-wallet-button" onClick={verifyWallet} disabled={authBusy || signMessage.isRunning}>{authBusy ? "Verifying wallet…" : auth.configured ? "Sign message · check token balance" : "Verify wallet to enter"}</button>
               )}
               </>
@@ -193,6 +201,7 @@ export function FantasyApp() {
   const [entryMessage, setEntryMessage] = useState("");
   const [standings, setStandings] = useState<Array<{ wallet: string; score: number | null; scoringReady: boolean }>>([]);
   const [snapshotAt, setSnapshotAt] = useState<string | null>(null);
+  const [leaderboardSource, setLeaderboardSource] = useState("Loading Pump.fun leaderboard");
   const onAuthChange = useCallback((state: AuthState) => setAuth(state), []);
 
   useEffect(() => {
@@ -236,6 +245,7 @@ export function FantasyApp() {
       if (active && Array.isArray(playerResult.players) && playerResult.players.length === 50) {
         setPlayers(playerResult.players ?? []);
         setSnapshotAt(playerResult.snapshotAt ?? top50Snapshot.snapshotAt);
+        setLeaderboardSource(playerResult.source ?? (playerResult.live ? "Live Pump.fun 1M leaderboard" : "Dated fallback snapshot"));
       }
       if (active && Array.isArray(standingsResult.standings)) setStandings(standingsResult.standings);
     };
@@ -309,26 +319,26 @@ export function FantasyApp() {
         <div className="hero-copy-grid">
           <div>
             <h1>Pick your<br /><span>five.</span></h1>
-              <p>Draft five traders from Pump.fun’s one-month top 50—one from each rank band.</p>
+              <p>Draft five traders from Pump.fun’s one-month top 50, with one pick from each rank band.</p>
             <div className="hero-ctas">
               <a className="primary-cta" href="#draft">Pick your squad <span>↓</span></a>
               <a className="secondary-cta" href="#format">See how it scores</a>
             </div>
-            <div className="snapshot-stamp"><span className="snapshot-live-dot" /> REAL 1M LEADERBOARD SNAPSHOT <b>{new Date(top50Snapshot.snapshotAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" })}</b></div>
+            <div className="snapshot-stamp"><span className="snapshot-live-dot" /> {leaderboardSource.toUpperCase()} <b>{snapshotAt ? new Date(snapshotAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "UPDATING"}</b></div>
           </div>
-          <div className="draft-board-art" aria-label="Five-player fantasy draft board">
-            <div className="board-topline"><span>YOUR FIVE</span><span>ONE FROM EACH BAND</span></div>
-            <div className="board-slots">
-              {[1, 2, 3, 4, 5].map((pick) => (
-                <div className="board-player" key={pick}>
-                  <span className="pick-number">{String(pick).padStart(2, "0")}</span>
-                  <span className="player-placeholder" style={players.find((player) => player.rank === selected[pick - 1])?.avatar_url ? { backgroundImage: `url("${players.find((player) => player.rank === selected[pick - 1])?.avatar_url}")` } : undefined}>{!selected[pick - 1] ? <i /> : null}</span>
-                  <span className="player-label">{players.find((player) => player.rank === selected[pick - 1])?.display_name ?? `PICK ${pick}`}</span>
-                  <span className="player-plus">{selected[pick - 1] ? "✓" : "+"}</span>
-                </div>
+          <div className="draft-board-art" aria-label="Featured Pump.fun KOLs">
+            <div className="board-topline"><span>FACES IN THE FIELD</span><span>FEATURED KOLS</span></div>
+            <div className="board-slots featured-kol-slots">
+              {FEATURED_KOLS.map((kol, index) => (
+                <a className="featured-kol-card" href="#draft" key={kol.name} aria-label={`See the official draft list, featured KOL ${kol.name}`}>
+                  <span className="pick-number">0{index + 1}</span>
+                  <Image className="featured-kol-avatar" src={kol.image} alt="" width={76} height={76} />
+                  <span className="player-label">{kol.name}</span>
+                  <span className="player-plus">KOL</span>
+                </a>
               ))}
             </div>
-            <div className="board-footer"><span>5 RANK BANDS</span><span>5 TRADERS · 1 SQUAD</span></div>
+            <div className="board-footer"><span>PUMP.FUN CREATOR SPOTLIGHT</span><span>BUILD YOUR FIVE BELOW</span></div>
           </div>
         </div>
         <div className="draft-ticker"><span>TOP 50 · ONE-MONTH PNL</span><i /><span>5 BANDS · 1 PICK PER BAND</span><i /><span>DAILY PNL CHANGE · HIGHEST SQUAD WINS</span></div>
@@ -345,7 +355,7 @@ export function FantasyApp() {
             <div className="kol-toolbar"><label className="search-box draft-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a trader or wallet" aria-label="Search top 50 traders" /></label><span className={`board-state ${playerDataReady ? "board-ready" : ""}`}><i /> {playerDataReady ? "50 IN THE FIELD" : "ROSTER UNAVAILABLE"}</span></div>
             <div className="draft-rounds">
               {DRAFT_ROUNDS.map((round, index) => (
-                <article className="draft-round" key={round}>
+                <article className="draft-round" key={round} id={`draft-band-${index}`}>
                   <div className="draft-round-head">
                     <span className="round-number">0{index + 1}</span>
                     <div><b>{index === 0 ? "Top 10" : `Ranks ${round}`}</b><small>CHOOSE 1 OF 10</small></div>
@@ -363,16 +373,16 @@ export function FantasyApp() {
           </div>
 
           <aside className="roster-panel">
-            <div className="roster-panel-head"><div><span>YOUR SQUAD</span><b>Five picks</b></div><em>{auth.eligible ? "TOKEN CHECK PASSED" : "ENTRY CLOSED"}</em></div>
+            <div className="roster-panel-head"><div><span>YOUR SQUAD</span><b>Five picks</b></div><em>{auth.eligible ? "FANTASY CHECK PASSED" : "CONNECT WALLET"}</em></div>
             <div className="roster-slots">
               {[0, 1, 2, 3, 4].map((band) => {
                 const player = players.find((item) => item.rank === selected[band]);
                 return <div className="roster-slot" key={band}><i>{String(band + 1).padStart(2, "0")}</i><span><b>{player?.display_name || (player ? shortAddress(player.wallet) : "Open pick")}</b><small>{player ? `Rank #${player.rank} · ${player.pnl_usd >= 0 ? "+" : ""}$${player.pnl_usd.toLocaleString("en-US", { maximumFractionDigits: 0 })} 1M PnL` : `Choose from ranks ${band * 10 + 1}–${band * 10 + 10}`}</small></span></div>;
               })}
             </div>
-            <div className="roster-note"><span className="note-mark">i</span><p>{rosterSize === 5 ? "Five traders drafted. Your practice squad is saved on this device." : "Pick one trader in each of the five rank bands. Your draft saves on this device."} {auth.authenticated ? `Wallet verified${auth.balance ? ` · ${auth.balance} $PF` : ""}.` : "Connect a wallet to check token eligibility."} Contest entry is not open yet.</p></div>
+            <div className="roster-note"><span className="note-mark">i</span><p>{rosterSize === 5 ? "Five traders drafted. Your squad is saved on this device until you submit it." : "Pick one trader in each of the five rank bands. Your draft saves on this device."} {auth.authenticated ? `Wallet verified${auth.balance ? ` · ${auth.balance} $FANTASY` : ""}.` : "Connect a wallet holding at least 500,000 $FANTASY to verify eligibility."}</p></div>
             <button className="clear-draft-button" type="button" onClick={() => { setSelected({}); setEntryMessage(""); }} disabled={rosterSize === 0}>Clear draft</button>
-            <button className="lock-button" disabled={entryBusy || rosterSize !== 5 || !auth.eligible || !seasonConfigured || !playerDataReady} onClick={submitEntry}>{entryBusy ? "Saving lineup…" : !seasonConfigured ? "Contest not open yet" : !playerDataReady ? "Roster unavailable" : !auth.eligible ? "Connect & verify $PF" : rosterSize !== 5 ? `Pick ${5 - rosterSize} more` : "Submit eligible lineup"}</button>
+            <button className="lock-button" disabled={entryBusy || rosterSize !== 5 || !auth.eligible || !seasonConfigured || !playerDataReady} onClick={submitEntry}>{entryBusy ? "Saving squad…" : !seasonConfigured ? "Draft window not open" : !playerDataReady ? "Roster unavailable" : !auth.eligible ? "Connect & verify $FANTASY" : rosterSize !== 5 ? `Pick ${5 - rosterSize} more` : "Submit squad"}</button>
             {entryMessage ? <p className="entry-message" role="status">{entryMessage}</p> : null}
             <small className="no-signature">Wallet message signature only. No transaction or token transfer.</small>
           </aside>
@@ -384,7 +394,7 @@ export function FantasyApp() {
         <div className="status-cards">
           <article><span className="status-index">01</span><i className="status-symbol">◎</i><h3>One-month top 50</h3><p>Captured from the Pump.fun 1M profit leaderboard. The five rank bands are fixed for each contest.</p><span className={`status-pill ${playerDataReady ? "active" : "pending"}`}>{playerDataReady ? "50 SNAPSHOT PLAYERS" : "ROSTER UNAVAILABLE"}</span></article>
           <article><span className="status-index">02</span><i className="status-symbol">⌁</i><h3>Daily PnL race</h3><p>For each pick, closing 1M PnL minus opening 1M PnL. Add all five changes; the highest score wins.</p><span className="status-pill pending">{standings.some((row) => row.scoringReady) ? "ROUND SCORES LOADED" : "NO ROUND SCORING FEED"}</span></article>
-          <article><span className="status-index">03</span><i className="status-symbol">▤</i><h3>Holder entry + prize</h3><p>Wallet signing and token checks are built. A verified fee-funded prize pool and payout process are not connected.</p><span className="status-pill pending">{auth.eligible ? "TOKEN CHECK PASSED" : "MINT + MINIMUM NOT SET"}</span></article>
+          <article><span className="status-index">03</span><i className="status-symbol">▤</i><h3>Holder entry + prize</h3><p>Wallet signing checks for at least 500,000 $FANTASY. A verified fee-funded prize pool and payout process are not connected.</p><span className="status-pill pending">{auth.eligible ? "TOKEN CHECK PASSED" : "FANTASY MINT REQUIRED"}</span></article>
         </div>
         <div className="live-standings">
           <div className="standings-heading"><div><span className="section-label">DAILY LEADERBOARD</span><h3>Five picks. One score.</h3></div><small>{snapshotAt ? `ROSTER SNAPSHOT · ${new Date(snapshotAt).toLocaleString()}` : "NO SOURCE SNAPSHOT"}</small></div>
@@ -397,7 +407,7 @@ export function FantasyApp() {
         <div className="how-heading"><span className="section-label">THE FORMAT</span><h2>A real fantasy draft.</h2><p>Simple roster building, transparent scoring, and results that can be checked.</p></div>
         <div className="how-grid">
           <article><span>01</span><i className="how-icon">01</i><h3>Build the field</h3><p>Start each day with the one-month Pump.fun top 50, split into five bands of ten.</p></article>
-          <article><span>02</span><i className="how-icon">02</i><h3>Pick your five</h3><p>Choose one wallet from each band. Connect your wallet and meet the published $PF minimum to enter.</p></article>
+          <article><span>02</span><i className="how-icon">02</i><h3>Pick your five</h3><p>Choose one trader from each band. Connect a wallet holding at least 500,000 $FANTASY to submit your squad.</p></article>
           <article><span>03</span><i className="how-icon">03</i><h3>Score the move</h3><p>Each pick scores its change in one-month PnL between the round’s opening and closing snapshots. Sum your five.</p></article>
           <article><span>04</span><i className="how-icon">04</i><h3>Pay the winner</h3><p>Highest squad score takes the disclosed prize pool after the round is reviewed and settled.</p></article>
         </div>
@@ -410,7 +420,7 @@ export function FantasyApp() {
         <a className="pf-brand" href="#top"><span className="pf-mark-image" role="img" aria-label="Pump Fantasy crowned pill logo" /><strong>PumpFun Fantasy</strong><em>LEAGUE</em></a>
         <p>A fantasy draft for the pump.fun culture.</p>
         <div><a href="#draft">Draft room</a><a href="#format">Format</a><a href="#status">Season status</a></div>
-        <small>Independent project; not affiliated with pump.fun. The displayed 1M leaderboard data is a timestamped snapshot and changes over time. Entries and prizes are not active until token eligibility, scoring data, fee funding, payout, and contest rules are configured. Crypto assets are risky; this is not financial advice.</small>
+        <small>Independent project; not affiliated with pump.fun. Trader rankings and one-month PnL come from Pump.fun and can change. A submitted squad is scored against the round’s opening snapshot. Connect a wallet holding $FANTASY to enter during an open draft window. Crypto assets are risky; this is not financial advice.</small>
       </footer>
     </main>
   );
