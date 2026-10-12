@@ -20,10 +20,10 @@ const serverHydrated = () => false;
 const DRAFT_ROUNDS = ["TOP 10", "11–20", "21–30", "31–40", "41–50"];
 const FEATURED_KOLS = [
   { name: "chairman", image: "/players/featured/chairman.png" },
-  { name: "slingoor", image: "/players/featured/slingoor.png" },
-  { name: "Dior", image: "/players/featured/dior.png" },
-  { name: "cupsey", image: "/players/featured/cupsey.png" },
-  { name: "jackduvalcalls", image: "/players/featured/jackduvalcalls.png" },
+  { name: "thedetective", image: "/players/featured/thedetective.png" },
+  { name: "cap", image: "/players/featured/cap.png" },
+  { name: "zinc", image: "/players/featured/zinc.png" },
+  { name: "limfork", image: "/players/featured/limfork.png" },
 ];
 const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_FANTASY_CA || process.env.NEXT_PUBLIC_PF_CA)?.trim() ?? "";
 const DRAFT_STORAGE_KEY = "pump-fantasy-five-pick-draft-v1";
