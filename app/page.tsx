@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 import { FantasyApp } from "./fantasy-app";
 
 export const metadata: Metadata = {
-  title: "Pump Fantasy — Draft the culture",
+  title: "PumpFun Fantasy League — Draft the culture",
   description:
-    "Build a five-KOL roster, track daily and weekly performance, and compete in Pump Fantasy tournaments.",
+    "Draft one trader from each Pump.fun leaderboard rank band. Build your five and track the PnL race.",
 };
 
 export default function Home() {

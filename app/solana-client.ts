@@ -7,8 +7,8 @@ export const solanaClient = createClient()
   .use(walletSigner({ chain: "solana:mainnet" }))
   .use(
     solanaRpc({
-      rpcUrl: "https://api.mainnet-beta.solana.com",
-      rpcSubscriptionsUrl: "wss://api.mainnet-beta.solana.com",
+      rpcUrl: process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com",
+      rpcSubscriptionsUrl: (process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com").replace(/^http/, "ws"),
     }),
   );
 

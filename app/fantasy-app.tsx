@@ -5,107 +5,131 @@ import {
   useConnect,
   useConnectedWallet,
   useDisconnect,
+  useSignMessage,
   useWalletStatus,
   useWallets,
 } from "@solana/kit-plugin-wallet/react";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { solanaClient } from "./solana-client";
+import top50Snapshot from "../data/pumpfun-one-month-top50.json";
 
-type ScorePeriod = "daily" | "weekly";
-type TournamentType = "weekly" | "monthly";
-type Kol = {
-  id: string;
-  name: string;
-  handle: string;
-  category: string;
-  daily: number;
-  weekly: number;
-  winRate: number;
-  rank: number;
-  accent: string;
-  picks: string;
-};
-
-const PF_REQUIRED = 1_000_000;
-const PF_MINT = process.env.NEXT_PUBLIC_PF_MINT_ADDRESS;
-const RPC_URL =
-  process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
-  "https://api.mainnet-beta.solana.com";
-
-const KOLS: Kol[] = [
-  { id: "mint", name: "Mint Chaser", handle: "@mintchaser", category: "Early calls", daily: 18.4, weekly: 44.7, winRate: 71, rank: 1, accent: "mint", picks: "82K" },
-  { id: "curve", name: "Curve Caller", handle: "@curvecaller", category: "Momentum", daily: 12.8, weekly: 38.2, winRate: 68, rank: 2, accent: "blue", picks: "61K" },
-  { id: "pepe", name: "Pepe Pilot", handle: "@pepepilot", category: "Memes", daily: 9.3, weekly: 29.5, winRate: 64, rank: 3, accent: "violet", picks: "55K" },
-  { id: "sendor", name: "The Sendor", handle: "@sendor", category: "High velocity", daily: 7.9, weekly: 23.4, winRate: 61, rank: 4, accent: "orange", picks: "49K" },
-  { id: "green", name: "Green Wick", handle: "@greenwick", category: "Chart reader", daily: 6.1, weekly: 19.8, winRate: 59, rank: 5, accent: "lime", picks: "44K" },
-  { id: "orbit", name: "Orbit", handle: "@orbitcalls", category: "Solana native", daily: 4.6, weekly: 16.1, winRate: 57, rank: 6, accent: "pink", picks: "37K" },
-  { id: "chef", name: "Chain Chef", handle: "@chainchef", category: "Narratives", daily: 3.2, weekly: 12.6, winRate: 55, rank: 7, accent: "yellow", picks: "33K" },
-  { id: "cap", name: "Cap Finder", handle: "@capfinder", category: "Micro caps", daily: 2.7, weekly: 10.4, winRate: 54, rank: 8, accent: "cyan", picks: "29K" },
-  { id: "jpeg", name: "J Peg", handle: "@jpegged", category: "Culture", daily: -0.8, weekly: 7.1, winRate: 52, rank: 9, accent: "red", picks: "26K" },
-  { id: "saint", name: "Degen Saint", handle: "@degensaint", category: "Contrarian", daily: -2.4, weekly: 3.8, winRate: 49, rank: 10, accent: "gray", picks: "21K" },
-  { id: "mike", name: "Microcap Mike", handle: "@microcapmike", category: "New pairs", daily: -4.1, weekly: -2.3, winRate: 47, rank: 11, accent: "navy", picks: "18K" },
-  { id: "sorc", name: "SOL Sorcerer", handle: "@solsorcerer", category: "Swing trades", daily: -6.5, weekly: -8.9, winRate: 44, rank: 12, accent: "lavender", picks: "15K" },
-];
-
-const LEADERBOARD = [
-  { rank: 1, player: "chasing.sol", score: 122.8, prize: "84.2 SOL", roster: ["mint", "curve", "pepe"] },
-  { rank: 2, player: "banger", score: 116.4, prize: "42.1 SOL", roster: ["mint", "sendor", "orbit"] },
-  { rank: 3, player: "7vYh…pump", score: 108.9, prize: "25.3 SOL", roster: ["curve", "pepe", "green"] },
-  { rank: 4, player: "smartmoney", score: 96.2, prize: "16.8 SOL", roster: ["mint", "chef", "cap"] },
-  { rank: 5, player: "trenches.sol", score: 88.7, prize: "12.6 SOL", roster: ["sendor", "orbit", "jpeg"] },
-];
-
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2);
-}
-
-function formatScore(score: number) {
-  return `${score >= 0 ? "+" : ""}${score.toFixed(1)}%`;
-}
+const subscribeHydration = () => () => {};
+const clientHydrated = () => true;
+const serverHydrated = () => false;
+const DRAFT_ROUNDS = ["TOP 10", "11–20", "21–30", "31–40", "41–50"];
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_PF_CA?.trim() ?? "";
+const DRAFT_STORAGE_KEY = "pump-fantasy-five-pick-draft-v1";
+type SnapshotTuple = [number, string, string, number, string];
 
 function shortAddress(address: string) {
   return `${address.slice(0, 4)}…${address.slice(-4)}`;
 }
 
-async function getPfBalance(owner: string): Promise<number> {
-  if (!PF_MINT) return PF_REQUIRED;
-  const response = await fetch(RPC_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "getTokenAccountsByOwner",
-      params: [owner, { mint: PF_MINT }, { encoding: "jsonParsed" }],
-    }),
-  });
-  if (!response.ok) throw new Error("Balance check unavailable");
-  const payload = await response.json();
-  if (payload.error) throw new Error(payload.error.message ?? "Balance check failed");
-  return payload.result.value.reduce((total: number, account: { account: { data: { parsed: { info: { tokenAmount: { uiAmountString: string } } } } } }) => {
-    return total + Number(account.account.data.parsed.info.tokenAmount.uiAmountString);
-  }, 0);
+type AuthState = { configured: boolean; authenticated: boolean; eligible: boolean; wallet?: string; balance?: string; minimumTokens?: string };
+type BoardPlayer = { id: string; rank: number; wallet: string; display_name: string | null; profile_url: string | null; avatar_url: string | null; pnl_usd: number; contest_change_usd: number | null };
+const snapshotPlayers: BoardPlayer[] = (top50Snapshot.players as SnapshotTuple[]).map(([rank, wallet, displayName, pnl, avatar]) => ({
+  id: `rank-${String(rank).padStart(2, "0")}`,
+  rank,
+  wallet,
+  display_name: displayName,
+  profile_url: `https://pump.fun/profile/${wallet}`,
+  avatar_url: avatar,
+  pnl_usd: pnl,
+  contest_change_usd: null,
+}));
+
+function ProjectHeaderLinks() {
+  const [copied, setCopied] = useState(false);
+
+  async function copyContractAddress() {
+    if (!CONTRACT_ADDRESS) return;
+    try {
+      await navigator.clipboard.writeText(CONTRACT_ADDRESS);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <div className="header-actions">
+      <a className="social-x-button" href="https://x.com/PumpFunFantasy_" target="_blank" rel="noreferrer" aria-label="PumpFun Fantasy on X" title="X">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18.901 1.153h3.68l-8.04 9.19 9.46 12.5h-7.406l-5.8-7.584-6.637 7.584h-3.684l8.6-9.83L.004 1.153h7.594l5.242 6.932 6.06-6.932Zm-1.29 19.49h2.039L6.486 3.238H4.298L17.61 20.643Z" /></svg>
+      </a>
+      <button className="ca-copy-button" onClick={copyContractAddress} disabled={!CONTRACT_ADDRESS} aria-label={CONTRACT_ADDRESS ? "Copy contract address" : "Contract address not set"} title={CONTRACT_ADDRESS ? "Copy contract address" : "Contract address not set"}>
+        <span className="ca-label">CA:</span>{CONTRACT_ADDRESS ? <code>{shortAddress(CONTRACT_ADDRESS)}</code> : null}{copied ? <span className="ca-copied">COPIED</span> : null}
+      </button>
+      {copied ? <span className="copy-status" role="status">CA COPIED</span> : null}
+    </div>
+  );
 }
 
-const subscribeHydration = () => () => {};
-const clientHydrated = () => true;
-const serverHydrated = () => false;
-
-function WalletControl() {
+function WalletControl({ onAuthChange }: { onAuthChange: (state: AuthState) => void }) {
   const hydrated = useSyncExternalStore(subscribeHydration, clientHydrated, serverHydrated);
   const wallets = useWallets(solanaClient);
   const detectedWallet = useConnectedWallet(solanaClient);
   const detectedStatus = useWalletStatus(solanaClient);
-  // Wallet discovery is browser-only. Keep the initial render identical to SSR.
   const connected = hydrated ? detectedWallet : undefined;
   const status = hydrated ? detectedStatus : "pending";
   const connect = useConnect(solanaClient);
   const disconnect = useDisconnect(solanaClient);
+  const signMessage = useSignMessage(solanaClient);
   const [open, setOpen] = useState(false);
+  const [auth, setAuth] = useState<AuthState>({ configured: false, authenticated: false, eligible: false });
+  const [authError, setAuthError] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const address = connected?.account.address;
+
+  useEffect(() => {
+    if (!address) {
+      return;
+    }
+    let active = true;
+    fetch("/api/auth/session", { cache: "no-store" }).then((response) => response.json()).then((result: AuthState) => {
+      if (active && result.authenticated && result.wallet === address) {
+        setAuth(result);
+        onAuthChange(result);
+      } else if (active) {
+        const next = { configured: result.configured, authenticated: false, eligible: false };
+        setAuth(next);
+        onAuthChange(next);
+      }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [address, onAuthChange]);
+
+  async function verifyWallet() {
+    if (!address) return;
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const challengeResponse = await fetch("/api/auth/challenge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: address }) });
+      const challenge = await challengeResponse.json();
+      if (!challengeResponse.ok) throw new Error(challenge.error || "Could not create sign-in challenge.");
+      const message = new TextEncoder().encode(challenge.message);
+      const signature = await signMessage.dispatchAsync(message);
+      const signatureBase64 = btoa(String.fromCharCode(...signature));
+      const verifyResponse = await fetch("/api/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: address, message: challenge.message, signature: signatureBase64 }) });
+      const result = await verifyResponse.json();
+      if (!verifyResponse.ok) throw new Error(result.error || "Wallet verification failed.");
+      const next = { configured: true, authenticated: true, eligible: Boolean(result.eligible), wallet: result.wallet, balance: result.balance?.displayBalance, minimumTokens: result.balance?.minimumTokens };
+      setAuth(next);
+      onAuthChange(next);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Wallet verification failed.");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function disconnectWallet() {
+    await fetch("/api/auth/session", { method: "DELETE" }).catch(() => {});
+    await disconnect.dispatch();
+    const next = { configured: false, authenticated: false, eligible: false };
+    setAuth(next);
+    onAuthChange(next);
+  }
 
   return (
     <div className="wallet-control">
@@ -115,11 +139,7 @@ function WalletControl() {
         disabled={status === "pending" || status === "reconnecting"}
       >
         <span className="wallet-dot" />
-        {connected
-          ? shortAddress(connected.account.address)
-          : status === "pending" || status === "reconnecting"
-            ? "Finding wallets"
-            : "Connect wallet"}
+        {connected ? shortAddress(connected.account.address) : status === "pending" || status === "reconnecting" ? "Finding wallets" : "Connect wallet"}
         <span className="chevron">⌄</span>
       </button>
       {open && (
@@ -127,41 +147,34 @@ function WalletControl() {
           <button className="modal-scrim" aria-label="Close wallet menu" onClick={() => setOpen(false)} />
           <div className="wallet-menu">
             <div className="wallet-menu-head">
-              <div>
-                <span>Solana wallet</span>
-                <strong>{connected ? "Wallet connected" : "Choose a wallet"}</strong>
-              </div>
+              <div><span>Solana wallet</span><strong>{connected ? "Wallet connected" : "Choose a wallet"}</strong></div>
               <button aria-label="Close" onClick={() => setOpen(false)}>×</button>
             </div>
             {connected ? (
+              <>
               <div className="wallet-connected-card">
                 <span className="wallet-big-dot" />
                 <div><b>{connected.wallet.name}</b><small>{connected.account.address}</small></div>
-                <button onClick={() => disconnect.dispatch()} disabled={disconnect.isRunning}>Disconnect</button>
+                <button onClick={disconnectWallet} disabled={disconnect.isRunning}>Disconnect</button>
               </div>
+              {auth.authenticated ? <div className={`holder-status ${auth.eligible ? "eligible" : "ineligible"}`}><b>{auth.eligible ? "ELIGIBLE HOLDER" : "HOLDER CHECK FAILED"}</b><span>{auth.balance ?? "—"} tokens · minimum {auth.minimumTokens ?? "—"}</span></div> : (
+                <button className="verify-wallet-button" onClick={verifyWallet} disabled={authBusy || signMessage.isRunning}>{authBusy ? "Verifying wallet…" : auth.configured ? "Sign message · check token balance" : "Verify wallet to enter"}</button>
+              )}
+              </>
             ) : wallets.length ? (
               <div className="wallet-options">
                 {wallets.map((wallet) => (
                   <button key={wallet.name} onClick={() => { connect.dispatch(wallet); setOpen(false); }} disabled={connect.isRunning}>
-                    <span>{initials(wallet.name)}</span>
-                    <b>{wallet.name}</b>
-                    <i>Connect →</i>
+                    <span>{wallet.name.slice(0, 2).toUpperCase()}</span><b>{wallet.name}</b><i>Connect</i>
                   </button>
                 ))}
               </div>
             ) : (
-              <div className="no-wallet">
-                <span>◫</span>
-                <b>No Solana wallet found</b>
-                <p>Install Phantom, Solflare, or Backpack, then refresh this page.</p>
-              </div>
+              <div className="no-wallet"><span>◫</span><b>No Solana wallet found</b><p>Install Phantom, Solflare, or Backpack, then refresh this page.</p></div>
             )}
-            {connect.error ? (
-              <p className="wallet-error">
-                {connect.error instanceof Error ? connect.error.message : "Wallet connection failed."}
-              </p>
-            ) : null}
-            <small className="wallet-safety">Connecting is free. PF never asks for your seed phrase.</small>
+            {connect.error ? <p className="wallet-error">{connect.error instanceof Error ? connect.error.message : "Wallet connection failed."}</p> : null}
+            {authError ? <p className="wallet-error">{authError}</p> : null}
+            <small className="wallet-safety">Connecting is free. Pump Fantasy never asks for your recovery phrase.</small>
           </div>
         </>
       )}
@@ -170,293 +183,234 @@ function WalletControl() {
 }
 
 export function FantasyApp() {
-  const connected = useConnectedWallet(solanaClient);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [auth, setAuth] = useState<AuthState>({ configured: false, authenticated: false, eligible: false });
+  const [players, setPlayers] = useState<BoardPlayer[]>(snapshotPlayers);
+  const [selected, setSelected] = useState<Record<number, number>>({});
+  const [draftHydrated, setDraftHydrated] = useState(false);
+  const [seasonConfigured, setSeasonConfigured] = useState(false);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("All KOLs");
-  const [scorePeriod, setScorePeriod] = useState<ScorePeriod>("weekly");
-  const [tournament, setTournament] = useState<TournamentType>("weekly");
-  const [locked, setLocked] = useState(false);
-  const [toast, setToast] = useState("");
-  const [loadedKey, setLoadedKey] = useState("");
-  const [pfBalance, setPfBalance] = useState<number | null>(null);
-  const [balanceState, setBalanceState] = useState<"idle" | "loading" | "ready" | "error">("idle");
-
-  const address = connected?.account.address ?? "guest";
-  const rosterKey = `pump-fantasy-roster:${address}:${tournament}`;
-  const lockKey = `pump-fantasy-locked:${address}:${tournament}`;
+  const [entryBusy, setEntryBusy] = useState(false);
+  const [entryMessage, setEntryMessage] = useState("");
+  const [standings, setStandings] = useState<Array<{ wallet: string; score: number | null; scoringReady: boolean }>>([]);
+  const [snapshotAt, setSnapshotAt] = useState<string | null>(null);
+  const onAuthChange = useCallback((state: AuthState) => setAuth(state), []);
 
   useEffect(() => {
+    if (draftHydrated || players.length !== 50) return;
+    const restored: Record<number, number> = {};
     try {
-      const saved = window.localStorage.getItem(rosterKey);
-      const savedLock = window.localStorage.getItem(lockKey);
-      // Hydrate the device-local roster whenever the wallet or tournament changes.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSelected(saved ? JSON.parse(saved) : []);
-      setLocked(savedLock === "true");
+      const saved = JSON.parse(window.localStorage.getItem(DRAFT_STORAGE_KEY) ?? "{}") as Record<string, unknown>;
+      for (let band = 0; band < 5; band += 1) {
+        const rank = saved[String(band)];
+        if (typeof rank === "number" && Math.floor((rank - 1) / 10) === band && players.some((player) => player.rank === rank)) {
+          restored[band] = rank;
+        }
+      }
     } catch {
-      setSelected([]);
-      setLocked(false);
+      // Ignore unavailable or invalid local storage and start with an empty draft.
     }
-    setLoadedKey(rosterKey);
-  }, [rosterKey, lockKey]);
+    const restoreTimer = window.setTimeout(() => {
+      setSelected(restored);
+      setDraftHydrated(true);
+    }, 0);
+    return () => window.clearTimeout(restoreTimer);
+  }, [draftHydrated, players]);
 
   useEffect(() => {
-    if (loadedKey !== rosterKey) return;
-    window.localStorage.setItem(rosterKey, JSON.stringify(selected));
-  }, [selected, rosterKey, loadedKey]);
+    if (!draftHydrated) return;
+    try {
+      window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(selected));
+    } catch {
+      // Drafting remains usable when browser storage is disabled.
+    }
+  }, [draftHydrated, selected]);
 
   useEffect(() => {
-    if (!connected) {
-      // Reset the wallet-scoped eligibility state after disconnection.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPfBalance(null);
-      setBalanceState("idle");
-      return;
-    }
     let active = true;
-    setBalanceState("loading");
-    getPfBalance(connected.account.address)
-      .then((balance) => {
-        if (!active) return;
-        setPfBalance(balance);
-        setBalanceState("ready");
-      })
-      .catch(() => {
-        if (!active) return;
-        setPfBalance(null);
-        setBalanceState("error");
-      });
-    return () => { active = false; };
-  }, [connected]);
+    const refresh = async () => {
+      const [playerResponse, standingsResponse] = await Promise.all([
+        fetch("/api/players", { cache: "no-store" }),
+        fetch("/api/standings", { cache: "no-store" }),
+      ]);
+      const [playerResult, standingsResult] = await Promise.all([playerResponse.json(), standingsResponse.json()]);
+      if (active && Array.isArray(playerResult.players) && playerResult.players.length === 50) {
+        setPlayers(playerResult.players ?? []);
+        setSnapshotAt(playerResult.snapshotAt ?? top50Snapshot.snapshotAt);
+      }
+      if (active && Array.isArray(standingsResult.standings)) setStandings(standingsResult.standings);
+    };
+    void refresh().catch(() => {});
+    const interval = window.setInterval(() => { void refresh().catch(() => {}); }, 30_000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, []);
 
   useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(""), 3200);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-
-  const categories = ["All KOLs", "Early calls", "Momentum", "Memes", "Micro caps"];
-  const filteredKols = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return KOLS.filter((kol) => {
-      const matchesQuery = !query || `${kol.name} ${kol.handle} ${kol.category}`.toLowerCase().includes(query);
-      const matchesFilter = filter === "All KOLs" || kol.category === filter;
-      return matchesQuery && matchesFilter;
-    });
-  }, [search, filter]);
-
-  const selectedKols = selected.map((id) => KOLS.find((kol) => kol.id === id)).filter(Boolean) as Kol[];
-  const projectedScore = selectedKols.reduce((sum, kol) => sum + kol[tournament === "weekly" ? "weekly" : "daily"], 0);
-  const isEligible = !PF_MINT || (pfBalance ?? 0) >= PF_REQUIRED;
-
-  function toggleKol(id: string) {
-    if (locked) {
-      setToast("This roster is locked for the current tournament.");
+    let active = true;
+    if (!auth.authenticated) {
       return;
     }
-    if (selected.includes(id)) {
-      setSelected((current) => current.filter((item) => item !== id));
-      return;
+    fetch("/api/entry", { cache: "no-store" }).then(async (response) => ({ ok: response.ok, body: await response.json() })).then(({ body }) => {
+      if (!active) return;
+      setSeasonConfigured(Boolean(body.seasonConfigured));
+      if (body.entry?.picks && Array.isArray(body.entry.picks)) {
+        const restored: Record<number, number> = {};
+        for (const id of body.entry.picks as string[]) {
+          const player = players.find((item) => item.id === id);
+          if (player) restored[Math.floor((player.rank - 1) / 10)] = player.rank;
+        }
+        setSelected(restored);
+        setEntryMessage("Saved lineup restored.");
+      }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [auth.authenticated, players]);
+
+  async function submitEntry() {
+    const picks = [0, 1, 2, 3, 4].map((band) => players.find((player) => player.rank === selected[band])?.id);
+    if (picks.some((pick) => !pick)) return;
+    setEntryBusy(true);
+    setEntryMessage("");
+    try {
+      const response = await fetch("/api/entry", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ picks }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not save lineup.");
+      setEntryMessage("Eligible lineup saved to your wallet entry.");
+    } catch (error) {
+      setEntryMessage(error instanceof Error ? error.message : "Could not save lineup.");
+    } finally {
+      setEntryBusy(false);
     }
-    if (selected.length === 5) {
-      setToast("Your roster is full. Remove one KOL to make another pick.");
-      return;
-    }
-    setSelected((current) => [...current, id]);
   }
 
-  function submitRoster() {
-    if (!connected) {
-      setToast("Connect a Solana wallet before locking your roster.");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
-    if (selected.length !== 5) {
-      setToast(`Pick ${5 - selected.length} more KOL${5 - selected.length === 1 ? "" : "s"}.`);
-      return;
-    }
-    if (balanceState === "loading") {
-      setToast("Checking your PF balance…");
-      return;
-    }
-    if (!isEligible) {
-      setToast("This wallet needs 1,000,000 PF to enter.");
-      return;
-    }
-    window.localStorage.setItem(lockKey, "true");
-    setLocked(true);
-    setToast(`${tournament === "weekly" ? "Weekly" : "Monthly"} roster locked. You’re in.`);
-  }
-
+  const rosterSize = Object.keys(selected).length;
+  const playerDataReady = players.length === 50;
+  const filteredPlayers = (band: number) => players
+    .filter((player) => Math.floor((player.rank - 1) / 10) === band)
+    .filter((player) => !search || `${player.display_name ?? ""} ${player.wallet}`.toLowerCase().includes(search.toLowerCase()));
   return (
-    <main className="app-shell">
-      {toast && <div className="toast" role="status"><span>✓</span>{toast}</div>}
-
+    <main className="app-shell draft-room">
       <header className="topbar" id="top">
         <a className="pf-brand" href="#top" aria-label="Pump Fantasy home">
-          <span className="pf-mark"><i /><i /></span>
-          <strong>Pump Fantasy</strong>
-          <em>PF</em>
+          <span className="pf-mark-image" role="img" aria-label="Pump Fantasy crowned pill logo" /><strong>PumpFun Fantasy</strong><em>LEAGUE</em>
         </a>
         <nav aria-label="Primary">
-          <a className="active" href="#play">Play</a>
-          <a href="#tournaments">Tournaments</a>
-          <a href="#leaderboard">Leaderboard</a>
-          <a href="#docs">Docs</a>
+          <a className="active" href="#draft">Draft room</a>
+          <a href="#format">Format</a>
+          <a href="#status">Season status</a>
         </nav>
-        <WalletControl />
+        <div className="header-right">
+          <ProjectHeaderLinks />
+          <WalletControl onAuthChange={onAuthChange} />
+        </div>
       </header>
 
-      <section className="hero-light">
-        <div className="hero-badge"><i /> Entries open · Season 01</div>
-        <h1>Draft the culture.<br /><span>Own the week.</span></h1>
-        <p>Pick five pump.fun KOLs. Their performance is your score. Climb the leaderboard and compete for creator-fee-funded prizes.</p>
-        <div className="hero-ctas">
-          <a className="primary-cta" href="#play">Build your roster <span>↘</span></a>
-          <a className="secondary-cta" href="#tournaments">View tournaments <span>→</span></a>
-        </div>
-        <div className="live-strip">
-          <div><span>LIVE PRIZE POOL</span><strong>428.6 SOL</strong><small>↗ 12.4% this week</small></div>
-          <div><span>ACTIVE PLAYERS</span><strong>2,847</strong><small>512 entered today</small></div>
-          <div><span>PF TO ENTER</span><strong>1,000,000</strong><small>No entry fee</small></div>
-          <div className="live-chart" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></div>
-        </div>
-      </section>
-
-      <section className="tournament-section" id="tournaments">
-        <div className="section-topline">
-          <div><span className="section-label">Live tournaments</span><h2>Choose your arena</h2></div>
-          <div className="segmented" role="group" aria-label="Tournament type">
-            <button className={tournament === "weekly" ? "active" : ""} onClick={() => setTournament("weekly")}>Weekly</button>
-            <button className={tournament === "monthly" ? "active" : ""} onClick={() => setTournament("monthly")}>Monthly</button>
+      <section className="hero-light draft-hero">
+        <div className="draft-eyebrow"><span className="status-lamp" /> PUMP.FUN FANTASY <span className="eyebrow-divider">/</span> ONE-MONTH PNL <a className="pumpfun-pill" href="https://pump.fun/leaderboard?period=monthly" target="_blank" rel="noreferrer">1M LEADERBOARD ↗</a></div>
+        <div className="hero-copy-grid">
+          <div>
+            <h1>Pick your<br /><span>five.</span></h1>
+              <p>Draft five traders from Pump.fun’s one-month top 50—one from each rank band.</p>
+            <div className="hero-ctas">
+              <a className="primary-cta" href="#draft">Pick your squad <span>↓</span></a>
+              <a className="secondary-cta" href="#format">See how it scores</a>
+            </div>
+            <div className="snapshot-stamp"><span className="snapshot-live-dot" /> REAL 1M LEADERBOARD SNAPSHOT <b>{new Date(top50Snapshot.snapshotAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" })}</b></div>
+          </div>
+          <div className="draft-board-art" aria-label="Five-player fantasy draft board">
+            <div className="board-topline"><span>YOUR FIVE</span><span>ONE FROM EACH BAND</span></div>
+            <div className="board-slots">
+              {[1, 2, 3, 4, 5].map((pick) => (
+                <div className="board-player" key={pick}>
+                  <span className="pick-number">{String(pick).padStart(2, "0")}</span>
+                  <span className="player-placeholder" style={players.find((player) => player.rank === selected[pick - 1])?.avatar_url ? { backgroundImage: `url("${players.find((player) => player.rank === selected[pick - 1])?.avatar_url}")` } : undefined}>{!selected[pick - 1] ? <i /> : null}</span>
+                  <span className="player-label">{players.find((player) => player.rank === selected[pick - 1])?.display_name ?? `PICK ${pick}`}</span>
+                  <span className="player-plus">{selected[pick - 1] ? "✓" : "+"}</span>
+                </div>
+              ))}
+            </div>
+            <div className="board-footer"><span>5 RANK BANDS</span><span>5 TRADERS · 1 SQUAD</span></div>
           </div>
         </div>
-        <div className="tournament-grid">
-          <article className="tournament-card featured">
-            <div className="card-top"><span><i /> Entries open</span><b>{tournament === "weekly" ? "WEEK 08" : "AUGUST"}</b></div>
-            <div className="tournament-graphic"><span>PF</span><i className="ring r1" /><i className="ring r2" /></div>
-            <h3>{tournament === "weekly" ? "The Green Candle" : "The Big Monthly"}</h3>
-            <p>{tournament === "weekly" ? "7-day performance sprint" : "30-day season championship"}</p>
-            <div className="card-stats"><div><span>PRIZE</span><b>{tournament === "weekly" ? "428.6 SOL" : "1,842 SOL"}</b></div><div><span>PLAYERS</span><b>{tournament === "weekly" ? "2,847" : "8,109"}</b></div><div><span>LOCKS</span><b>{tournament === "weekly" ? "18h 42m" : "4d 18h"}</b></div></div>
-            <a href="#play">Enter tournament <span>→</span></a>
-          </article>
-          <article className="tournament-card upcoming">
-            <div className="card-top"><span>Upcoming</span><b>{tournament === "weekly" ? "WEEK 09" : "SEPTEMBER"}</b></div>
-            <div className="mini-podium"><i /><i /><i /></div>
-            <h3>{tournament === "weekly" ? "Trenches Cup" : "Creator League"}</h3>
-            <p>{tournament === "weekly" ? "Opens in 5 days" : "Opens August 28"}</p>
-            <div className="card-stats"><div><span>SEED POOL</span><b>{tournament === "weekly" ? "125 SOL" : "750 SOL"}</b></div><div><span>DURATION</span><b>{tournament === "weekly" ? "7 days" : "30 days"}</b></div></div>
-            <button onClick={() => setToast("Reminder set on this device.")}>Remind me <span>＋</span></button>
-          </article>
-        </div>
+        <div className="draft-ticker"><span>TOP 50 · ONE-MONTH PNL</span><i /><span>5 BANDS · 1 PICK PER BAND</span><i /><span>DAILY PNL CHANGE · HIGHEST SQUAD WINS</span></div>
       </section>
 
-      <section className="draft-section" id="play">
+      <section className="draft-section" id="draft">
         <div className="draft-heading">
-          <div><span className="section-label">Build your roster</span><h2>Pick your five.</h2><p>Select exactly five KOLs before entries lock. You can edit your team until you submit it.</p></div>
-          <div className="draft-progress"><span>{selected.length} / 5 selected</span><div>{[0,1,2,3,4].map((index) => <i className={index < selected.length ? "filled" : ""} key={index} />)}</div></div>
+          <div><span className="section-label">THE DRAFT ROOM</span><h2>Draft five traders.</h2><p>Pick one trader from each of the five rank bands in Pump.fun’s one-month top 50. Tap a pick again to remove it.</p></div>
+          <div className="draft-progress"><span>ROSTER <b>{rosterSize} / 5</b></span><div>{[0, 1, 2, 3, 4].map((index) => <i className={selected[index] ? "filled" : ""} key={index} />)}</div></div>
         </div>
 
         <div className="draft-layout">
           <div className="kol-browser">
-            <div className="kol-toolbar">
-              <label className="search-box"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search KOLs" /></label>
-              <div className="score-toggle"><button className={scorePeriod === "daily" ? "active" : ""} onClick={() => setScorePeriod("daily")}>24H</button><button className={scorePeriod === "weekly" ? "active" : ""} onClick={() => setScorePeriod("weekly")}>7D</button></div>
+            <div className="kol-toolbar"><label className="search-box draft-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a trader or wallet" aria-label="Search top 50 traders" /></label><span className={`board-state ${playerDataReady ? "board-ready" : ""}`}><i /> {playerDataReady ? "50 IN THE FIELD" : "ROSTER UNAVAILABLE"}</span></div>
+            <div className="draft-rounds">
+              {DRAFT_ROUNDS.map((round, index) => (
+                <article className="draft-round" key={round}>
+                  <div className="draft-round-head">
+                    <span className="round-number">0{index + 1}</span>
+                    <div><b>{index === 0 ? "Top 10" : `Ranks ${round}`}</b><small>CHOOSE 1 OF 10</small></div>
+                    <span className="round-pick">PICK 1</span>
+                  </div>
+                  {playerDataReady ? <div className="band-players">{filteredPlayers(index).map((player) => (
+                    <button type="button" aria-pressed={selected[index] === player.rank} className={`band-player ${selected[index] === player.rank ? "selected" : ""}`} key={player.id} onClick={() => { setSelected((current) => { const next = { ...current }; if (next[index] === player.rank) delete next[index]; else next[index] = player.rank; return next; }); setEntryMessage(""); }}>
+                      <span className="player-rank">#{player.rank}</span><span className="player-avatar" aria-hidden="true" style={player.avatar_url ? { backgroundImage: `url("${player.avatar_url}")` } : undefined}>{player.display_name?.slice(0, 1).toUpperCase()}</span><span className="player-identity"><b>{player.display_name || shortAddress(player.wallet)}</b><small>{shortAddress(player.wallet)}</small></span><strong className="pnl-positive">${player.pnl_usd.toLocaleString("en-US", { maximumFractionDigits: 0 })}<small>1M PNL</small></strong><span className="player-select-mark">{selected[index] === player.rank ? "✓" : "+"}</span>
+                    </button>
+                  ))}{filteredPlayers(index).length === 0 ? <p className="search-empty">No matching traders in this rank band.</p> : null}</div> : <div className="round-empty"><span className="rank-stack"><i /><i /><i /></span><div><b>Top-50 source snapshot unavailable</b><small>Check the source leaderboard before opening a contest.</small></div></div>}
+                </article>
+              ))}
             </div>
-            <div className="filter-row">
-              {categories.map((category) => <button className={filter === category ? "active" : ""} onClick={() => setFilter(category)} key={category}>{category}</button>)}
-            </div>
-            <div className="kol-list-head"><span>KOL</span><span>WIN RATE</span><span>{scorePeriod === "daily" ? "24H SCORE" : "7D SCORE"}</span><span /></div>
-            <div className="kol-list">
-              {filteredKols.map((kol) => {
-                const isSelected = selected.includes(kol.id);
-                const score = kol[scorePeriod];
-                return (
-                  <button className={`kol-row ${isSelected ? "selected" : ""}`} onClick={() => toggleKol(kol.id)} key={kol.id} aria-pressed={isSelected}>
-                    <span className="kol-person"><i className={`kol-avatar ${kol.accent}`}>{initials(kol.name)}</i><span><b>{kol.name}</b><small>{kol.handle} · {kol.category}</small></span></span>
-                    <span className="win-rate"><b>{kol.winRate}%</b><i><em style={{ width: `${kol.winRate}%` }} /></i></span>
-                    <strong className={score >= 0 ? "positive" : "negative"}>{formatScore(score)}</strong>
-                    <span className="pick-action">{isSelected ? "✓" : "+"}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {!filteredKols.length && <div className="empty-state">No KOLs match that search.</div>}
+            <div className="draft-board-footnote"><span className="status-lamp" /> Rank bands use the saved top-50 snapshot. Choose one trader in every band; a trader’s displayed 1M PnL is their starting mark, not a contest score.</div>
           </div>
 
           <aside className="roster-panel">
-            <div className="roster-panel-head"><div><span>YOUR ROSTER</span><b>{tournament === "weekly" ? "The Green Candle" : "The Big Monthly"}</b></div><em>{locked ? "LOCKED" : "DRAFT"}</em></div>
+            <div className="roster-panel-head"><div><span>YOUR SQUAD</span><b>Five picks</b></div><em>{auth.eligible ? "TOKEN CHECK PASSED" : "ENTRY CLOSED"}</em></div>
             <div className="roster-slots">
-              {[0,1,2,3,4].map((slot) => {
-                const kol = selectedKols[slot];
-                return kol ? (
-                  <div className="roster-slot filled" key={kol.id}>
-                    <i className={`kol-avatar ${kol.accent}`}>{initials(kol.name)}</i>
-                    <span><b>{kol.name}</b><small>{formatScore(kol.weekly)} this week</small></span>
-                    {!locked && <button onClick={() => toggleKol(kol.id)} aria-label={`Remove ${kol.name}`}>×</button>}
-                  </div>
-                ) : (
-                  <div className="roster-slot" key={slot}><i>{slot + 1}</i><span><b>Empty slot</b><small>Pick a KOL from the list</small></span></div>
-                );
+              {[0, 1, 2, 3, 4].map((band) => {
+                const player = players.find((item) => item.rank === selected[band]);
+                return <div className="roster-slot" key={band}><i>{String(band + 1).padStart(2, "0")}</i><span><b>{player?.display_name || (player ? shortAddress(player.wallet) : "Open pick")}</b><small>{player ? `Rank #${player.rank} · ${player.pnl_usd >= 0 ? "+" : ""}$${player.pnl_usd.toLocaleString("en-US", { maximumFractionDigits: 0 })} 1M PnL` : `Choose from ranks ${band * 10 + 1}–${band * 10 + 10}`}</small></span></div>;
               })}
             </div>
-            <div className="projection"><span>PROJECTED SCORE</span><strong>{formatScore(projectedScore)}</strong><small>Based on current {tournament === "weekly" ? "7-day" : "24-hour"} form</small></div>
-            <div className={`eligibility ${connected ? "has-wallet" : ""}`}>
-              <span className="eligibility-icon">◆</span>
-              <div><b>{connected ? (balanceState === "loading" ? "Checking PF balance" : isEligible ? "Wallet eligible" : "More PF required") : "1M PF required"}</b><small>{connected ? (PF_MINT ? `${(pfBalance ?? 0).toLocaleString()} PF detected` : "Preview mode · mint address not set") : "Connect a wallet to verify"}</small></div>
-            </div>
-            <button className="lock-button" onClick={submitRoster} disabled={locked}>
-              {locked ? "Roster locked ✓" : connected ? `Lock ${selected.length}/5 picks` : "Connect wallet to enter"}
-              {!locked && <span>→</span>}
-            </button>
-            <small className="no-signature">No transaction or wallet signature is required to draft.</small>
+            <div className="roster-note"><span className="note-mark">i</span><p>{rosterSize === 5 ? "Five traders drafted. Your practice squad is saved on this device." : "Pick one trader in each of the five rank bands. Your draft saves on this device."} {auth.authenticated ? `Wallet verified${auth.balance ? ` · ${auth.balance} $PF` : ""}.` : "Connect a wallet to check token eligibility."} Contest entry is not open yet.</p></div>
+            <button className="clear-draft-button" type="button" onClick={() => { setSelected({}); setEntryMessage(""); }} disabled={rosterSize === 0}>Clear draft</button>
+            <button className="lock-button" disabled={entryBusy || rosterSize !== 5 || !auth.eligible || !seasonConfigured || !playerDataReady} onClick={submitEntry}>{entryBusy ? "Saving lineup…" : !seasonConfigured ? "Contest not open yet" : !playerDataReady ? "Roster unavailable" : !auth.eligible ? "Connect & verify $PF" : rosterSize !== 5 ? `Pick ${5 - rosterSize} more` : "Submit eligible lineup"}</button>
+            {entryMessage ? <p className="entry-message" role="status">{entryMessage}</p> : null}
+            <small className="no-signature">Wallet message signature only. No transaction or token transfer.</small>
           </aside>
         </div>
       </section>
 
-      <section className="leaderboard-section-light" id="leaderboard">
-        <div className="section-topline">
-          <div><span className="section-label">Live leaderboard</span><h2>The week&apos;s sharpest rosters</h2></div>
-          <div className="live-clock"><i /> 18:42:09 remaining</div>
+      <section className="leaderboard-section-light" id="status">
+        <div className="section-topline"><div><span className="section-label">CONTEST STATUS</span><h2>Roster is visible. Entry is not open.</h2></div><span className="contest-status-pill"><i /> PRE-SEASON</span></div>
+        <div className="status-cards">
+          <article><span className="status-index">01</span><i className="status-symbol">◎</i><h3>One-month top 50</h3><p>Captured from the Pump.fun 1M profit leaderboard. The five rank bands are fixed for each contest.</p><span className={`status-pill ${playerDataReady ? "active" : "pending"}`}>{playerDataReady ? "50 SNAPSHOT PLAYERS" : "ROSTER UNAVAILABLE"}</span></article>
+          <article><span className="status-index">02</span><i className="status-symbol">⌁</i><h3>Daily PnL race</h3><p>For each pick, closing 1M PnL minus opening 1M PnL. Add all five changes; the highest score wins.</p><span className="status-pill pending">{standings.some((row) => row.scoringReady) ? "ROUND SCORES LOADED" : "NO ROUND SCORING FEED"}</span></article>
+          <article><span className="status-index">03</span><i className="status-symbol">▤</i><h3>Holder entry + prize</h3><p>Wallet signing and token checks are built. A verified fee-funded prize pool and payout process are not connected.</p><span className="status-pill pending">{auth.eligible ? "TOKEN CHECK PASSED" : "MINT + MINIMUM NOT SET"}</span></article>
         </div>
-        <div className="leaderboard-table">
-          <div className="lb-head"><span>RANK / PLAYER</span><span>TOP KOLS</span><span>SCORE</span><span>LIVE PRIZE</span></div>
-          {LEADERBOARD.map((row) => (
-            <div className="lb-row" key={row.rank}>
-              <div className="lb-player"><strong>{String(row.rank).padStart(2, "0")}</strong><i>{row.player[0].toUpperCase()}</i><b>{row.player}</b></div>
-              <div className="lb-roster">{row.roster.map((id) => { const kol = KOLS.find((item) => item.id === id)!; return <i className={`kol-avatar ${kol.accent}`} key={id}>{initials(kol.name)}</i>; })}<span>+2</span></div>
-              <strong className="positive">+{row.score}%</strong>
-              <b>{row.prize}</b>
-            </div>
-          ))}
+        <div className="live-standings">
+          <div className="standings-heading"><div><span className="section-label">DAILY LEADERBOARD</span><h3>Five picks. One score.</h3></div><small>{snapshotAt ? `ROSTER SNAPSHOT · ${new Date(snapshotAt).toLocaleString()}` : "NO SOURCE SNAPSHOT"}</small></div>
+          {standings.length ? <div className="standings-list">{standings.map((row, index) => <div className="standings-row" key={row.wallet}><b className="standing-rank">{String(index + 1).padStart(2, "0")}</b><span>{shortAddress(row.wallet)}</span><strong>{row.scoringReady && row.score !== null ? `${row.score >= 0 ? "+" : "−"}$${Math.abs(row.score).toLocaleString("en-US", { maximumFractionDigits: 2 })}` : "Awaiting verified PnL"}</strong></div>)}</div> : <p className="standings-empty">The board fills after the first round opens, five-pick squads are submitted, and closing PnL data is captured.</p>}
         </div>
+        <div className="fee-flow"><span className="section-label">THE PRIZE LOOP</span><div><b>Creator fees</b><i>→</i><b>Daily prize pool</b><i>→</i><b>Top fantasy squad</b></div><p>Prize funding and transfers will show here once the fee source, split, treasury, and payout method are connected and verified. No prize amount is being represented as funded today.</p></div>
       </section>
 
-      <section className="how-section" id="docs">
-        <div className="how-heading"><span className="section-label">How it works</span><h2>Simple by design.</h2></div>
+      <section className="how-section" id="format">
+        <div className="how-heading"><span className="section-label">THE FORMAT</span><h2>A real fantasy draft.</h2><p>Simple roster building, transparent scoring, and results that can be checked.</p></div>
         <div className="how-grid">
-          <article><span>01</span><i className="how-icon">◆</i><h3>Hold PF</h3><p>Keep at least 1,000,000 PF in your connected wallet when the tournament snapshot is taken.</p></article>
-          <article><span>02</span><i className="how-icon">＋5</i><h3>Draft KOLs</h3><p>Pick five tracked voices before the lock. Their public calls and performance become your roster.</p></article>
-          <article><span>03</span><i className="how-icon">↗</i><h3>Score daily</h3><p>Daily scores show short-term form. Weekly and monthly scores decide tournament standings.</p></article>
-          <article><span>04</span><i className="how-icon">★</i><h3>Win the pool</h3><p>The highest combined roster scores share prizes funded by PF creator fees.</p></article>
+          <article><span>01</span><i className="how-icon">01</i><h3>Build the field</h3><p>Start each day with the one-month Pump.fun top 50, split into five bands of ten.</p></article>
+          <article><span>02</span><i className="how-icon">02</i><h3>Pick your five</h3><p>Choose one wallet from each band. Connect your wallet and meet the published $PF minimum to enter.</p></article>
+          <article><span>03</span><i className="how-icon">03</i><h3>Score the move</h3><p>Each pick scores its change in one-month PnL between the round’s opening and closing snapshots. Sum your five.</p></article>
+          <article><span>04</span><i className="how-icon">04</i><h3>Pay the winner</h3><p>Highest squad score takes the disclosed prize pool after the round is reviewed and settled.</p></article>
         </div>
-        <div className="docs-note">
-          <div><span>SCORING MODEL</span><h3>Transparent inputs. One clear score.</h3></div>
-          <p>KOL performance is normalized across tracked public calls, entry timing, realized results, and drawdown. Sample scores are shown in this frontend build; connect a live scoring/indexing source before launch.</p>
-        </div>
+        <div className="docs-note"><div><span>SCORING RULE</span><h3>Measure the move.</h3></div><p>For each trader, take closing 1M PnL minus opening 1M PnL. Add the five results. The highest total wins. A real contest needs a timestamped opening snapshot, timestamped close, published tie-break rule, and a verifiable data source before entries open.</p></div>
       </section>
 
-      <section className="closing-cta">
-        <span>PF</span>
-        <div><p>Season 01 · Entries open</p><h2>Your five.<br />Your conviction.</h2><a href="#play">Build a roster <i>→</i></a></div>
-      </section>
+      <section className="closing-cta"><span>PF</span><div><p>PUMP FANTASY</p><h2>Pick five.<br />Follow the PnL.</h2><a href="#draft">Build your squad</a></div></section>
 
       <footer>
-        <a className="pf-brand" href="#top"><span className="pf-mark"><i /><i /></span><strong>Pump Fantasy</strong><em>PF</em></a>
-        <p>Fantasy KOL tournaments for the pump.fun community.</p>
-        <div><a href="#play">Play</a><a href="#tournaments">Tournaments</a><a href="#docs">Docs</a></div>
-        <small>Independent product concept. Not affiliated with or endorsed by pump.fun. Sample KOLs and scores are for demonstration until a live indexing source is configured. Crypto assets are risky; nothing here is financial advice.</small>
+        <a className="pf-brand" href="#top"><span className="pf-mark-image" role="img" aria-label="Pump Fantasy crowned pill logo" /><strong>PumpFun Fantasy</strong><em>LEAGUE</em></a>
+        <p>A fantasy draft for the pump.fun culture.</p>
+        <div><a href="#draft">Draft room</a><a href="#format">Format</a><a href="#status">Season status</a></div>
+        <small>Independent project; not affiliated with pump.fun. The displayed 1M leaderboard data is a timestamped snapshot and changes over time. Entries and prizes are not active until token eligibility, scoring data, fee funding, payout, and contest rules are configured. Crypto assets are risky; this is not financial advice.</small>
       </footer>
     </main>
   );

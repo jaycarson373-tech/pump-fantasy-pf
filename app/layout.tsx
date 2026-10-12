@@ -15,19 +15,19 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://pump-fantasy-pf.vercel.app"),
-  title: "Pump Fantasy — Draft the culture",
+  title: "PumpFun Fantasy League — Draft your five",
   description:
-    "Build a five-KOL roster, track daily and weekly performance, and compete in Pump Fantasy tournaments.",
+    "Draft one trader from each rank band in the Pump.fun one-month top 50. Track your squad’s daily PnL change.",
   openGraph: {
-    title: "Pump Fantasy",
-    description: "Draft 5 KOLs. Own the week.",
-    images: [{ url: "/og.png", width: 1200, height: 630 }],
+    title: "PumpFun Fantasy League",
+    description: "Draft one trader from each rank band. Build your five and follow the PnL race.",
+    images: [{ url: "/brand/pump-fantasy-banner.png", width: 1500, height: 500 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Pump Fantasy",
-    description: "Draft 5 KOLs. Own the week.",
-    images: ["/og.png"],
+    title: "PumpFun Fantasy League",
+    description: "Draft one trader from each rank band. Build your five and follow the PnL race.",
+    images: ["/brand/pump-fantasy-banner.png"],
   },
 };
 
