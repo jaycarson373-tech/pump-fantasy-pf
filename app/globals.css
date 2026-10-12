@@ -507,3 +507,16 @@ footer { padding: 48px clamp(24px,7vw,112px) 30px; display: grid; grid-template-
   .fee-flow > div b { padding: 9px; font-size: 10px; }
   .draft-room .section-topline { align-items: flex-start; flex-direction: column; }
 }
+
+.daily-awards { margin-top: 38px; border: 1px solid #d9e5de; border-radius: 18px; padding: 24px; background: #fff; }
+.award-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 18px; }
+.award-card { display: grid; gap: 8px; padding: 16px; border: 1px solid #e0e9e3; border-radius: 12px; background: #f8fbf9; }
+.award-card > span, .award-card > small { color: #617168; font-size: 11px; letter-spacing: .08em; font-weight: 800; }
+.award-card > b { font-size: 16px; }
+.award-card > strong { color: #079d6c; font-variant-numeric: tabular-nums; }
+.award-card .paid { color: #07845c; }
+.award-card .pending { color: #986a08; }
+.award-card a { color: #087f58; font-size: 12px; font-weight: 700; }
+.award-payout-control { display: grid; gap: 7px; }
+.award-pay-button { border: 0; border-radius: 8px; padding: 10px 12px; color: #fff; background: #08a56e; font-size: 12px; font-weight: 800; cursor: pointer; }
+.award-pay-button:disabled { opacity: .65; cursor: wait; }

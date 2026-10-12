@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { getBackendConfig, supabaseRequest } from "../../../lib/server/config";
-import { routeError } from "../../../lib/server/http";
+import { getBackendConfig } from "../../../lib/server/config";
+import { getActiveSeasonId, queryRows } from "../../../lib/server/database";
 import { getSeasonPhase, type SeasonSchedule } from "../../../lib/server/season-window";
 import { fetchPumpLeaderboard, type FantasyPlayer } from "../../../lib/server/pumpfun";
+import { saveRosterSnapshot } from "../../../lib/server/players";
 import top50Snapshot from "../../../data/pumpfun-one-month-top50.json";
 
 export const runtime = "nodejs";
@@ -34,49 +35,27 @@ async function getLiveBoard() {
 export async function GET() {
   try {
     const config = getBackendConfig();
-    const season = process.env.PF_ACTIVE_SEASON_ID;
-    if (!config.ready || !season) return getLiveBoard();
+    const season = config.databaseUrl ? await getActiveSeasonId() : null;
+    if (!config.databaseUrl || !season) return getLiveBoard();
 
     const [seasons, savedPlayers] = await Promise.all([
-      supabaseRequest<SeasonSchedule[]>(`pf_seasons?id=eq.${encodeURIComponent(season)}&select=status,opens_at,locked_at,closes_at&limit=1`),
-      supabaseRequest<Array<FantasyPlayer & { season_id: string; snapshot_at: string }>>(`pf_players?season_id=eq.${encodeURIComponent(season)}&select=id,rank,wallet,display_name,profile_url,avatar_url,pnl_usd,snapshot_at&order=rank.asc&limit=50`),
+      queryRows<SeasonSchedule>("select status, opens_at, locked_at, closes_at from pf_seasons where id = $1 limit 1", [season]),
+      queryRows<FantasyPlayer & { season_id: string; snapshot_at: string }>("select id, rank, wallet, display_name, profile_url, avatar_url, pnl_usd, snapshot_at from pf_players where season_id = $1 order by rank asc limit 50", [season]),
     ]);
     if (savedPlayers.length === 50) {
-      return NextResponse.json({ configured: true, live: false, source: "season roster snapshot", snapshotAt: savedPlayers[0]?.snapshot_at ?? null, players: savedPlayers });
+      return NextResponse.json({ configured: true, live: false, source: "season roster snapshot", snapshotAt: savedPlayers[0]?.snapshot_at ?? null, players: savedPlayers.map((player) => ({ ...player, pnl_usd: Number(player.pnl_usd) })) });
     }
     const seasonRow = seasons[0];
     const phase = seasonRow ? getSeasonPhase(seasonRow) : "inactive";
     if (seasonRow && (phase === "draft" || phase === "live") && savedPlayers.length === 0) {
-      const board = await fetchPumpLeaderboard(50);
-      const observedAt = new Date().toISOString();
-      const rows = board.players.map((player) => ({
-        id: `${season}-rank-${String(player.rank).padStart(2, "0")}`,
-        season_id: season,
-        rank: player.rank,
-        wallet: player.wallet,
-        display_name: player.display_name,
-        profile_url: player.profile_url,
-        avatar_url: player.avatar_url,
-        pnl_usd: player.pnl_usd,
-        contest_change_usd: null,
-        source_url: "https://pump.fun/leaderboard",
-        snapshot_at: observedAt,
-        updated_at: observedAt,
-      }));
-      await supabaseRequest("pf_players?on_conflict=season_id,rank", {
-        method: "POST",
-        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-        body: JSON.stringify(rows),
-      });
-      await supabaseRequest("pf_snapshots", {
-        method: "POST",
-        headers: { Prefer: "return=minimal" },
-        body: JSON.stringify([{ season_id: season, source_url: "https://pump.fun/leaderboard", observed_at: observedAt, player_count: 50 }]),
-      });
-      return NextResponse.json({ configured: true, live: false, source: "season opening snapshot", snapshotAt: observedAt, players: board.players });
+      const board = await fetchPumpLeaderboard(50, { fresh: true });
+      if (board.players.length !== 50 || new Set(board.players.map((player) => player.wallet)).size !== 50) return getLiveBoard();
+      const observedAt = new Date();
+      await saveRosterSnapshot(season, board.players, observedAt);
+      return NextResponse.json({ configured: true, live: false, source: "season opening snapshot", snapshotAt: observedAt.toISOString(), players: board.players });
     }
     return getLiveBoard();
-  } catch (error) {
-    return routeError(error);
+  } catch {
+    return getLiveBoard();
   }
 }

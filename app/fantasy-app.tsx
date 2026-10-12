@@ -2,6 +2,7 @@
 
 import "./disposable-stack-polyfill";
 import Image from "next/image";
+import { AwardPayoutButton } from "./award-payout-button";
 import {
   useConnect,
   useConnectedWallet,
@@ -216,6 +217,9 @@ export function FantasyApp() {
   const [entryBusy, setEntryBusy] = useState(false);
   const [entryMessage, setEntryMessage] = useState("");
   const [standings, setStandings] = useState<Array<{ wallet: string; score: number | null; scoringReady: boolean }>>([]);
+  const [awards, setAwards] = useState<Array<{ id: string; season_id: string; day_number: number; winner_wallet: string | null; score_usd: number | null; prize_lamports: string; status: string; payment_signature: string | null }>>([]);
+  const [dailyPrizeLamports, setDailyPrizeLamports] = useState("0");
+  const [prizeWallet, setPrizeWallet] = useState<string | null>(null);
   const [snapshotAt, setSnapshotAt] = useState<string | null>(null);
   const [leaderboardSource, setLeaderboardSource] = useState("Loading Pump.fun leaderboard");
   const onAuthChange = useCallback((state: AuthState) => setAuth(state), []);
@@ -284,6 +288,9 @@ export function FantasyApp() {
         setLeaderboardSource(playerResult.source ?? (playerResult.live ? "Live Pump.fun 1M leaderboard" : "Dated fallback snapshot"));
       }
       if (active && Array.isArray(standingsResult.standings)) setStandings(standingsResult.standings);
+      if (active && Array.isArray(standingsResult.awards)) setAwards(standingsResult.awards);
+      if (active && typeof standingsResult.prizeLamports === "string") setDailyPrizeLamports(standingsResult.prizeLamports);
+      if (active) setPrizeWallet(typeof standingsResult.prizeWallet === "string" ? standingsResult.prizeWallet : null);
     };
     void refresh().catch(() => {});
     const interval = window.setInterval(() => { void refresh().catch(() => {}); }, 30_000);
@@ -439,17 +446,17 @@ export function FantasyApp() {
         <div className="status-cards">
           <article><span className="status-index">01</span><i className="status-symbol">◎</i><h3>One-month top 50</h3><p>Captured from the Pump.fun 1M profit leaderboard. The five rank bands are fixed for each contest.</p><span className={`status-pill ${playerDataReady ? "active" : "pending"}`}>{playerDataReady ? "50 SNAPSHOT PLAYERS" : "ROSTER UNAVAILABLE"}</span></article>
           <article><span className="status-index">02</span><i className="status-symbol">⌁</i><h3>Daily PnL race</h3><p>For each pick, closing 1M PnL minus opening 1M PnL. Add all five changes; the highest score wins.</p><span className="status-pill pending">{standings.some((row) => row.scoringReady) ? "ROUND SCORES LOADED" : "NO ROUND SCORING FEED"}</span></article>
-          <article><span className="status-index">03</span><i className="status-symbol">▤</i><h3>Holder entry + prize</h3><p>Wallet signing checks for at least 500,000 $FANTASY. A verified fee-funded prize pool and payout process are not connected.</p><span className="status-pill pending">{auth.eligible ? "TOKEN CHECK PASSED" : "FANTASY MINT REQUIRED"}</span></article>
+          <article><span className="status-index">03</span><i className="status-symbol">▤</i><h3>Holder entry + prize</h3><p>Wallet signing checks the 500,000 $FANTASY minimum. Daily scores settle from saved PnL snapshots; the SOL prize must be configured and funded before the season starts.</p><span className="status-pill pending">{auth.eligible ? "TOKEN CHECK PASSED" : "FANTASY MINT REQUIRED"}</span></article>
         </div>
         <div className="live-standings">
           <div className="standings-heading"><div><span className="section-label">DAILY LEADERBOARD</span><h3>Five picks. One score.</h3></div><small>{snapshotAt ? `ROSTER SNAPSHOT · ${new Date(snapshotAt).toLocaleString()}` : "NO SOURCE SNAPSHOT"}</small></div>
           {standings.length ? <div className="standings-list">{standings.map((row, index) => <div className="standings-row" key={row.wallet}><b className="standing-rank">{String(index + 1).padStart(2, "0")}</b><span>{shortAddress(row.wallet)}</span><strong>{row.scoringReady && row.score !== null ? `${row.score >= 0 ? "+" : "−"}$${Math.abs(row.score).toLocaleString("en-US", { maximumFractionDigits: 2 })}` : "Awaiting verified PnL"}</strong></div>)}</div> : <p className="standings-empty">The board fills after the first round opens, five-pick squads are submitted, and closing PnL data is captured.</p>}
         </div>
-        <div className="fee-flow"><span className="section-label">THE PRIZE LOOP</span><div><b>Creator fees</b><i>→</i><b>Daily prize pool</b><i>→</i><b>Top fantasy squad</b></div><p>Prize funding and transfers will show here once the fee source, split, treasury, and payout method are connected and verified. No prize amount is being represented as funded today.</p></div>
+        <div className="daily-awards"><div className="standings-heading"><div><span className="section-label">DAILY WINNERS</span><h3>Every day has a result.</h3></div><small>{Number(dailyPrizeLamports) > 0 ? `${(Number(dailyPrizeLamports) / 1_000_000_000).toFixed(3)} SOL PER DAY` : "PRIZE AMOUNT NOT SET"}</small></div>{awards.length ? <div className="award-list">{awards.map((award) => <article className="award-card" key={award.id}><span>DAY {award.day_number}</span><b>{award.winner_wallet ? shortAddress(award.winner_wallet) : award.status === "no_eligible_entries" ? "No eligible entries" : "Awaiting complete PnL data"}</b><strong>{award.score_usd === null ? "" : `${award.score_usd >= 0 ? "+" : "−"}$${Math.abs(award.score_usd).toLocaleString("en-US", { maximumFractionDigits: 2 })}`}</strong><small className={award.status === "paid" ? "paid" : "pending"}>{award.status.replaceAll("_", " ").toUpperCase()}</small>{award.payment_signature ? <a href={`https://solscan.io/tx/${award.payment_signature}`} target="_blank" rel="noreferrer">View payment ↗</a> : null}<AwardPayoutButton awardId={award.id} winner={award.winner_wallet} lamports={award.prize_lamports} status={award.status} prizeWallet={prizeWallet} onPaid={(awardId, signature) => setAwards((current) => current.map((item) => item.id === awardId ? { ...item, status: "paid", payment_signature: signature } : item))} /></article>)}</div> : <p className="standings-empty">The season clock captures daily PnL snapshots and calculates the top five-pick squad at each 24-hour mark.</p>}</div><div className="fee-flow"><span className="section-label">PRIZE SETTLEMENT</span><div><b>Daily PnL snapshot</b><i>→</i><b>Top squad</b><i>→</i><b>Verified SOL transfer</b></div><p>Scores and winners settle automatically. A prize is only shown as paid after the winning wallet receives the configured SOL amount and the transaction is verified on Solana.</p></div>
         <div className="season-pathway">
-          <div><span className="section-label">THE LEAGUE KEEPS GOING</span><h3>One season ends. The race continues.</h3><p>Each season runs a 3-hour draft followed by 48 hours of scoring. When the clock expires, entries lock, the final leaderboard is reviewed, and the next season can open with a fresh field.</p></div>
+          <div><span className="section-label">THE LEAGUE KEEPS GOING</span><h3>One season ends. The race continues.</h3><p>Each season runs a 3-hour draft, then 48 hours of scoring. Daily results are captured at the 24-hour marks. When a season closes, the next 3-hour draft opens automatically with a fresh top-50 field.</p></div>
           <ol><li><b>01</b><span><strong>Draft</strong><small>Pick five before entries lock.</small></span></li><li><b>02</b><span><strong>Season</strong><small>Track the 48-hour PnL race.</small></span></li><li><b>03</b><span><strong>Next season</strong><small>Fresh draft, new standings.</small></span></li><li><b>04</b><span><strong>Playoffs</strong><small>Top season performers qualify for the finals.</small></span></li></ol>
-          <small className="season-pathway-note">Season rollover, cumulative qualification, playoff rules, final scoring and payouts still need to be configured before they are automatic.</small>
+          <small className="season-pathway-note">Season rollover and daily score snapshots run on the server clock. SOL prizes require a configured amount and a treasury wallet signature; the site verifies each payment onchain.</small>
         </div>
       </section>
 
@@ -459,7 +466,7 @@ export function FantasyApp() {
           <article><span>01</span><i className="how-icon">01</i><h3>Build the field</h3><p>Start each day with the one-month Pump.fun top 50, split into five bands of ten.</p></article>
           <article><span>02</span><i className="how-icon">02</i><h3>Pick your five</h3><p>Choose one trader from each band. Connect a wallet holding at least 500,000 $FANTASY to submit your squad.</p></article>
           <article><span>03</span><i className="how-icon">03</i><h3>Score the move</h3><p>Each pick scores its change in one-month PnL between the round’s opening and closing snapshots. Sum your five.</p></article>
-          <article><span>04</span><i className="how-icon">04</i><h3>Pay the winner</h3><p>Highest squad score takes the disclosed prize pool after the round is reviewed and settled.</p></article>
+          <article><span>04</span><i className="how-icon">04</i><h3>Pay the winner</h3><p>The top squad at each daily snapshot is recorded. A SOL award is shown as paid only after the onchain transfer is verified.</p></article>
         </div>
         <div className="docs-note"><div><span>SCORING RULE</span><h3>Measure the move.</h3></div><p>For each trader, take closing 1M PnL minus opening 1M PnL. Add the five results. The highest total wins. A real contest needs a timestamped opening snapshot, timestamped close, published tie-break rule, and a verifiable data source before entries open.</p></div>
       </section>

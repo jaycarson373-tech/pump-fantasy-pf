@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getBackendConfig, supabaseRequest } from "../../../lib/server/config";
+import { getBackendConfig } from "../../../lib/server/config";
+import { getActiveSeasonId, queryRows } from "../../../lib/server/database";
 import { routeError, sameOrigin } from "../../../lib/server/http";
 import { getWalletSession } from "../../../lib/server/session";
 import { getHolderBalance } from "../../../lib/server/solana";
@@ -12,15 +13,15 @@ export async function GET() {
   try {
     const config = getBackendConfig();
     if (!config.ready) return NextResponse.json({ configured: false, seasonConfigured: false, phase: "unconfigured", entry: null });
-    const season = process.env.PF_ACTIVE_SEASON_ID;
+    const season = await getActiveSeasonId();
     if (!season) return NextResponse.json({ configured: true, seasonConfigured: false, phase: "inactive", entry: null });
-    const seasons = await supabaseRequest<SeasonSchedule[]>(`pf_seasons?id=eq.${encodeURIComponent(season)}&select=status,opens_at,locked_at,closes_at&limit=1`);
+    const seasons = await queryRows<SeasonSchedule>("select status, opens_at, locked_at, closes_at from pf_seasons where id = $1 limit 1", [season]);
     const seasonRow = seasons[0];
     const phase = seasonRow ? getSeasonPhase(seasonRow) : "inactive";
     const schedule = seasonRow ? { opensAt: seasonRow.opens_at, lockedAt: seasonRow.locked_at, closesAt: seasonRow.closes_at } : null;
     const wallet = await getWalletSession();
     if (!wallet) return NextResponse.json({ configured: true, authenticated: false, seasonConfigured: phase !== "misconfigured" && phase !== "inactive", phase, schedule, entry: null });
-    const entries = await supabaseRequest<Array<{ picks: string[]; created_at: string; updated_at: string }>>(`pf_entries?wallet=eq.${encodeURIComponent(wallet)}&season_id=eq.${encodeURIComponent(season)}&select=picks,created_at,updated_at&limit=1`);
+    const entries = await queryRows<{ picks: string[]; created_at: string; updated_at: string }>("select picks, created_at, updated_at from pf_entries where wallet = $1 and season_id = $2 limit 1", [wallet, season]);
     return NextResponse.json({ configured: true, authenticated: true, wallet, seasonConfigured: phase !== "misconfigured" && phase !== "inactive", phase, schedule, entry: entries[0] ?? null });
   } catch (error) {
     return routeError(error);
@@ -34,9 +35,9 @@ export async function PUT(request: Request) {
     if (!config.ready) return NextResponse.json({ error: "Entry services are not configured.", code: "NOT_CONFIGURED" }, { status: 503 });
     const wallet = await getWalletSession();
     if (!wallet) return NextResponse.json({ error: "Sign in with your wallet first." }, { status: 401 });
-    const season = process.env.PF_ACTIVE_SEASON_ID;
+    const season = await getActiveSeasonId();
     if (!season) return NextResponse.json({ error: "No active season has been configured." }, { status: 503 });
-    const seasonRows = await supabaseRequest<SeasonSchedule[]>(`pf_seasons?id=eq.${encodeURIComponent(season)}&select=status,opens_at,locked_at,closes_at&limit=1`);
+    const seasonRows = await queryRows<SeasonSchedule>("select status, opens_at, locked_at, closes_at from pf_seasons where id = $1 limit 1", [season]);
     const seasonRow = seasonRows[0];
     if (!seasonRow) return NextResponse.json({ error: "The active season does not exist." }, { status: 503 });
     const phase = getSeasonPhase(seasonRow);
@@ -49,15 +50,10 @@ export async function PUT(request: Request) {
     }
     const eligible = await getHolderBalance(wallet);
     if (!eligible.eligible) return NextResponse.json({ error: `Hold at least ${eligible.minimumTokens} tokens to submit an eligible lineup.`, code: "NOT_ELIGIBLE" }, { status: 403 });
-    const idFilter = picks.map((id) => `"${id.replaceAll('"', '')}"`).join(",");
-    const players = await supabaseRequest<Player[]>(`pf_players?season_id=eq.${encodeURIComponent(season)}&id=in.(${idFilter})&select=id,rank,wallet`);
+    const players = await queryRows<Player>("select id, rank, wallet from pf_players where season_id = $1 and id = any($2::text[])", [season, picks]);
     const bands = new Set(players.map((player) => Math.floor((player.rank - 1) / 10)));
     if (players.length !== 5 || bands.size !== 5 || [...bands].some((band) => band < 0 || band > 4)) return NextResponse.json({ error: "Each pick must be a current player from a different top-50 rank band." }, { status: 400 });
-    await supabaseRequest("pf_entries?on_conflict=season_id,wallet", {
-      method: "POST",
-      headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-      body: JSON.stringify([{ season_id: season, wallet, picks, token_balance_raw: eligible.rawBalance, updated_at: new Date().toISOString() }]),
-    });
+    await queryRows("insert into pf_entries (season_id, wallet, picks, token_balance_raw, updated_at) values ($1, $2, $3::jsonb, $4, now()) on conflict (season_id, wallet) do update set picks = excluded.picks, token_balance_raw = excluded.token_balance_raw, updated_at = now() returning wallet", [season, wallet, JSON.stringify(picks), eligible.rawBalance]);
     return NextResponse.json({ ok: true, eligible: true, wallet, picks, tokenBalance: eligible.displayBalance });
   } catch (error) {
     return routeError(error);

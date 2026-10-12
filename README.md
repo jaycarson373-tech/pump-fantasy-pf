@@ -1,70 +1,37 @@
 # Pump Fantasy
 
-Pump Fantasy is a five-pick fantasy contest based on the pump.fun 1M profit leaderboard. Each season starts with the top-50 one-month PnL snapshot, split into five fixed rank bands. Pick one trader from each band. A pick scores closing 1M PnL minus opening 1M PnL; the five changes are added and the highest lineup wins the disclosed funded prize pool. Wallet sign-in and SPL/Token-2022 balance checks are implemented; entry stays closed until production configuration is complete and the operator starts a season.
+Pump Fantasy is a five-pick fantasy contest based on Pump.fun's one-month PnL leaderboard. Each season snapshots the top 50, split into five fixed rank bands. Eligible holders choose one trader from each band during a three-hour draft. Picks are saved per wallet and can be edited until the server-side lock. The scoring period then runs 48 hours with one-day score settlements.
 
-## Honest launch status
+## What is implemented
 
-This revision implements wallet challenge/signature verification, server-side SPL Token and Token-2022 balance checks, one saved lineup per wallet/season, fixed rank-band validation, standings calculation, protected roster ingest, and an operator-only season-start endpoint. It does not fabricate live rankings or scores. Entry stays closed until production configuration is complete and the operator starts the season.
+- Wallet Standard connection and one-time signed-message authentication; no transaction is needed to sign in.
+- Server-side SPL Token and Token-2022 balance checks; the default minimum is 500,000 whole FANTASY.
+- Persistent one-entry-per-wallet storage in Railway Postgres, with server-side rank-band and deadline validation.
+- A fixed Pump.fun top-50 roster per season and fresh 1M PnL score snapshots at the scoring start and daily boundaries.
+- Automatic daily winner calculation, tied-score resolution by wallet address, payment-status records, and season rollover to a fresh top 50.
+- Onchain verification before an award is shown as paid. The prize wallet must make the SOL transfer; this app does not store a private key or sign transfers server-side.
+- A Railway server clock retries due season work every five minutes and runs immediately on app startup. Score windows missed by more than 15 minutes are marked `awaiting_data` rather than fabricating a winner.
 
-The app reads the public Pump.fun frontend leaderboard endpoint directly; Pump.fun may change or rate-limit it. The season-start endpoint refuses to open the draft if it cannot capture and validate a fresh, consecutive top-50 snapshot. A protected operator import route is also available as a fallback. The included roster is a dated preview snapshot, not the season-opening field.
+Pump.fun's public leaderboard endpoint is an external dependency. If it omits a selected trader or fails around a settlement boundary, that day's payout is held for review instead of ranking incomplete data. Do not advertise a prize as funded until the prize amount is configured and the prize wallet has the funds.
 
-The start endpoint captures a fresh top-50 monthly leaderboard from Pump.fun, saves it as the opening snapshot, then starts the three-hour draft. Submitted entries are rejected after the deadline. A season lasts 48 hours after the draft closes. Closing snapshots, final winner settlement, creator-fee claiming, prize payout, season rollover, and playoffs are not automated in this revision. Do not advertise funded prizes or automatic payouts until those systems are implemented and verified.
+## Railway production setup
 
-## Required production setup
+The Railway project contains the `pump-fantasy-pf` web service and a Postgres service. `DATABASE_URL` on the web service references Railway Postgres. Railway runs `npm run db:migrate` before deploying the web service. The `SOLANA_RPC_URL`, `PF_SESSION_SECRET`, and `PF_DATA_INGEST_SECRET` are server-side variables. Keep them private.
 
-1. Create a Supabase project and apply both migrations in [`supabase/migrations`](supabase/migrations). The second migration creates `season-1` in `draft` state.
-2. Set `PF_ACTIVE_SEASON_ID=season-1` in Railway.
-3. Import this repository into Railway. `railway.json` builds and runs the complete Next.js app (site plus API) and exposes `/api/health` for the deployment health check. Add the environment values in `.env.example`; keep all server-only values in Railway variables. Set `NEXT_PUBLIC_SITE_URL` to the Railway public domain and add the custom domain there if desired.
-4. After the token launches, add its verified mint address as `FANTASY_MINT_ADDRESS`. The holder gate requires at least 500,000 whole FANTASY tokens (or a higher configured threshold) and checks both SPL Token and Token-2022 accounts.
-5. Verify `/api/health` reports `backendConfigured: true`. Then, after the operator confirms the token is live, start the first season with the protected endpoint below. It captures the fresh Pump.fun one-month top 50, opens the draft immediately for three hours, and sets the following scoring window to 48 hours.
+The first season row is `season-1` with status `draft`. After the FANTASY token is live, set `FANTASY_MINT_ADDRESS` to the verified mint and confirm the health endpoint reports database/migrations/holder checks configured. Set `PF_DAILY_PRIZE_LAMPORTS` to the exact daily SOL prize in lamports, set `PF_PRIZE_WALLET_ADDRESS`, and fund the prize wallet before starting the season. The start endpoint checks that it covers both days of prizes plus fees.
 
-### First season timing
-
-The owner starts the season only after launch by calling this operator-only endpoint from a trusted terminal. It fetches and stores the current leaderboard, then sets `opens_at` to now, `locked_at` to three hours later, and `closes_at` 48 hours after lock. The API enforces these timestamps on every entry request, so a Railway scheduler is not needed to close the draft.
+To open Season 1, call the protected start endpoint once after the token is live. It snapshots Pump.fun's current 1–50 field and opens the three-hour draft. The next 48 hours are split into two daily scoring windows. Later seasons open automatically when the preceding season ends.
 
 ```bash
 curl -X POST "$NEXT_PUBLIC_SITE_URL/api/admin/season/start" \
   -H "Authorization: Bearer $PF_DATA_INGEST_SECRET"
 ```
 
-This endpoint does not claim creator fees or transfer prizes. The season-end snapshot, verified final score, prize settlement, future seasons, and playoff qualifier logic still require implementation. The payout private key is not used for wallet connection, holder verification, or squad submission; do not add it until a separately reviewed payout worker is built.
-
-### Environment variables
-
-See `.env.example`. The API refuses entry writes when the required secrets, mint, threshold, active season, or database are missing. The active season ID must match the Supabase `pf_seasons.id` row. The service-role key is never sent to the browser. A private key is not required for the draft flow.
-
-### Data ingest example
-
-```json
-{
-  "sourceUrl": "https://pump.fun/leaderboard",
-  "observedAt": "2026-10-12T16:00:00.000Z",
-  "players": [
-    {
-      "rank": 1,
-      "wallet": "<verified-solana-wallet>",
-      "displayName": "<public-name-or-null>",
-      "profileUrl": "https://pump.fun/<verified-profile>",
-      "pnlUsd": 1234.56,
-      "avatarUrl": "https://socialimages.pump.fun/profile-images/example.webp",
-      "contestChangeUsd": null
-    }
-  ]
-}
-```
-
-The endpoint requires exactly 50 unique ranks and wallets. At the opening snapshot, `pnlUsd` is each trader's one-month baseline. At close, `contestChangeUsd` is closing 1M PnL minus that opening value. Only send observed source data. Protect the ingest secret and rotate it if exposed.
+The prize wallet connects to the site and presses the daily award payment button; the wallet shows the exact SOL transfer for approval. The award is marked paid only after RPC confirms that exact transfer to the winner. Submit the verified signature to `/api/admin/awards/payment` with `awardId` and `signature`, using the same bearer secret. A wallet private key is not required by the site.
 
 ## Local development
 
-Requires Node.js 24.
-
-```bash
-npm install
-npm run dev
-```
-
-## Validation
+Requires Node.js 24 and a PostgreSQL database. Set `DATABASE_URL`, `PF_SESSION_SECRET`, `SOLANA_RPC_URL`, `FANTASY_MINT_ADDRESS`, `PF_ACTIVE_SEASON_ID`, and `PF_DATA_INGEST_SECRET` in a local environment. Apply the schema with `npm run db:migrate`, then run `npm run dev`.
 
 ```bash
 npm run lint

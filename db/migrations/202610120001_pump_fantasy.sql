@@ -57,16 +57,7 @@ create table if not exists public.pf_snapshots (
   created_at timestamptz not null default now()
 );
 
-alter table public.pf_nonces enable row level security;
-alter table public.pf_seasons enable row level security;
-alter table public.pf_players enable row level security;
-alter table public.pf_entries enable row level security;
-alter table public.pf_snapshots enable row level security;
-
--- There are deliberately no anon/authenticated policies. Access is through
--- server routes using the service role; never place that key in client code.
-revoke all on public.pf_nonces, public.pf_seasons, public.pf_players, public.pf_entries, public.pf_snapshots from anon, authenticated;
-grant all on public.pf_nonces, public.pf_seasons, public.pf_players, public.pf_entries, public.pf_snapshots to service_role;
+-- The app connects with its private Railway database URL. Do not expose DATABASE_URL to the browser.
 
 create index if not exists pf_entries_season_updated_idx on public.pf_entries (season_id, updated_at desc);
 create index if not exists pf_players_snapshot_idx on public.pf_players (season_id, snapshot_at desc);

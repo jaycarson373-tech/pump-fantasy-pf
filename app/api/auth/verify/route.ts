@@ -1,7 +1,8 @@
 import { createPublicKey, verify } from "node:crypto";
 import { NextResponse } from "next/server";
 import { decodeBase58 } from "../../../../lib/server/base58";
-import { getBackendConfig, supabaseRequest } from "../../../../lib/server/config";
+import { getBackendConfig } from "../../../../lib/server/config";
+import { queryRows } from "../../../../lib/server/database";
 import { routeError, sameOrigin, validWallet } from "../../../../lib/server/http";
 import { setWalletSession } from "../../../../lib/server/session";
 import { getHolderBalance } from "../../../../lib/server/solana";
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
     if (!validWallet(wallet) || typeof message !== "string" || typeof signatureText !== "string") return NextResponse.json({ error: "Invalid wallet signature request." }, { status: 400 });
     const config = getBackendConfig();
     if (!config.ready) return NextResponse.json({ error: "Wallet sign-in and holder checks are not configured yet.", code: "NOT_CONFIGURED" }, { status: 503 });
-    const records = await supabaseRequest<Array<{ nonce: string; expires_at: string }>>(`pf_nonces?wallet=eq.${encodeURIComponent(wallet)}&select=nonce,expires_at&limit=1`);
+    const records = await queryRows<{ nonce: string; expires_at: string }>("select nonce, expires_at from pf_nonces where wallet = $1 limit 1", [wallet]);
     const nonceRecord = records[0];
     if (!nonceRecord || new Date(nonceRecord.expires_at).getTime() < Date.now() || !message.includes(`Nonce: ${nonceRecord.nonce}`)) {
       return NextResponse.json({ error: "Sign-in challenge expired. Please try again." }, { status: 401 });
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     const publicKey = createPublicKey({ key: Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), Buffer.from(publicKeyBytes)]), format: "der", type: "spki" });
     const valid = verify(null, Buffer.from(message, "utf8"), publicKey, suppliedSignature);
     if (!valid) return NextResponse.json({ error: "Wallet signature did not verify." }, { status: 401 });
-    const consumed = await supabaseRequest<Array<{ wallet: string }>>(`pf_nonces?wallet=eq.${encodeURIComponent(wallet)}&nonce=eq.${encodeURIComponent(nonceRecord.nonce)}`, { method: "DELETE", headers: { Prefer: "return=representation" } });
+    const consumed = await queryRows<{ wallet: string }>("delete from pf_nonces where wallet = $1 and nonce = $2 returning wallet", [wallet, nonceRecord.nonce]);
     if (consumed.length !== 1) return NextResponse.json({ error: "Sign-in challenge was already used. Please try again." }, { status: 401 });
     const balance = await getHolderBalance(wallet);
     await setWalletSession(wallet);
