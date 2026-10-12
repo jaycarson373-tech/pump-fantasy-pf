@@ -449,6 +449,23 @@ footer { padding: 48px clamp(24px,7vw,112px) 30px; display: grid; grid-template-
 .fee-flow > div b { padding: 11px 14px; border: 1px solid #dce5de; border-radius: 7px; background: #f7faf7; color: #1b2a20; font-size: 12px; }
 .fee-flow > div i { color: #06a765; font-size: 18px; font-style: normal; }
 .fee-flow p { max-width: 800px; margin: 0; color: #747f76; font-size: 11px; line-height: 1.65; }
+.draft-room .season-clock { margin: 14px 15px 4px; padding: 13px 14px; display: grid; gap: 6px; border: 1px solid #314438; border-radius: 7px; background: #17251b; }
+.season-clock > span { color: #9bb5a2; font: 700 8px/1 var(--font-geist-mono), monospace; letter-spacing: .1em; }
+.season-clock > b { color: #f0fff5; font: 750 21px/1.1 var(--font-geist-mono), monospace; letter-spacing: -.04em; }
+.season-clock.draft > b { color: #14f195; }
+.season-clock.live > b { color: #b5e4c4; }
+.season-clock > small { color: #a5b8aa; font-size: 9px; line-height: 1.5; }
+.season-pathway { margin-top: 18px; padding: 26px; border: 1px solid #dce4dc; border-radius: 11px; background: #101811; color: #f2fff5; }
+.season-pathway h3 { margin: 12px 0 8px; font-size: 21px; letter-spacing: -.04em; }
+.season-pathway p { max-width: 720px; margin: 0; color: #adbdaf; font-size: 11px; line-height: 1.7; }
+.season-pathway ol { margin: 22px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); list-style: none; border: 1px solid #2c4032; border-radius: 8px; overflow: hidden; }
+.season-pathway li { min-height: 76px; padding: 14px; display: flex; align-items: flex-start; gap: 10px; border-right: 1px solid #2c4032; }
+.season-pathway li:last-child { border: 0; }
+.season-pathway li > b { color: #14f195; font: 700 9px/1 var(--font-geist-mono), monospace; }
+.season-pathway li span { display: grid; gap: 6px; }
+.season-pathway li strong { color: #ecfff2; font-size: 11px; }
+.season-pathway li small { color: #9eb1a3; font-size: 9px; line-height: 1.45; }
+.season-pathway-note { display: block; margin-top: 14px; color: #94a59a; font-size: 9px; line-height: 1.5; }
 .draft-room .how-section { background: #fff; }
 .draft-room .how-icon { color: #072f20; background: #14f195; }
 .draft-room .docs-note { border-color: #d4e9dc; background: #effbf4; }
@@ -466,6 +483,9 @@ footer { padding: 48px clamp(24px,7vw,112px) 30px; display: grid; grid-template-
   @keyframes draft-card-in { from { opacity: .45; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
 }
 @media (max-width: 720px) {
+  .season-pathway ol { grid-template-columns: repeat(2, 1fr); }
+  .season-pathway li:nth-child(2) { border-right: 0; }
+  .season-pathway li:nth-child(-n+2) { border-bottom: 1px solid #2c4032; }
   .draft-room .draft-hero { padding: 46px 18px 0; }
   .draft-room .draft-eyebrow { flex-wrap: wrap; font-size: 8px; }
   .draft-room .draft-hero h1 { font-size: clamp(58px, 14vw, 76px); }

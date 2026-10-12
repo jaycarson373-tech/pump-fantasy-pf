@@ -34,7 +34,21 @@ function shortAddress(address: string) {
 }
 
 type AuthState = { configured: boolean; authenticated: boolean; eligible: boolean; wallet?: string; balance?: string; minimumTokens?: string };
+type SeasonPhase = "unconfigured" | "inactive" | "scheduled" | "draft" | "live" | "complete" | "misconfigured";
+type SeasonState = { configured: boolean; seasonConfigured: boolean; phase: SeasonPhase; schedule?: { opensAt: string | null; lockedAt: string | null; closesAt: string | null } | null };
 type BoardPlayer = { id: string; rank: number; wallet: string; display_name: string | null; profile_url: string | null; avatar_url: string | null; pnl_usd: number; contest_change_usd: number | null };
+
+function countdownLabel(target: string | null | undefined, now: number) {
+  if (!target || !now) return null;
+  const remaining = Math.max(0, Date.parse(target) - now);
+  if (!Number.isFinite(remaining)) return null;
+  const totalSeconds = Math.floor(remaining / 1000);
+  const days = Math.floor(totalSeconds / 86_400);
+  const hours = Math.floor((totalSeconds % 86_400) / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${days ? `${days}d ` : ""}${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
+}
 const snapshotPlayers: BoardPlayer[] = (top50Snapshot.players as SnapshotTuple[]).map(([rank, wallet, displayName, pnl, avatar]) => ({
   id: `rank-${String(rank).padStart(2, "0")}`,
   rank,
@@ -196,6 +210,8 @@ export function FantasyApp() {
   const [selected, setSelected] = useState<Record<number, number>>({});
   const [draftHydrated, setDraftHydrated] = useState(false);
   const [seasonConfigured, setSeasonConfigured] = useState(false);
+  const [season, setSeason] = useState<SeasonState>({ configured: false, seasonConfigured: false, phase: "unconfigured" });
+  const [clockNow, setClockNow] = useState(0);
   const [search, setSearch] = useState("");
   const [entryBusy, setEntryBusy] = useState(false);
   const [entryMessage, setEntryMessage] = useState("");
@@ -203,6 +219,26 @@ export function FantasyApp() {
   const [snapshotAt, setSnapshotAt] = useState<string | null>(null);
   const [leaderboardSource, setLeaderboardSource] = useState("Loading Pump.fun leaderboard");
   const onAuthChange = useCallback((state: AuthState) => setAuth(state), []);
+
+  useEffect(() => {
+    let active = true;
+    const refreshSeason = async () => {
+      const response = await fetch("/api/entry", { cache: "no-store" });
+      const body = await response.json() as SeasonState;
+      if (!active) return;
+      setSeason(body);
+      setSeasonConfigured(Boolean(body.seasonConfigured));
+    };
+    void refreshSeason().catch(() => {});
+    const interval = window.setInterval(() => { void refreshSeason().catch(() => {}); }, 15_000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setClockNow(Date.now()), 1_000);
+    const firstTick = window.setTimeout(() => setClockNow(Date.now()), 0);
+    return () => { window.clearInterval(interval); window.clearTimeout(firstTick); };
+  }, []);
 
   useEffect(() => {
     if (draftHydrated || players.length !== 50) return;
@@ -294,6 +330,10 @@ export function FantasyApp() {
 
   const rosterSize = Object.keys(selected).length;
   const playerDataReady = players.length === 50;
+  const phaseName = season.phase === "draft" ? "DRAFT OPEN" : season.phase === "scheduled" ? "UP NEXT" : season.phase === "live" ? "SEASON LIVE" : season.phase === "complete" ? "SEASON COMPLETE" : season.phase === "misconfigured" ? "SCHEDULE ERROR" : "PRE-SEASON";
+  const timerTitle = season.phase === "draft" ? "DRAFT CLOSES IN" : season.phase === "live" ? "SEASON ENDS IN" : season.phase === "scheduled" ? "DRAFT OPENS IN" : null;
+  const timerTarget = season.phase === "draft" ? season.schedule?.lockedAt : season.phase === "live" ? season.schedule?.closesAt : season.phase === "scheduled" ? season.schedule?.opensAt : undefined;
+  const timerValue = countdownLabel(timerTarget, clockNow);
   const filteredPlayers = (band: number) => players
     .filter((player) => Math.floor((player.rank - 1) / 10) === band)
     .filter((player) => !search || `${player.display_name ?? ""} ${player.wallet}`.toLowerCase().includes(search.toLowerCase()));
@@ -374,6 +414,11 @@ export function FantasyApp() {
 
           <aside className="roster-panel">
             <div className="roster-panel-head"><div><span>YOUR SQUAD</span><b>Five picks</b></div><em>{auth.eligible ? "FANTASY CHECK PASSED" : "CONNECT WALLET"}</em></div>
+            <div className={`season-clock ${season.phase}`} aria-live="polite">
+              <span>{timerTitle ?? "LEAGUE STATUS"}</span>
+              <b>{timerValue ?? phaseName}</b>
+              <small>{season.phase === "draft" ? "Submit before the clock hits zero. Picks saved only on this device are not entered." : season.phase === "live" ? "Drafts are locked. The 48-hour scoring period is underway." : season.phase === "complete" ? "This season has ended. Final results and the next draft are handled by the league operator." : season.phase === "scheduled" ? "The draft opens at the scheduled start time." : season.phase === "misconfigured" ? "The season schedule needs an operator check." : "The live season schedule has not been configured."}</small>
+            </div>
             <div className="roster-slots">
               {[0, 1, 2, 3, 4].map((band) => {
                 const player = players.find((item) => item.rank === selected[band]);
@@ -382,7 +427,7 @@ export function FantasyApp() {
             </div>
             <div className="roster-note"><span className="note-mark">i</span><p>{rosterSize === 5 ? "Five traders drafted. Your squad is saved on this device until you submit it." : "Pick one trader in each of the five rank bands. Your draft saves on this device."} {auth.authenticated ? `Wallet verified${auth.balance ? ` · ${auth.balance} $FANTASY` : ""}.` : "Connect a wallet holding at least 500,000 $FANTASY to verify eligibility."}</p></div>
             <button className="clear-draft-button" type="button" onClick={() => { setSelected({}); setEntryMessage(""); }} disabled={rosterSize === 0}>Clear draft</button>
-            <button className="lock-button" disabled={entryBusy || rosterSize !== 5 || !auth.eligible || !seasonConfigured || !playerDataReady} onClick={submitEntry}>{entryBusy ? "Saving squad…" : !seasonConfigured ? "Draft window not open" : !playerDataReady ? "Roster unavailable" : !auth.eligible ? "Connect & verify $FANTASY" : rosterSize !== 5 ? `Pick ${5 - rosterSize} more` : "Submit squad"}</button>
+            <button className="lock-button" disabled={entryBusy || rosterSize !== 5 || !auth.eligible || !seasonConfigured || season.phase !== "draft" || !playerDataReady} onClick={submitEntry}>{entryBusy ? "Saving squad…" : season.phase === "live" || season.phase === "complete" ? "Draft locked" : !seasonConfigured || season.phase !== "draft" ? "Draft window not open" : !playerDataReady ? "Roster unavailable" : !auth.eligible ? "Connect & verify $FANTASY" : rosterSize !== 5 ? `Pick ${5 - rosterSize} more` : "Submit squad"}</button>
             {entryMessage ? <p className="entry-message" role="status">{entryMessage}</p> : null}
             <small className="no-signature">Wallet message signature only. No transaction or token transfer.</small>
           </aside>
@@ -390,7 +435,7 @@ export function FantasyApp() {
       </section>
 
       <section className="leaderboard-section-light" id="status">
-        <div className="section-topline"><div><span className="section-label">CONTEST STATUS</span><h2>Roster is visible. Entry is not open.</h2></div><span className="contest-status-pill"><i /> PRE-SEASON</span></div>
+        <div className="section-topline"><div><span className="section-label">CONTEST STATUS</span><h2>{season.phase === "draft" ? "The draft is open." : season.phase === "scheduled" ? "The next draft is scheduled." : season.phase === "live" ? "The season is underway." : season.phase === "complete" ? "The season window has ended." : "Roster is visible. Entry is not open."}</h2></div><span className="contest-status-pill"><i /> {phaseName}</span></div>
         <div className="status-cards">
           <article><span className="status-index">01</span><i className="status-symbol">◎</i><h3>One-month top 50</h3><p>Captured from the Pump.fun 1M profit leaderboard. The five rank bands are fixed for each contest.</p><span className={`status-pill ${playerDataReady ? "active" : "pending"}`}>{playerDataReady ? "50 SNAPSHOT PLAYERS" : "ROSTER UNAVAILABLE"}</span></article>
           <article><span className="status-index">02</span><i className="status-symbol">⌁</i><h3>Daily PnL race</h3><p>For each pick, closing 1M PnL minus opening 1M PnL. Add all five changes; the highest score wins.</p><span className="status-pill pending">{standings.some((row) => row.scoringReady) ? "ROUND SCORES LOADED" : "NO ROUND SCORING FEED"}</span></article>
@@ -401,6 +446,11 @@ export function FantasyApp() {
           {standings.length ? <div className="standings-list">{standings.map((row, index) => <div className="standings-row" key={row.wallet}><b className="standing-rank">{String(index + 1).padStart(2, "0")}</b><span>{shortAddress(row.wallet)}</span><strong>{row.scoringReady && row.score !== null ? `${row.score >= 0 ? "+" : "−"}$${Math.abs(row.score).toLocaleString("en-US", { maximumFractionDigits: 2 })}` : "Awaiting verified PnL"}</strong></div>)}</div> : <p className="standings-empty">The board fills after the first round opens, five-pick squads are submitted, and closing PnL data is captured.</p>}
         </div>
         <div className="fee-flow"><span className="section-label">THE PRIZE LOOP</span><div><b>Creator fees</b><i>→</i><b>Daily prize pool</b><i>→</i><b>Top fantasy squad</b></div><p>Prize funding and transfers will show here once the fee source, split, treasury, and payout method are connected and verified. No prize amount is being represented as funded today.</p></div>
+        <div className="season-pathway">
+          <div><span className="section-label">THE LEAGUE KEEPS GOING</span><h3>One season ends. The race continues.</h3><p>Each season runs a 3-hour draft followed by 48 hours of scoring. When the clock expires, entries lock, the final leaderboard is reviewed, and the next season can open with a fresh field.</p></div>
+          <ol><li><b>01</b><span><strong>Draft</strong><small>Pick five before entries lock.</small></span></li><li><b>02</b><span><strong>Season</strong><small>Track the 48-hour PnL race.</small></span></li><li><b>03</b><span><strong>Next season</strong><small>Fresh draft, new standings.</small></span></li><li><b>04</b><span><strong>Playoffs</strong><small>Top season performers qualify for the finals.</small></span></li></ol>
+          <small className="season-pathway-note">Season rollover, cumulative qualification, playoff rules, final scoring and payouts still need to be configured before they are automatic.</small>
+        </div>
       </section>
 
       <section className="how-section" id="format">
