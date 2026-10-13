@@ -6,6 +6,7 @@ import { validWallet } from "./http";
 import { getNativeSolBalance } from "./solana";
 import { nextSeasonId } from "./season-window";
 import { calculateDailyWinner } from "./daily-scoring";
+import { recoverBoundaryAward, type AwardBoundary } from "./boundary-award";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_GRACE_MS = 15 * 60 * 1000;
@@ -44,9 +45,24 @@ async function recordAward(season: Season, day: 1 | 2, previous: ScoreSnapshot, 
   await queryRows("insert into pf_daily_awards (season_id, day_number, winner_wallet, score_usd, prize_lamports, status) values ($1, $2, $3, $4, $5, $6) on conflict (season_id, day_number) do nothing", [season.id, day, result.wallet, result.score, prize.toString(), status]);
 }
 
+async function reconcileStoredAward(season: Season, boundary: AwardBoundary, snapshot?: ScoreSnapshot) {
+  const current = snapshot ?? (await queryRows<ScoreSnapshot>("select boundary, captured_at, pnl_by_wallet, missing_wallets from pf_score_snapshots where season_id = $1 and boundary = $2 limit 1", [season.id, boundary]))[0];
+  if (!current) return false;
+
+  return recoverBoundaryAward({
+    boundary,
+    snapshot: current,
+    loadPrevious: async (previousBoundary) => (await queryRows<ScoreSnapshot>("select boundary, captured_at, pnl_by_wallet, missing_wallets from pf_score_snapshots where season_id = $1 and boundary = $2 limit 1", [season.id, previousBoundary]))[0],
+    recordAward: async (awardBoundary, previous, closing) => recordAward(season, awardBoundary, previous, closing)
+  });
+}
+
 async function captureBoundary(season: Season, boundary: 0 | 1 | 2) {
-  const already = await queryRows<{ boundary: number }>("select boundary from pf_score_snapshots where season_id = $1 and boundary = $2 limit 1", [season.id, boundary]);
-  if (already.length) return false;
+  const already = await queryRows<ScoreSnapshot>("select boundary, captured_at, pnl_by_wallet, missing_wallets from pf_score_snapshots where season_id = $1 and boundary = $2 limit 1", [season.id, boundary]);
+  if (already[0]) {
+    if (boundary > 0) await reconcileStoredAward(season, boundary, already[0]);
+    return false;
+  }
   const board = await fetchPumpLeaderboard(100, { fresh: true });
   if (board.players.length < 50 || new Set(board.players.map((player) => player.wallet)).size !== board.players.length || board.players.some((player) => !validWallet(player.wallet) || !Number.isFinite(player.pnl_usd))) throw new Error("Pump.fun returned an incomplete or invalid scoring snapshot.");
   const entries = await queryRows<EntryRow>("select wallet, picks from pf_entries where season_id = $1", [season.id]);
@@ -57,12 +73,11 @@ async function captureBoundary(season: Season, boundary: 0 | 1 | 2) {
   const missing = [...pickedWallets].filter((wallet) => values[wallet] === undefined);
   const capturedAt = new Date().toISOString();
   const inserted = await queryRows<{ boundary: number }>("insert into pf_score_snapshots (season_id, boundary, captured_at, source_url, pnl_by_wallet, missing_wallets) values ($1, $2, $3, $4, $5::jsonb, $6::jsonb) on conflict (season_id, boundary) do nothing returning boundary", [season.id, boundary, capturedAt, "https://pump.fun/leaderboard", JSON.stringify(values), JSON.stringify(missing)]);
-  if (!inserted.length) return false;
-  if (boundary === 1 || boundary === 2) {
-    const earlier = await queryRows<ScoreSnapshot>("select boundary, captured_at, pnl_by_wallet, missing_wallets from pf_score_snapshots where season_id = $1 and boundary = $2 limit 1", [season.id, boundary - 1]);
-    if (earlier[0]) await recordAward(season, boundary, earlier[0], { boundary, captured_at: capturedAt, pnl_by_wallet: values, missing_wallets: missing });
-  }
-  return true;
+  const savedSnapshot: ScoreSnapshot = inserted.length
+    ? { boundary, captured_at: capturedAt, pnl_by_wallet: values, missing_wallets: missing }
+    : (await queryRows<ScoreSnapshot>("select boundary, captured_at, pnl_by_wallet, missing_wallets from pf_score_snapshots where season_id = $1 and boundary = $2 limit 1", [season.id, boundary]))[0];
+  if (savedSnapshot && boundary > 0) await reconcileStoredAward(season, boundary, savedSnapshot);
+  return inserted.length > 0;
 }
 
 export async function tickSeason() {
@@ -77,9 +92,15 @@ export async function tickSeason() {
     if (now >= lockedAt && now <= lockedAt + SNAPSHOT_GRACE_MS && await captureBoundary(season, 0)) snapshots.push("scoring-open");
     const dayOneAt = lockedAt + DAY_MS;
     if (now >= dayOneAt && now <= dayOneAt + SNAPSHOT_GRACE_MS && await captureBoundary(season, 1)) snapshots.push("day-one-close");
-    else if (now > dayOneAt + SNAPSHOT_GRACE_MS) await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_lamports) values ($1, 1, 'awaiting_data', $2) on conflict (season_id, day_number) do nothing", [season.id, season.daily_prize_lamports]);
+    else if (now > dayOneAt + SNAPSHOT_GRACE_MS) {
+      await reconcileStoredAward(season, 1);
+      await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_lamports) values ($1, 1, 'awaiting_data', $2) on conflict (season_id, day_number) do nothing", [season.id, season.daily_prize_lamports]);
+    }
     if (now >= closesAt && now <= closesAt + SNAPSHOT_GRACE_MS && await captureBoundary(season, 2)) snapshots.push("day-two-close");
-    else if (now > closesAt + SNAPSHOT_GRACE_MS) await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_lamports) values ($1, 2, 'awaiting_data', $2) on conflict (season_id, day_number) do nothing", [season.id, season.daily_prize_lamports]);
+    else if (now > closesAt + SNAPSHOT_GRACE_MS) {
+      await reconcileStoredAward(season, 2);
+      await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_lamports) values ($1, 2, 'awaiting_data', $2) on conflict (season_id, day_number) do nothing", [season.id, season.daily_prize_lamports]);
+    }
     if (now < closesAt) return { ok: true, action: snapshots.length ? "snapshotted" : "waiting", seasonId: season.id, snapshots };
 
     const nextPrize = BigInt(season.daily_prize_lamports || 0);
