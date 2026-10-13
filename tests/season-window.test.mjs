@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canSubmitSeasonEntry, getSeasonPhase, nextSeasonId } from "../lib/server/season-window.ts";
+import { canSubmitSeasonEntry, getSeasonPhase, nextSeasonId, seasonWindowFromOpen } from "../lib/server/season-window.ts";
 
 const schedule = {
   status: "open",
@@ -41,4 +41,19 @@ test("next season IDs advance past the highest existing number without reusing g
   assert.equal(nextSeasonId([]), "season-1");
   assert.equal(nextSeasonId(["season-1", "season-3"]), "season-4");
   assert.equal(nextSeasonId(["season-1", "season-3", "season-4"]), "season-5");
+});
+
+test("automatic rollover opens a three-hour draft followed by a 48-hour scoring season", () => {
+  const opensAt = Date.parse("2026-10-13T12:00:00.000Z");
+  const next = seasonWindowFromOpen(opensAt);
+
+  assert.equal(Date.parse(next.opensAt), opensAt);
+  assert.equal(Date.parse(next.lockedAt) - opensAt, 3 * 60 * 60 * 1000);
+  assert.equal(Date.parse(next.closesAt) - Date.parse(next.lockedAt), 48 * 60 * 60 * 1000);
+  assert.equal(getSeasonPhase({ status: "open", opens_at: next.opensAt, locked_at: next.lockedAt, closes_at: next.closesAt }, opensAt), "draft");
+});
+
+test("automatic rollover rejects invalid timestamps instead of writing a corrupt schedule", () => {
+  assert.throws(() => seasonWindowFromOpen(Number.NaN), /Invalid season open time/);
+  assert.throws(() => seasonWindowFromOpen(0), /Invalid season open time/);
 });

@@ -4,7 +4,7 @@ import { fetchPumpLeaderboard, type FantasyPlayer } from "./pumpfun";
 import { saveRosterSnapshot } from "./players";
 import { validWallet } from "./http";
 import { getNativeSolBalance } from "./solana";
-import { nextSeasonId } from "./season-window";
+import { nextSeasonId, seasonWindowFromOpen } from "./season-window";
 import { calculateDailyWinner } from "./daily-scoring";
 import { recoverBoundaryAward, type AwardBoundary } from "./boundary-award";
 
@@ -122,18 +122,16 @@ export async function tickSeason() {
       const nextId = nextSeasonId(existing.map((row) => row.id));
       const nextNumber = Number(nextId.slice("season-".length));
       const nextPrizeLamports = nextPrize.toString();
-      const nextOpen = new Date();
-      const nextLock = new Date(nextOpen.getTime() + 3 * 60 * 60 * 1000);
-      const nextClose = new Date(nextLock.getTime() + 48 * 60 * 60 * 1000);
+      const nextWindow = seasonWindowFromOpen(Date.now());
       const inserted = await transactionQuery<{ id: string }>("insert into pf_seasons (id, title, status, opens_at, locked_at, closes_at, daily_prize_lamports, source_url) values ($1, $2, 'draft', null, null, null, $3, $4) on conflict (id) do nothing returning id", [nextId, `Season ${nextNumber}`, nextPrizeLamports, "https://pump.fun/leaderboard"]);
       if (!inserted.length) throw new Error("Could not reserve the next season ID safely.");
       await saveRosterSnapshot(nextId, board.players, new Date(board.snapshotAt), transactionQuery);
-      const opened = await transactionQuery<{ id: string }>("update pf_seasons set status = 'open', opens_at = $2, locked_at = $3, closes_at = $4 where id = $1 and status = 'draft' returning id", [nextId, nextOpen.toISOString(), nextLock.toISOString(), nextClose.toISOString()]);
+      const opened = await transactionQuery<{ id: string }>("update pf_seasons set status = 'open', opens_at = $2, locked_at = $3, closes_at = $4 where id = $1 and status = 'draft' returning id", [nextId, nextWindow.opensAt, nextWindow.lockedAt, nextWindow.closesAt]);
       if (!opened.length) throw new Error("Could not open the next season safely.");
       const completed = await transactionQuery<{ id: string }>("update pf_seasons set status = 'complete' where id = $1 and status = 'open' returning id", [season.id]);
       if (!completed.length) throw new Error("The previous season changed during rollover.");
       await transactionQuery("insert into pf_app_config (key, value) values ('active_season_id', $1) on conflict (key) do update set value = excluded.value, updated_at = now()", [nextId]);
-      return { ok: true, action: "season-rolled", completedSeasonId: season.id, activeSeasonId: nextId, draftLocksAt: nextLock.toISOString(), seasonEndsAt: nextClose.toISOString() };
+      return { ok: true, action: "season-rolled", completedSeasonId: season.id, activeSeasonId: nextId, draftLocksAt: nextWindow.lockedAt, seasonEndsAt: nextWindow.closesAt };
     });
   });
 }
