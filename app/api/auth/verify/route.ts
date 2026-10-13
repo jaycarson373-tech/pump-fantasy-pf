@@ -6,6 +6,7 @@ import { queryRows } from "../../../../lib/server/database";
 import { routeError, sameOrigin, validWallet } from "../../../../lib/server/http";
 import { setWalletSession } from "../../../../lib/server/session";
 import { getHolderBalance } from "../../../../lib/server/solana";
+import { siteOriginHost } from "../../../../lib/server/origin.mjs";
 
 export const runtime = "nodejs";
 
@@ -24,8 +25,9 @@ export async function POST(request: Request) {
     if (!nonceRecord || new Date(nonceRecord.expires_at).getTime() < Date.now() || !message.includes(`Nonce: ${nonceRecord.nonce}`)) {
       return NextResponse.json({ error: "Sign-in challenge expired. Please try again." }, { status: 401 });
     }
-    const site = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
-    const messagePrefix = `${new URL(site).host} wants you to sign in with your Solana account:\n${wallet}\n\n`;
+    const siteHost = siteOriginHost(request);
+    if (!siteHost) return NextResponse.json({ error: "This site origin is not allowed." }, { status: 403 });
+    const messagePrefix = `${siteHost} wants you to sign in with your Solana account:\n${wallet}\n\n`;
     if (!message.startsWith(messagePrefix)) return NextResponse.json({ error: "Sign-in message does not match this site and wallet." }, { status: 401 });
     const suppliedSignature = Buffer.from(signatureText, "base64");
     const publicKeyBytes = decodeBase58(wallet);
