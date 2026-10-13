@@ -27,3 +27,14 @@ export function getSeasonPhase(season: SeasonSchedule, now = Date.now()): Season
 export function canSubmitSeasonEntry(season: SeasonSchedule, now = Date.now()) {
   return season.status === "open" && getSeasonPhase(season, now) === "draft";
 }
+
+export function nextSeasonId(existingIds: string[]) {
+  const existing = new Set(existingIds);
+  const highest = existingIds.reduce((max, id) => {
+    const match = /^season-(\d+)$/.exec(id);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  let next = highest + 1;
+  while (existing.has(`season-${next}`)) next += 1;
+  return `season-${next}`;
+}

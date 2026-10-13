@@ -1,6 +1,8 @@
 import "server-only";
 import { Pool, type QueryResultRow } from "pg";
 
+export type RowsQuery = <T extends QueryResultRow>(sql: string, values?: unknown[]) => Promise<T[]>;
+
 declare global {
   // Keep one pool across Next.js hot reloads in development.
   var pumpFantasyPool: Pool | undefined;
@@ -21,9 +23,28 @@ function getPool() {
   return globalThis.pumpFantasyPool;
 }
 
-export async function queryRows<T extends QueryResultRow>(sql: string, values: unknown[] = []) {
+export async function queryRows<T extends QueryResultRow>(sql: string, values: unknown[] = []): Promise<T[]> {
   const result = await getPool().query<T>(sql, values);
   return result.rows;
+}
+
+export async function withTransaction<T>(task: (query: RowsQuery) => Promise<T>): Promise<T> {
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const transactionQuery: RowsQuery = async <Row extends QueryResultRow>(sql: string, values: unknown[] = []) => {
+      const result = await client.query<Row>(sql, values);
+      return result.rows;
+    };
+    const result = await task(transactionQuery);
+    await client.query("commit");
+    return result;
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function closeDatabasePool() {

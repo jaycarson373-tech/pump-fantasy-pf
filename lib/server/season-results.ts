@@ -1,9 +1,10 @@
 import "server-only";
-import { queryRows, withAdvisoryLock } from "./database";
+import { queryRows, withAdvisoryLock, withTransaction } from "./database";
 import { fetchPumpLeaderboard, type FantasyPlayer } from "./pumpfun";
 import { saveRosterSnapshot } from "./players";
 import { validWallet } from "./http";
 import { getNativeSolBalance } from "./solana";
+import { nextSeasonId } from "./season-window";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_GRACE_MS = 15 * 60 * 1000;
@@ -95,20 +96,30 @@ export async function tickSeason() {
       const balance = await getNativeSolBalance(prizeWallet);
       if (balance < nextPrize * 2n + 20_000n) return { ok: true, action: "awaiting-prize-funding", seasonId: season.id, requiredBalanceLamports: (nextPrize * 2n + 20_000n).toString() };
     }
-    await queryRows("update pf_seasons set status = 'complete' where id = $1 and status = 'open'", [season.id]);
-    const indexRows = await queryRows<{ count: string }>("select count(*)::text as count from pf_seasons");
-    const nextNumber = Number(indexRows[0]?.count || 1) + 1;
-    const nextId = `season-${nextNumber}`;
-    const nextPrizeLamports = nextPrize.toString();
     const board = await fetchPumpLeaderboard(50, { fresh: true });
-    if (board.players.length !== 50 || board.players.some((player, index) => player.rank !== index + 1) || new Set(board.players.map((player) => player.wallet)).size !== 50) throw new Error("Season ended, but Pump.fun did not return a valid top 50 for the next draft.");
-    const nextOpen = new Date();
-    const nextLock = new Date(nextOpen.getTime() + 3 * 60 * 60 * 1000);
-    const nextClose = new Date(nextLock.getTime() + 48 * 60 * 60 * 1000);
-    await queryRows("insert into pf_seasons (id, title, status, opens_at, locked_at, closes_at, daily_prize_lamports, source_url) values ($1, $2, 'draft', null, null, null, $3, $4) on conflict (id) do nothing", [nextId, `Season ${nextNumber}`, nextPrizeLamports, "https://pump.fun/leaderboard"]);
-    await saveRosterSnapshot(nextId, board.players, nextOpen);
-    await queryRows("update pf_seasons set status = 'open', opens_at = $2, locked_at = $3, closes_at = $4 where id = $1 and status = 'draft'", [nextId, nextOpen.toISOString(), nextLock.toISOString(), nextClose.toISOString()]);
-    await queryRows("insert into pf_app_config (key, value) values ('active_season_id', $1) on conflict (key) do update set value = excluded.value, updated_at = now()", [nextId]);
-    return { ok: true, action: "season-rolled", completedSeasonId: season.id, activeSeasonId: nextId, draftLocksAt: nextLock.toISOString(), seasonEndsAt: nextClose.toISOString() };
+    if (board.players.length !== 50 || board.players.some((player, index) => player.rank !== index + 1 || !validWallet(player.wallet) || !Number.isFinite(player.pnl_usd)) || new Set(board.players.map((player) => player.wallet)).size !== 50) {
+      return { ok: true, action: "awaiting-leaderboard", seasonId: season.id };
+    }
+
+    return withTransaction(async (transactionQuery) => {
+      const current = await transactionQuery<{ id: string }>("select id from pf_seasons where id = $1 and status = 'open' for update", [season.id]);
+      if (!current.length) return { ok: true, action: "already-rolled", seasonId: season.id };
+      const existing = await transactionQuery<{ id: string }>("select id from pf_seasons");
+      const nextId = nextSeasonId(existing.map((row) => row.id));
+      const nextNumber = Number(nextId.slice("season-".length));
+      const nextPrizeLamports = nextPrize.toString();
+      const nextOpen = new Date();
+      const nextLock = new Date(nextOpen.getTime() + 3 * 60 * 60 * 1000);
+      const nextClose = new Date(nextLock.getTime() + 48 * 60 * 60 * 1000);
+      const inserted = await transactionQuery<{ id: string }>("insert into pf_seasons (id, title, status, opens_at, locked_at, closes_at, daily_prize_lamports, source_url) values ($1, $2, 'draft', null, null, null, $3, $4) on conflict (id) do nothing returning id", [nextId, `Season ${nextNumber}`, nextPrizeLamports, "https://pump.fun/leaderboard"]);
+      if (!inserted.length) throw new Error("Could not reserve the next season ID safely.");
+      await saveRosterSnapshot(nextId, board.players, new Date(board.snapshotAt), transactionQuery);
+      const opened = await transactionQuery<{ id: string }>("update pf_seasons set status = 'open', opens_at = $2, locked_at = $3, closes_at = $4 where id = $1 and status = 'draft' returning id", [nextId, nextOpen.toISOString(), nextLock.toISOString(), nextClose.toISOString()]);
+      if (!opened.length) throw new Error("Could not open the next season safely.");
+      const completed = await transactionQuery<{ id: string }>("update pf_seasons set status = 'complete' where id = $1 and status = 'open' returning id", [season.id]);
+      if (!completed.length) throw new Error("The previous season changed during rollover.");
+      await transactionQuery("insert into pf_app_config (key, value) values ('active_season_id', $1) on conflict (key) do update set value = excluded.value, updated_at = now()", [nextId]);
+      return { ok: true, action: "season-rolled", completedSeasonId: season.id, activeSeasonId: nextId, draftLocksAt: nextLock.toISOString(), seasonEndsAt: nextClose.toISOString() };
+    });
   });
 }
