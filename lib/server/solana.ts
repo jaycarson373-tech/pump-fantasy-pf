@@ -48,17 +48,17 @@ export async function getHolderBalance(wallet: string) {
   return { rawBalance: total.toString(), decimals: supply.value.decimals, displayBalance, minimumTokens: config.minimumTokens.toString(), eligible: total >= threshold };
 }
 
-export async function verifyNativeSolTransfer(signature: string, destination: string, lamports: string) {
+export async function verifyNativeSolTransfer(signature: string, source: string, destination: string, lamports: string) {
   if (!/^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(signature) || !/^\d+$/.test(lamports) || BigInt(lamports) <= 0n) return null;
   const transaction = await rpc<{
     slot: number;
     blockTime: number | null;
     meta: { err: unknown } | null;
-    transaction: { message: { instructions: Array<{ program?: string; parsed?: { type?: string; info?: { destination?: string; lamports?: number | string } } }> } };
+    transaction: { message: { instructions: Array<{ program?: string; parsed?: { type?: string; info?: { source?: string; destination?: string; lamports?: number | string } } }> } };
   } | null>("getTransaction", [signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" }]);
   if (!transaction || !transaction.meta || transaction.meta.err) return null;
   const transfers = transaction.transaction.message.instructions.filter((instruction) => instruction.program === "system" && instruction.parsed?.type === "transfer");
-  const matching = transfers.find((instruction) => instruction.parsed?.info?.destination === destination && instruction.parsed.info.lamports !== undefined && BigInt(String(instruction.parsed.info.lamports)) === BigInt(lamports));
+  const matching = transfers.find((instruction) => instruction.parsed?.info?.source === source && instruction.parsed.info.destination === destination && instruction.parsed.info.lamports !== undefined && BigInt(String(instruction.parsed.info.lamports)) === BigInt(lamports));
   return matching ? { slot: transaction.slot, blockTime: transaction.blockTime } : null;
 }
 

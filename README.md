@@ -22,7 +22,14 @@ On Vercel, the production-only `PF_API_PROXY=1` setting enables a `beforeFiles` 
 
 The first season row is `season-1` with status `draft`. After the FANTASY token is live, set `FANTASY_MINT_ADDRESS` to the verified mint and confirm the health endpoint reports database/migrations/holder checks configured. Set `PF_DAILY_PRIZE_LAMPORTS` to the exact daily SOL prize in lamports, set `PF_PRIZE_WALLET_ADDRESS`, and fund the prize wallet before starting the season. The start endpoint checks that it covers both days of prizes plus fees.
 
-To open Season 1, call the protected start endpoint once after the token is live. It snapshots Pump.fun's current 1–50 field and opens the three-hour draft. The next 48 hours are split into two daily scoring windows. Later seasons open automatically when the preceding season ends.
+Before launch, call the protected read-only preflight. It checks the live FANTASY mint, database/migrations, prepared draft season, Pump.fun top-50 snapshot, prize amount, prize-wallet address, and enough SOL to cover both daily awards plus fees. It does not start a season or send a transaction.
+
+```bash
+curl "$NEXT_PUBLIC_SITE_URL/api/admin/season/preflight" \
+  -H "Authorization: Bearer $PF_DATA_INGEST_SECRET"
+```
+
+To open Season 1, call the protected start endpoint once after the token is live and preflight returns `ready: true`. It snapshots Pump.fun's current 1–50 field and opens the three-hour draft. The next 48 hours are split into two daily scoring windows. Later seasons open automatically when the preceding season ends.
 
 ```bash
 curl -X POST "$NEXT_PUBLIC_SITE_URL/api/admin/season/start" \

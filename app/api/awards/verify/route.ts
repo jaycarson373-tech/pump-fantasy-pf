@@ -15,9 +15,11 @@ export async function POST(request: Request) {
     if (!award) return NextResponse.json({ error: "Award not found." }, { status: 404 });
     if (award.status === "paid") return NextResponse.json({ ok: true, signature: award.payment_signature, alreadyPaid: true });
     if (!award.winner_wallet || !validWallet(award.winner_wallet) || BigInt(award.prize_lamports) <= 0n) return NextResponse.json({ error: "This award has no eligible winner or configured prize amount." }, { status: 409 });
+    const prizeWallet = process.env.PF_PRIZE_WALLET_ADDRESS || "";
+    if (!validWallet(prizeWallet)) return NextResponse.json({ error: "The prize wallet is not configured for payment verification." }, { status: 503 });
     let verified = null;
     for (let attempt = 0; attempt < 6 && !verified; attempt += 1) {
-      verified = await verifyNativeSolTransfer(body.signature, award.winner_wallet, award.prize_lamports);
+      verified = await verifyNativeSolTransfer(body.signature, prizeWallet, award.winner_wallet, award.prize_lamports);
       if (!verified && attempt < 5) await new Promise((resolve) => setTimeout(resolve, 1_500));
     }
     if (!verified) return NextResponse.json({ error: "The transaction is not a confirmed successful SOL transfer for the exact award amount and winner. Check the signature and retry." }, { status: 422 });
