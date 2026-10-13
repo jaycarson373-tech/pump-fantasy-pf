@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canSubmitSeasonEntry, getSeasonPhase, nextSeasonId, seasonWindowFromOpen } from "../lib/server/season-window.ts";
+import { canSubmitSeasonEntry, getSeasonPhase, nextSeasonId, seasonWindowFromOpen, shouldShowSeasonRoom } from "../lib/server/season-window.ts";
 
 const schedule = {
   status: "open",
@@ -29,6 +29,15 @@ test("entries can only be submitted during the open draft window", () => {
   assert.equal(canSubmitSeasonEntry(schedule, open), true);
   assert.equal(canSubmitSeasonEntry(schedule, lock), false);
   assert.equal(canSubmitSeasonEntry({ ...schedule, status: "complete" }, open), false);
+});
+
+test("the home page shows the season room only for draft, scoring, or completed seasons", () => {
+  assert.equal(shouldShowSeasonRoom("draft"), true);
+  assert.equal(shouldShowSeasonRoom("live"), true);
+  assert.equal(shouldShowSeasonRoom("complete"), true);
+  assert.equal(shouldShowSeasonRoom("scheduled"), false);
+  assert.equal(shouldShowSeasonRoom("inactive"), false);
+  assert.equal(shouldShowSeasonRoom("misconfigured"), false);
 });
 
 test("invalid or incomplete season schedules fail closed", () => {
