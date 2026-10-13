@@ -24,6 +24,12 @@ The first season row is `season-1` with status `draft`. After the FANTASY token 
 
 Before launch, call the protected read-only preflight. It checks the live FANTASY mint, database/migrations, prepared draft season, Pump.fun top-50 snapshot, prize amount, prize-wallet address, and enough SOL to cover both daily awards plus fees. It does not start a season or send a transaction.
 
+You can also run the public and protected checks together from a trusted machine. Set `NEXT_PUBLIC_SITE_URL` to the canonical site and `PF_DATA_INGEST_SECRET` in the shell first. The script never prints the secret, prize wallet, or player list, and it never starts a season or sends a transaction. It exits nonzero unless every launch gate passes.
+
+```bash
+npm run check:live
+```
+
 ```bash
 curl "$NEXT_PUBLIC_SITE_URL/api/admin/season/preflight" \
   -H "Authorization: Bearer $PF_DATA_INGEST_SECRET"
