@@ -5,6 +5,7 @@ import { saveRosterSnapshot } from "./players";
 import { validWallet } from "./http";
 import { getNativeSolBalance } from "./solana";
 import { nextSeasonId } from "./season-window";
+import { calculateDailyWinner } from "./daily-scoring";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_GRACE_MS = 15 * 60 * 1000;
@@ -28,27 +29,19 @@ async function recordAward(season: Season, day: 1 | 2, previous: ScoreSnapshot, 
   const existing = await queryRows<{ id: string }>("select id from pf_daily_awards where season_id = $1 and day_number = $2 limit 1", [season.id, day]);
   if (existing.length) return;
   const entries = await queryRows<EntryRow>("select wallet, picks from pf_entries where season_id = $1 order by created_at asc, wallet asc", [season.id]);
-  if (!entries.length) {
+  const players = await queryRows<{ id: string; wallet: string }>("select id, wallet from pf_players where season_id = $1", [season.id]);
+  const result = calculateDailyWinner(entries, players, previous.pnl_by_wallet, current.pnl_by_wallet);
+  if (result.kind === "no-eligible-entries") {
     await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_lamports) values ($1, $2, 'no_eligible_entries', $3) on conflict (season_id, day_number) do nothing", [season.id, day, season.daily_prize_lamports]);
     return;
   }
-  const players = await queryRows<{ id: string; wallet: string }>("select id, wallet from pf_players where season_id = $1", [season.id]);
-  const walletById = new Map(players.map((player) => [player.id, player.wallet]));
-  const totals = entries.map((entry) => {
-    const wallets = entry.picks.map((id) => walletById.get(id));
-    if (wallets.length !== 5 || wallets.some((wallet) => !wallet || previous.pnl_by_wallet[wallet] === undefined || current.pnl_by_wallet[wallet] === undefined)) return null;
-    return { wallet: entry.wallet, score: wallets.reduce((sum, wallet) => sum + current.pnl_by_wallet[wallet!] - previous.pnl_by_wallet[wallet!], 0) };
-  });
-  if (totals.some((item) => item === null) || !totals.length) {
+  if (result.kind === "awaiting-data") {
     await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_lamports) values ($1, $2, 'awaiting_data', $3) on conflict (season_id, day_number) do nothing", [season.id, day, season.daily_prize_lamports]);
     return;
   }
-  const completeTotals = totals as Array<{ wallet: string; score: number }>;
-  completeTotals.sort((a, b) => b.score - a.score || a.wallet.localeCompare(b.wallet));
-  const winner = completeTotals[0];
   const prize = BigInt(season.daily_prize_lamports || 0);
   const status = prize > 0n ? "pending_payment" : "awaiting_funding";
-  await queryRows("insert into pf_daily_awards (season_id, day_number, winner_wallet, score_usd, prize_lamports, status) values ($1, $2, $3, $4, $5, $6) on conflict (season_id, day_number) do nothing", [season.id, day, winner.wallet, winner.score, prize.toString(), status]);
+  await queryRows("insert into pf_daily_awards (season_id, day_number, winner_wallet, score_usd, prize_lamports, status) values ($1, $2, $3, $4, $5, $6) on conflict (season_id, day_number) do nothing", [season.id, day, result.wallet, result.score, prize.toString(), status]);
 }
 
 async function captureBoundary(season: Season, boundary: 0 | 1 | 2) {
