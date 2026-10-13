@@ -26,7 +26,7 @@ const FEATURED_KOLS = [
   { name: "zinc", image: "/players/featured/zinc.png" },
   { name: "limfork", image: "/players/featured/limfork.png" },
 ];
-const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_FANTASY_CA || process.env.NEXT_PUBLIC_PF_CA)?.trim() ?? "";
+const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_FANTASY_CA || process.env.NEXT_PUBLIC_PF_CA || "51MVoyg5tEPxFMLWsojiz3gnN35nz6gPKzaGqNMEpump").trim();
 const DRAFT_STORAGE_KEY = "pump-fantasy-five-pick-draft-v1";
 type SnapshotTuple = [number, string, string, number, string];
 

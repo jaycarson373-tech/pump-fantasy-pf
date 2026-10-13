@@ -36,7 +36,7 @@ curl -X POST "$NEXT_PUBLIC_SITE_URL/api/admin/season/start" \
   -H "Authorization: Bearer $PF_DATA_INGEST_SECRET"
 ```
 
-For example, to lock the draft at 3:00 PM Eastern on October 13, 2026 (EDT, UTC−4), use `{"draftLocksAt":"2026-10-13T15:00:00-04:00"}` as the JSON request body. Only do this when the preflight is ready and the requested lock time is still in the future.
+For example, to lock the draft at 2:00 PM Eastern on October 13, 2026 (EDT, UTC−4), use `{"draftLocksAt":"2026-10-13T14:00:00-04:00"}` as the JSON request body. Only do this when the preflight is ready and the requested lock time is still in the future.
 
 The prize wallet connects to the site and presses the daily award payment button; the wallet shows the exact SOL transfer for approval. The award is marked paid only after RPC confirms that exact transfer to the winner. Submit the verified signature to `/api/admin/awards/payment` with `awardId` and `signature`, using the same bearer secret. A wallet private key is not required by the site.
 
