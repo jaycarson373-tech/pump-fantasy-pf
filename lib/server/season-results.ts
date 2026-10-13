@@ -60,7 +60,7 @@ async function reconcileStoredAward(season: Season, boundary: AwardBoundary, sna
 async function captureBoundary(season: Season, boundary: 0 | 1 | 2) {
   const already = await queryRows<ScoreSnapshot>("select boundary, captured_at, pnl_by_wallet, missing_wallets from pf_score_snapshots where season_id = $1 and boundary = $2 limit 1", [season.id, boundary]);
   if (already[0]) {
-    if (boundary > 0) await reconcileStoredAward(season, boundary, already[0]);
+    if (boundary === 1 || boundary === 2) await reconcileStoredAward(season, boundary, already[0]);
     return false;
   }
   const board = await fetchPumpLeaderboard(100, { fresh: true });
@@ -76,7 +76,7 @@ async function captureBoundary(season: Season, boundary: 0 | 1 | 2) {
   const savedSnapshot: ScoreSnapshot = inserted.length
     ? { boundary, captured_at: capturedAt, pnl_by_wallet: values, missing_wallets: missing }
     : (await queryRows<ScoreSnapshot>("select boundary, captured_at, pnl_by_wallet, missing_wallets from pf_score_snapshots where season_id = $1 and boundary = $2 limit 1", [season.id, boundary]))[0];
-  if (savedSnapshot && boundary > 0) await reconcileStoredAward(season, boundary, savedSnapshot);
+  if (savedSnapshot && (boundary === 1 || boundary === 2)) await reconcileStoredAward(season, boundary, savedSnapshot);
   return inserted.length > 0;
 }
 
