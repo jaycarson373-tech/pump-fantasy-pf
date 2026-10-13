@@ -3,7 +3,7 @@ import { getBackendConfig } from "./config";
 import { getActiveSeasonId, queryRows } from "./database";
 import { validWallet } from "./http";
 import { fetchPumpLeaderboard, type FantasyPlayer } from "./pumpfun";
-import { getNativeSolBalance } from "./solana";
+import { getNativeSolBalance, verifyTokenMint } from "./solana";
 import type { SeasonSchedule } from "./season-window";
 
 type Season = SeasonSchedule & { id: string; title: string; status: string };
@@ -37,6 +37,13 @@ export async function getSeasonLaunchReadiness(): Promise<SeasonLaunchReadiness>
   const config = getBackendConfig();
   const blockers: string[] = [];
   if (!config.ready) blockers.push("Backend, RPC, session secret, and live FANTASY mint must be configured.");
+  if (config.ready && config.mint) {
+    try {
+      await verifyTokenMint(config.mint);
+    } catch {
+      blockers.push("The configured FANTASY mint is not initialized on Solana mainnet yet.");
+    }
+  }
   const prizeText = process.env.PF_DAILY_PRIZE_LAMPORTS || "";
   const prizeWallet = process.env.PF_PRIZE_WALLET_ADDRESS || "";
   if (!/^\d+$/.test(prizeText) || BigInt(prizeText || "0") <= 0n) blockers.push("Set PF_DAILY_PRIZE_LAMPORTS to the exact positive daily prize in lamports.");

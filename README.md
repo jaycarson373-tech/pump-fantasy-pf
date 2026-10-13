@@ -20,7 +20,7 @@ The Railway project contains the `pump-fantasy-pf` web service and a Postgres se
 
 On Vercel, the production-only `PF_API_PROXY=1` setting enables a `beforeFiles` rewrite that proxies every `/api/*` request to this Railway service; Railway does not set that flag, so the backend serves API routes locally. Keep `NEXT_PUBLIC_SITE_URL` set to the canonical public domain (`https://www.pumpfunfantasy.xyz`) so wallet challenges bind to the website users actually visit.
 
-The first season row is `season-1` with status `draft`. After the FANTASY token is live, set `FANTASY_MINT_ADDRESS` to the verified mint and confirm the health endpoint reports database/migrations/holder checks configured. Set `PF_DAILY_PRIZE_LAMPORTS` to the exact daily SOL prize in lamports, set `PF_PRIZE_WALLET_ADDRESS`, and fund the prize wallet before starting the season. The start endpoint checks that it covers both days of prizes plus fees.
+The first season row is `season-1` with status `draft`. After the FANTASY token is live, set `FANTASY_MINT_ADDRESS` to the verified mint. Health and preflight verify that the mint is initialized on Solana through the configured RPC; a nonempty address alone is not enough. Set `PF_DAILY_PRIZE_LAMPORTS` to the exact daily SOL prize in lamports, set `PF_PRIZE_WALLET_ADDRESS`, and fund the prize wallet before starting the season. The start endpoint checks that it covers both days of prizes plus fees.
 
 Before launch, call the protected read-only preflight. It checks the live FANTASY mint, database/migrations, prepared draft season, Pump.fun top-50 snapshot, prize amount, prize-wallet address, and enough SOL to cover both daily awards plus fees. It does not start a season or send a transaction.
 
@@ -29,12 +29,14 @@ curl "$NEXT_PUBLIC_SITE_URL/api/admin/season/preflight" \
   -H "Authorization: Bearer $PF_DATA_INGEST_SECRET"
 ```
 
-To open Season 1, call the protected start endpoint once after the token is live and preflight returns `ready: true`. It snapshots Pump.fun's current 1–50 field and opens the three-hour draft. The next 48 hours are split into two daily scoring windows. Later seasons open automatically when the preceding season ends.
+To open Season 1, call the protected start endpoint once after the token is live and preflight returns `ready: true`. It snapshots Pump.fun's current 1–50 field and opens a three-hour draft by default. For a specific lock time within the next three hours, send `draftLocksAt` as an ISO-8601 timestamp with an explicit timezone; the server rejects past times and durations over three hours. The next 48 hours are split into two daily scoring windows. Later seasons open automatically when the preceding season ends.
 
 ```bash
 curl -X POST "$NEXT_PUBLIC_SITE_URL/api/admin/season/start" \
   -H "Authorization: Bearer $PF_DATA_INGEST_SECRET"
 ```
+
+For example, to lock the draft at 3:00 PM Eastern on October 13, 2026 (EDT, UTC−4), use `{"draftLocksAt":"2026-10-13T15:00:00-04:00"}` as the JSON request body. Only do this when the preflight is ready and the requested lock time is still in the future.
 
 The prize wallet connects to the site and presses the daily award payment button; the wallet shows the exact SOL transfer for approval. The award is marked paid only after RPC confirms that exact transfer to the winner. Submit the verified signature to `/api/admin/awards/payment` with `awardId` and `signature`, using the same bearer secret. A wallet private key is not required by the site.
 

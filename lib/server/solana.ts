@@ -23,11 +23,22 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
   return body.result;
 }
 
+export async function verifyTokenMint(mint: string) {
+  if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint)) {
+    throw new Error("The configured FANTASY mint is not a valid Solana address.");
+  }
+  const result = await rpc<{ value: { amount: string; decimals: number } }>("getTokenSupply", [mint, { commitment: "confirmed" }]);
+  if (!Number.isInteger(result.value.decimals) || result.value.decimals < 0 || !/^\d+$/.test(result.value.amount)) {
+    throw new Error("The configured FANTASY mint is not a valid initialized Solana token mint.");
+  }
+  return result.value;
+}
+
 export async function getHolderBalance(wallet: string) {
   const config = getBackendConfig();
   if (!config.mint || !config.minimumTokens) throw new Error("Holder eligibility is not configured.");
   let total = 0n;
-  const supply = await rpc<{ value: { decimals: number } }>("getTokenSupply", [config.mint, { commitment: "confirmed" }]);
+  const supply = await verifyTokenMint(config.mint);
   for (const programId of TOKEN_PROGRAMS) {
     const result = await rpc<{ value: Array<{ account: { data: { parsed?: { info?: { mint?: string; tokenAmount?: { amount?: string } } } } } }> }>(
       "getTokenAccountsByOwner",
@@ -40,12 +51,12 @@ export async function getHolderBalance(wallet: string) {
       }
     }
   }
-  const threshold = config.minimumTokens * (10n ** BigInt(supply.value.decimals));
-  const scale = 10n ** BigInt(supply.value.decimals);
+  const threshold = config.minimumTokens * (10n ** BigInt(supply.decimals));
+  const scale = 10n ** BigInt(supply.decimals);
   const whole = total / scale;
-  const fraction = (total % scale).toString().padStart(supply.value.decimals, "0").slice(0, 4).replace(/0+$/, "");
+  const fraction = (total % scale).toString().padStart(supply.decimals, "0").slice(0, 4).replace(/0+$/, "");
   const displayBalance = `${whole.toLocaleString("en-US")}${fraction ? `.${fraction}` : ""}`;
-  return { rawBalance: total.toString(), decimals: supply.value.decimals, displayBalance, minimumTokens: config.minimumTokens.toString(), eligible: total >= threshold };
+  return { rawBalance: total.toString(), decimals: supply.decimals, displayBalance, minimumTokens: config.minimumTokens.toString(), eligible: total >= threshold };
 }
 
 export async function verifyNativeSolTransfer(signature: string, source: string, destination: string, lamports: string) {

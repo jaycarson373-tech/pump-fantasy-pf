@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getBackendConfig } from "../../../lib/server/config";
 import { getActiveSeasonId, queryRows } from "../../../lib/server/database";
+import { verifyTokenMint } from "../../../lib/server/solana";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ export async function GET() {
   let databaseConfigured = false;
   let migrationsApplied = false;
   let activeSeasonConfigured = false;
+  let tokenMintInitialized = false;
   if (config.databaseUrl) {
     try {
       const rows = await queryRows<{ players: string | null; entries: string | null; migrations: string | null; migration_count: string }>("select to_regclass('public.pf_players')::text as players, to_regclass('public.pf_entries')::text as entries, to_regclass('public.pf_schema_migrations')::text as migrations, (select count(*)::text from public.pf_schema_migrations) as migration_count");
@@ -20,14 +22,23 @@ export async function GET() {
       databaseConfigured = false;
     }
   }
-  const walletChecksConfigured = Boolean(config.rpcUrl && config.mint && config.minimumTokens);
+  if (config.rpcUrl && config.mint && config.minimumTokens) {
+    try {
+      await verifyTokenMint(config.mint);
+      tokenMintInitialized = true;
+    } catch {
+      tokenMintInitialized = false;
+    }
+  }
+  const walletChecksConfigured = Boolean(config.rpcUrl && config.mint && config.minimumTokens && tokenMintInitialized);
   return NextResponse.json({
     ok: true,
     service: "pump-fantasy",
-    backendConfigured: Boolean(config.ready && databaseConfigured && migrationsApplied && activeSeasonConfigured),
+    backendConfigured: Boolean(config.ready && databaseConfigured && migrationsApplied && activeSeasonConfigured && tokenMintInitialized),
     databaseConfigured,
     migrationsApplied,
     walletChecksConfigured,
+    tokenMintInitialized,
     activeSeasonConfigured,
     payoutConfigured: Boolean(process.env.PF_PRIZE_WALLET_ADDRESS && process.env.PF_DAILY_PRIZE_LAMPORTS && /^\d+$/.test(process.env.PF_DAILY_PRIZE_LAMPORTS) && BigInt(process.env.PF_DAILY_PRIZE_LAMPORTS) > 0n),
   });
