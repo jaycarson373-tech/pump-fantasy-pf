@@ -1,13 +1,23 @@
 import "./disposable-stack-polyfill";
 import type { Metadata } from "next";
-import { FantasyApp } from "./fantasy-app";
+import { RelaunchPage } from "./relaunch-page";
 
 export const metadata: Metadata = {
-  title: "PumpFun Fantasy League | Draft the culture",
-  description:
-    "Draft one trader from each Pump.fun leaderboard rank band. Build your five and track the PnL race.",
+  title: "Pump.fun Fantasy League | Relaunching tomorrow",
+  description: "The draft room is being rebuilt. A new season opens tomorrow.",
+  robots: { index: false, follow: false },
+  openGraph: {
+    title: "Pump.fun Fantasy League is rebuilding",
+    description: "The draft room is being rebuilt. A new season opens tomorrow.",
+    images: [],
+  },
+  twitter: {
+    card: "summary",
+    title: "Pump.fun Fantasy League is rebuilding",
+    description: "A new draft room and season arrive tomorrow.",
+  },
 };
 
 export default function Home() {
-  return <FantasyApp />;
+  return <RelaunchPage />;
 }
