@@ -1,4 +1,5 @@
 import "./relaunch.css";
+import { SeasonOpenWatcher } from "./season-open-watcher";
 import type { SeasonPhase } from "../lib/server/season-window";
 
 const rankBands = ["01–10", "11–20", "21–30", "31–40", "41–50"];
@@ -26,6 +27,7 @@ export function RelaunchPage({ phase, opensAt }: RelaunchPageProps) {
 
   return (
     <main className="relaunch-page">
+      {phase === "scheduled" && <SeasonOpenWatcher opensAt={opensAt} />}
       <div className="relaunch-grid" aria-hidden="true" />
       <header className="relaunch-header">
         <a className="relaunch-wordmark" href="#home" aria-label="Pump.fun Fantasy League">

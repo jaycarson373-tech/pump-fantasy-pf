@@ -19,6 +19,7 @@
     "@solana/kit-plugin-rpc": "^0.16.0",
     "@solana/kit-plugin-wallet": "^0.14.0",
     "@solana/react": "^7.0.0",
+    "@wallet-standard/ui": "^1.0.3",
     "@types/pg": "^8.23.1",
     "next": "16.2.6",
     "pg": "^8.23.1",
