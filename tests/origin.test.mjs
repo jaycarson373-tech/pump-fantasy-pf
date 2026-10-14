@@ -31,6 +31,12 @@ test("includes this repo's stable Vercel project domain without a Railway overri
   assert.equal(sameSiteOrigin(request, { NEXT_PUBLIC_SITE_URL: "https://www.pumpfunfantasy.xyz" }), true);
 });
 
+test("accepts the exact Railway public origin when the reverse proxy gives the app an internal URL", () => {
+  const request = post("https://pump-fantasy-pf-production.up.railway.app");
+  assert.equal(sameSiteOrigin(request, { NEXT_PUBLIC_SITE_URL: "https://www.pumpfunfantasy.xyz" }), true);
+  assert.equal(siteOriginHost(request, { NEXT_PUBLIC_SITE_URL: "https://www.pumpfunfantasy.xyz" }), "pump-fantasy-pf-production.up.railway.app");
+});
+
 test("rejects unlisted origins even when a forwarded-host header is forged", () => {
   const request = post("https://attacker.example", { "x-forwarded-host": "www.pumpfunfantasy.xyz" });
   assert.equal(sameSiteOrigin(request, env), false);
