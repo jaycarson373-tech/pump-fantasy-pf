@@ -11,7 +11,7 @@ The public root route shows the relaunch page while a season is being prepared o
 - Persistent one-entry-per-wallet storage in Railway Postgres, with server-side rank-band and deadline validation.
 - A fixed Pump.fun top-50 roster per season and fresh 1M PnL score snapshots at the scoring start and daily boundaries.
 - Automatic daily winner calculation, tied-score resolution by wallet address, payment-status records, and season rollover to a fresh top 50.
-- Onchain verification before an award is shown as paid. The prize wallet must make the SOL transfer; this app does not store a private key or sign transfers server-side.
+- Optional automatic SOL payouts are disabled by default. When explicitly enabled, a protected Railway worker signs transfers from the dedicated payout wallet; awards are shown as paid only after the exact transfer finalizes onchain.
 - A Railway server clock retries due season work every five minutes and runs immediately on app startup. Score windows missed by more than 15 minutes are marked `awaiting_data` rather than fabricating a winner.
 
 Pump.fun's public leaderboard endpoint is an external dependency. If it omits a selected trader or fails around a settlement boundary, that day's payout is held for review instead of ranking incomplete data. Do not advertise a prize as funded until the prize amount is configured and the prize wallet has the funds.
