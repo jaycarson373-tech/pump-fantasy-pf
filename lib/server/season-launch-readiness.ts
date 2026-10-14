@@ -5,6 +5,7 @@ import { validWallet } from "./http";
 import { fetchPumpLeaderboard, type FantasyPlayer } from "./pumpfun";
 import { getNativeSolBalance, verifyTokenMint } from "./solana";
 import type { SeasonSchedule } from "./season-window";
+import { getPayoutConfiguration } from "./automatic-payout";
 
 type Season = SeasonSchedule & { id: string; title: string; status: string };
 
@@ -46,8 +47,12 @@ export async function getSeasonLaunchReadiness(): Promise<SeasonLaunchReadiness>
   }
   const prizeText = process.env.PF_DAILY_PRIZE_LAMPORTS || "";
   const prizeWallet = process.env.PF_PRIZE_WALLET_ADDRESS || "";
+  const payout = await getPayoutConfiguration();
   if (!/^\d+$/.test(prizeText) || BigInt(prizeText || "0") <= 0n) blockers.push("Set PF_DAILY_PRIZE_LAMPORTS to the exact positive daily prize in lamports.");
-  if (!validWallet(prizeWallet)) blockers.push("Set PF_PRIZE_WALLET_ADDRESS to the public wallet that will manually approve winner payments.");
+  if (!validWallet(prizeWallet)) blockers.push("Set PF_PRIZE_WALLET_ADDRESS to the public wallet that will fund automatic winner payouts.");
+  blockers.push(...payout.blockers);
+  if (/^\d+$/.test(prizeText) && BigInt(prizeText || "0") > 0n && payout.perAwardCap && BigInt(prizeText) > payout.perAwardCap) blockers.push("PF_DAILY_PRIZE_LAMPORTS exceeds the configured per-award payout cap.");
+  if (/^\d+$/.test(prizeText) && BigInt(prizeText || "0") > 0n && payout.seasonCap && BigInt(prizeText) * 2n > payout.seasonCap) blockers.push("The two daily awards exceed the configured season payout cap.");
   if (blockers.length) return blocked(blockers);
 
   let season: Season | null = null;

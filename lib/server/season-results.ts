@@ -7,6 +7,7 @@ import { getNativeSolBalance } from "./solana";
 import { nextSeasonId, seasonWindowFromOpen } from "./season-window";
 import { calculateDailyWinner } from "./daily-scoring";
 import { recoverBoundaryAward, type AwardBoundary } from "./boundary-award";
+import { processNextAutomaticPayout } from "./automatic-payout";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_GRACE_MS = 15 * 60 * 1000;
@@ -101,7 +102,11 @@ export async function tickSeason() {
       await reconcileStoredAward(season, 2);
       await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_lamports) values ($1, 2, 'awaiting_data', $2) on conflict (season_id, day_number) do nothing", [season.id, season.daily_prize_lamports]);
     }
-    if (now < closesAt) return { ok: true, action: snapshots.length ? "snapshotted" : "waiting", seasonId: season.id, snapshots };
+    const payout = await processNextAutomaticPayout();
+    if (now < closesAt) return { ok: true, action: snapshots.length ? "snapshotted" : payout.action === "no-pending-award" ? "waiting" : payout.action, seasonId: season.id, snapshots, payout };
+    if (payout.action !== "no-pending-award") {
+      return { ok: true, action: payout.action, seasonId: season.id, snapshots, payout };
+    }
 
     const nextPrize = BigInt(season.daily_prize_lamports || 0);
     const prizeWallet = process.env.PF_PRIZE_WALLET_ADDRESS || "";

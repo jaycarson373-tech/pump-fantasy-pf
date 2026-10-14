@@ -24,7 +24,7 @@ On Vercel, the production-only `PF_API_PROXY=1` setting enables a `beforeFiles` 
 
 The first season row is `season-1` with status `draft`. After the FANTASY token is live, set `FANTASY_MINT_ADDRESS` to the verified mint. Health and preflight verify that the mint is initialized on Solana through the configured RPC; a nonempty address alone is not enough. Set `PF_DAILY_PRIZE_LAMPORTS` to the exact daily SOL prize in lamports, set `PF_PRIZE_WALLET_ADDRESS`, and fund the prize wallet before starting the season. The start endpoint checks that it covers both days of prizes plus fees.
 
-Before launch, call the protected read-only preflight. It checks the live FANTASY mint, database/migrations, prepared draft season, Pump.fun top-50 snapshot, prize amount, prize-wallet address, and enough SOL to cover both daily awards plus fees. It does not start a season or send a transaction.
+Before launch, call the protected read-only preflight. It checks the live FANTASY mint, database/migrations, prepared draft season, Pump.fun top-50 snapshot, exact prize amount, payout signer/address match, explicit mainnet setting, hard per-award and per-season caps, and enough SOL to cover both daily awards plus fees. It does not start a season or send a transaction.
 
 You can also run the public and protected checks together from a trusted machine. Set `NEXT_PUBLIC_SITE_URL` to the canonical site and `PF_DATA_INGEST_SECRET` in the shell first. The script never prints the secret, prize wallet, or player list, and it never starts a season or sends a transaction. It exits nonzero unless every launch gate passes.
 
@@ -46,7 +46,7 @@ curl -X POST "$NEXT_PUBLIC_SITE_URL/api/admin/season/start" \
 
 For example, to lock the draft at 2:00 PM Eastern on October 13, 2026 (EDT, UTC−4), use `{"draftLocksAt":"2026-10-13T14:00:00-04:00"}` as the JSON request body. Only do this when the preflight is ready and the requested lock time is still in the future.
 
-The prize wallet connects to the site and presses the daily award payment button; the wallet shows the exact SOL transfer for approval. The award is marked paid only after RPC confirms that exact transfer to the winner. Submit the verified signature to `/api/admin/awards/payment` with `awardId` and `signature`, using the same bearer secret. A wallet private key is not required by the site.
+Daily SOL awards are sent by the protected Railway cron only when `PF_AUTO_PAYOUT_ENABLED=true`, `PF_PAYOUT_NETWORK=mainnet-beta`, a valid `PF_PAYOUT_SIGNER_KEYPAIR_JSON` secret matches `PF_PRIZE_WALLET_ADDRESS`, and both payout caps are set. Store the key only in Railway's secret variables; use a dedicated, funded prize wallet. The worker simulates each transfer, stores the signed transaction and signature before broadcasting, retries only those exact bytes, and marks an award paid only after finalization. An expired or uncertain transaction is held for reconciliation and is never replaced automatically. Apply migration `202610140001_automatic_award_payouts.sql` before enabling the feature. Keep payouts disabled until caps, recipient rules, and the wallet balance have been reviewed.
 
 ## Local development
 
