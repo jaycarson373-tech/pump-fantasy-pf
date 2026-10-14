@@ -57,7 +57,7 @@ for (const [label, key] of [
   ["Wallet and token checks", "walletChecksConfigured"],
   ["FANTASY mint initialized", "tokenMintInitialized"],
   ["Season configured", "activeSeasonConfigured"],
-  ["Prize amount and wallet configured", "payoutConfigured"],
+  ["Automatic reward collection and payout configured", "payoutConfigured"],
 ]) {
   report(label, healthBody?.[key] === true);
 }
@@ -67,12 +67,12 @@ const rosterOk = players.status === 200 && board?.live === true && Array.isArray
 report("Live Pump.fun top-50 roster", rosterOk, board?.source || `HTTP ${players.status}`);
 
 const entryBody = entry.body;
-const entryServiceOk = entry.status === 200 && entryBody?.configured === true && entryBody?.seasonConfigured === true && ["scheduled", "draft", "live", "complete"].includes(entryBody?.phase);
+const entryServiceOk = entry.status === 200 && entryBody?.configured === true && ["inactive", "scheduled", "draft", "live", "complete"].includes(entryBody?.phase);
 report("Entry API and season schedule", entryServiceOk, entryBody?.phase || `HTTP ${entry.status}`);
-if (entryServiceOk) report("Draft currently accepting entries", entryBody.phase === "draft", entryBody.phase === "draft" ? "open" : `season is ${entryBody.phase}`);
+if (entryServiceOk) report("Draft held for operator start", entryBody.phase === "inactive", entryBody.phase === "inactive" ? "closed until go-live" : `season is ${entryBody.phase}`);
 
 const standingsBody = standings.body;
-const standingsOk = standings.status === 200 && standingsBody?.configured === true && standingsBody?.phase !== "inactive";
+const standingsOk = standings.status === 200 && standingsBody?.configured === true;
 report("Scoring and season status API", standingsOk, standingsBody?.phase || `HTTP ${standings.status}`);
 
 let preflightReady = false;
