@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getBackendConfig } from "../../../lib/server/config";
 import { getActiveSeasonId, queryRows } from "../../../lib/server/database";
+import { hasActiveSeasonRecord, hasRequiredMigrations } from "../../../lib/server/health-readiness";
 import { verifyTokenMint } from "../../../lib/server/solana";
 
 export const runtime = "nodejs";
@@ -14,10 +15,14 @@ export async function GET() {
   let tokenMintInitialized = false;
   if (config.databaseUrl) {
     try {
-      const rows = await queryRows<{ players: string | null; entries: string | null; migrations: string | null; migration_count: string }>("select to_regclass('public.pf_players')::text as players, to_regclass('public.pf_entries')::text as entries, to_regclass('public.pf_schema_migrations')::text as migrations, (select count(*)::text from public.pf_schema_migrations) as migration_count");
+      const rows = await queryRows<{ players: string | null; entries: string | null; migrations: string | null; applied_migrations: string[] }>("select to_regclass('public.pf_players')::text as players, to_regclass('public.pf_entries')::text as entries, to_regclass('public.pf_schema_migrations')::text as migrations, (select coalesce(array_agg(name), array[]::text[]) from public.pf_schema_migrations) as applied_migrations");
       databaseConfigured = Boolean(rows[0]?.players && rows[0]?.entries);
-      migrationsApplied = Boolean(rows[0]?.migrations && Number(rows[0]?.migration_count) >= 3);
-      activeSeasonConfigured = Boolean(await getActiveSeasonId());
+      migrationsApplied = Boolean(rows[0]?.migrations && hasRequiredMigrations(rows[0].applied_migrations ?? []));
+      const activeSeasonId = await getActiveSeasonId();
+      if (activeSeasonId) {
+        const seasonRows = await queryRows<{ id: string }>("select id from pf_seasons where id = $1 limit 1", [activeSeasonId]);
+        activeSeasonConfigured = hasActiveSeasonRecord(activeSeasonId, seasonRows);
+      }
     } catch {
       databaseConfigured = false;
     }

@@ -15,6 +15,7 @@ function secretMatches(supplied: string, expected: string) {
 export async function POST(request: Request) {
   try {
     if (!sameOrigin(request)) return NextResponse.json({ error: "Cross-origin request rejected." }, { status: 403 });
+    if (process.env.PF_AUTO_PAYOUT_ENABLED === "true") return NextResponse.json({ error: "Automatic payouts are enabled; manual award verification is disabled." }, { status: 409 });
     const secret = process.env.PF_DATA_INGEST_SECRET;
     const authorization = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
     if (!secret || !secretMatches(authorization, secret)) return NextResponse.json({ error: "Not authorized." }, { status: 401 });

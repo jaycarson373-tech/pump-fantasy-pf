@@ -15,6 +15,7 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
     method: "POST",
     headers: { "content-type": "application/json" },
     cache: "no-store",
+    signal: AbortSignal.timeout(8_000),
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
   });
   if (!response.ok) throw new Error(`Solana RPC returned HTTP ${response.status}.`);
@@ -66,7 +67,7 @@ export async function verifyNativeSolTransfer(signature: string, source: string,
     blockTime: number | null;
     meta: { err: unknown } | null;
     transaction: { message: { instructions: Array<{ program?: string; parsed?: { type?: string; info?: { source?: string; destination?: string; lamports?: number | string } } }> } };
-  } | null>("getTransaction", [signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" }]);
+  } | null>("getTransaction", [signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "finalized" }]);
   if (!transaction || !transaction.meta || transaction.meta.err) return null;
   const transfers = transaction.transaction.message.instructions.filter((instruction) => instruction.program === "system" && instruction.parsed?.type === "transfer");
   const matching = transfers.find((instruction) => instruction.parsed?.info?.source === source && instruction.parsed.info.destination === destination && instruction.parsed.info.lamports !== undefined && BigInt(String(instruction.parsed.info.lamports)) === BigInt(lamports));

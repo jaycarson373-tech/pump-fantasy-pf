@@ -2,7 +2,6 @@
 
 import "./disposable-stack-polyfill";
 import Image from "next/image";
-import { AwardPayoutButton } from "./award-payout-button";
 import {
   useConnect,
   useConnectedWallet,
@@ -219,7 +218,6 @@ export function FantasyApp() {
   const [standings, setStandings] = useState<Array<{ wallet: string; score: number | null; scoringReady: boolean }>>([]);
   const [awards, setAwards] = useState<Array<{ id: string; season_id: string; day_number: number; winner_wallet: string | null; score_usd: number | null; prize_lamports: string; status: string; payment_signature: string | null }>>([]);
   const [dailyPrizeLamports, setDailyPrizeLamports] = useState("0");
-  const [prizeWallet, setPrizeWallet] = useState<string | null>(null);
   const [snapshotAt, setSnapshotAt] = useState<string | null>(null);
   const [leaderboardSource, setLeaderboardSource] = useState("Loading Pump.fun leaderboard");
   const onAuthChange = useCallback((state: AuthState) => setAuth(state), []);
@@ -290,7 +288,6 @@ export function FantasyApp() {
       if (active && Array.isArray(standingsResult.standings)) setStandings(standingsResult.standings);
       if (active && Array.isArray(standingsResult.awards)) setAwards(standingsResult.awards);
       if (active && typeof standingsResult.prizeLamports === "string") setDailyPrizeLamports(standingsResult.prizeLamports);
-      if (active) setPrizeWallet(typeof standingsResult.prizeWallet === "string" ? standingsResult.prizeWallet : null);
     };
     void refresh().catch(() => {});
     const interval = window.setInterval(() => { void refresh().catch(() => {}); }, 30_000);
@@ -424,7 +421,7 @@ export function FantasyApp() {
             <div className={`season-clock ${season.phase}`} aria-live="polite">
               <span>{timerTitle ?? "LEAGUE STATUS"}</span>
               <b>{timerValue ?? phaseName}</b>
-              <small>{season.phase === "draft" ? "Submit before the clock hits zero. Picks saved only on this device are not entered." : season.phase === "live" ? "Drafts are locked. The 48-hour scoring period is underway." : season.phase === "complete" ? "This season has ended. Final results and the next draft are handled by the league operator." : season.phase === "scheduled" ? "The draft opens at the scheduled start time." : season.phase === "misconfigured" ? "The season schedule needs an operator check." : "The live season schedule has not been configured."}</small>
+              <small>{season.phase === "draft" ? "Submit before the clock hits zero. Picks saved only on this device are not entered." : season.phase === "live" ? "Drafts are locked. The 48-hour scoring period is underway." : season.phase === "complete" ? "This season has ended. Results are final, and the next draft opens automatically after rollover." : season.phase === "scheduled" ? "The draft opens at the scheduled start time." : season.phase === "misconfigured" ? "The season schedule needs an operator check." : "The live season schedule has not been configured."}</small>
             </div>
             <div className="roster-slots">
               {[0, 1, 2, 3, 4].map((band) => {
@@ -452,11 +449,11 @@ export function FantasyApp() {
           <div className="standings-heading"><div><span className="section-label">DAILY LEADERBOARD</span><h3>Five picks. One score.</h3></div><small>{snapshotAt ? `ROSTER SNAPSHOT · ${new Date(snapshotAt).toLocaleString()}` : "NO SOURCE SNAPSHOT"}</small></div>
           {standings.length ? <div className="standings-list">{standings.map((row, index) => <div className="standings-row" key={row.wallet}><b className="standing-rank">{String(index + 1).padStart(2, "0")}</b><span>{shortAddress(row.wallet)}</span><strong>{row.scoringReady && row.score !== null ? `${row.score >= 0 ? "+" : "−"}$${Math.abs(row.score).toLocaleString("en-US", { maximumFractionDigits: 2 })}` : "Awaiting verified PnL"}</strong></div>)}</div> : <p className="standings-empty">The board fills after the first round opens, five-pick squads are submitted, and closing PnL data is captured.</p>}
         </div>
-        <div className="daily-awards"><div className="standings-heading"><div><span className="section-label">DAILY WINNERS</span><h3>Every day has a result.</h3></div><small>{Number(dailyPrizeLamports) > 0 ? `${(Number(dailyPrizeLamports) / 1_000_000_000).toFixed(3)} SOL PER DAY` : "PRIZE AMOUNT NOT SET"}</small></div>{awards.length ? <div className="award-list">{awards.map((award) => <article className="award-card" key={award.id}><span>DAY {award.day_number}</span><b>{award.winner_wallet ? shortAddress(award.winner_wallet) : award.status === "no_eligible_entries" ? "No eligible entries" : "Awaiting complete PnL data"}</b><strong>{award.score_usd === null ? "" : `${award.score_usd >= 0 ? "+" : "−"}$${Math.abs(award.score_usd).toLocaleString("en-US", { maximumFractionDigits: 2 })}`}</strong><small className={award.status === "paid" ? "paid" : "pending"}>{award.status.replaceAll("_", " ").toUpperCase()}</small>{award.payment_signature ? <a href={`https://solscan.io/tx/${award.payment_signature}`} target="_blank" rel="noreferrer">View payment ↗</a> : null}<AwardPayoutButton awardId={award.id} winner={award.winner_wallet} lamports={award.prize_lamports} status={award.status} prizeWallet={prizeWallet} onPaid={(awardId, signature) => setAwards((current) => current.map((item) => item.id === awardId ? { ...item, status: "paid", payment_signature: signature } : item))} /></article>)}</div> : <p className="standings-empty">The season clock captures daily PnL snapshots and calculates the top five-pick squad at each 24-hour mark.</p>}</div><div className="fee-flow"><span className="section-label">PRIZE SETTLEMENT</span><div><b>Daily PnL snapshot</b><i>→</i><b>Top squad</b><i>→</i><b>Verified SOL transfer</b></div><p>Scores and winners settle automatically. A prize is only shown as paid after the winning wallet receives the configured SOL amount and the transaction is verified on Solana.</p></div>
+        <div className="daily-awards"><div className="standings-heading"><div><span className="section-label">DAILY WINNERS</span><h3>Every day has a result.</h3></div><small>{Number(dailyPrizeLamports) > 0 ? `${(Number(dailyPrizeLamports) / 1_000_000_000).toFixed(3)} SOL PER DAY` : "PRIZE AMOUNT NOT SET"}</small></div>{awards.length ? <div className="award-list">{awards.map((award) => <article className="award-card" key={award.id}><span>DAY {award.day_number}</span><b>{award.winner_wallet ? shortAddress(award.winner_wallet) : award.status === "no_eligible_entries" ? "No eligible entries" : "Awaiting complete PnL data"}</b><strong>{award.score_usd === null ? "" : `${award.score_usd >= 0 ? "+" : "−"}$${Math.abs(award.score_usd).toLocaleString("en-US", { maximumFractionDigits: 2 })}`}</strong><small className={award.status === "paid" ? "paid" : "pending"}>{award.status.replaceAll("_", " ").toUpperCase()}</small>{award.payment_signature ? <a href={`https://solscan.io/tx/${award.payment_signature}`} target="_blank" rel="noreferrer">View payment ↗</a> : null}</article>)}</div> : <p className="standings-empty">The season clock captures daily PnL snapshots and calculates the top five-pick squad at each 24-hour mark.</p>}</div><div className="fee-flow"><span className="section-label">PRIZE SETTLEMENT</span><div><b>Daily PnL snapshot</b><i>→</i><b>Top squad</b><i>→</i><b>Verified SOL transfer</b></div><p>Scores and winners settle automatically. A prize is only shown as paid after the winning wallet receives the configured SOL amount and the transaction is verified on Solana.</p></div>
         <div className="season-pathway">
           <div><span className="section-label">THE LEAGUE KEEPS GOING</span><h3>One season ends. The race continues.</h3><p>Each season runs a 3-hour draft, then 48 hours of scoring. Daily results are captured at the 24-hour marks. When a season closes, the next 3-hour draft opens automatically with a fresh top-50 field.</p></div>
-          <ol><li><b>01</b><span><strong>Draft</strong><small>Pick five before entries lock.</small></span></li><li><b>02</b><span><strong>Season</strong><small>Track the 48-hour PnL race.</small></span></li><li><b>03</b><span><strong>Next season</strong><small>Fresh draft, new standings.</small></span></li><li><b>04</b><span><strong>Playoffs</strong><small>Top season performers qualify for the finals.</small></span></li></ol>
-          <small className="season-pathway-note">Season rollover and daily score snapshots run on the server clock. SOL prizes require a configured amount and a treasury wallet signature; the site verifies each payment onchain.</small>
+          <ol><li><b>01</b><span><strong>Draft</strong><small>Pick five before entries lock.</small></span></li><li><b>02</b><span><strong>Season</strong><small>Track the 48-hour PnL race.</small></span></li><li><b>03</b><span><strong>Next season</strong><small>Fresh draft, new standings.</small></span></li><li><b>04</b><span><strong>Playoffs planned</strong><small>Qualification and prize rules will be published before the finals open.</small></span></li></ol>
+          <small className="season-pathway-note">Season rollover, score snapshots, and configured SOL payouts run from the protected server cron. Every payout is checked onchain before it is marked paid.</small>
         </div>
       </section>
 

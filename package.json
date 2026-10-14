@@ -10,14 +10,18 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ignore-pattern .next",
-    "db:migrate": "node scripts/migrate.mjs"
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "check:live": "node scripts/check-live-readiness.mjs"
   },
   "dependencies": {
+    "@solana-program/system": "^0.13.0",
     "@solana/kit": "^7.0.0",
     "@solana/kit-plugin-rpc": "^0.16.0",
     "@solana/kit-plugin-wallet": "^0.14.0",
     "@solana/react": "^7.0.0",
     "@types/pg": "^8.23.1",
+    "@wallet-standard/ui": "^1.0.3",
     "next": "16.2.6",
     "pg": "^8.23.1",
     "react": "19.2.6",

@@ -7,6 +7,25 @@ export type SeasonSchedule = {
 
 export type SeasonPhase = "draft" | "scheduled" | "live" | "complete" | "misconfigured" | "inactive";
 
+export function shouldShowSeasonRoom(phase: SeasonPhase | "unconfigured") {
+  return phase === "draft" || phase === "live" || phase === "complete";
+}
+
+export const DRAFT_DURATION_MS = 3 * 60 * 60 * 1000;
+export const SEASON_DURATION_MS = 48 * 60 * 60 * 1000;
+
+export function seasonWindowFromOpen(opensAtMs: number) {
+  if (!Number.isSafeInteger(opensAtMs) || opensAtMs <= 0) throw new Error("Invalid season open time.");
+  const lockedAtMs = opensAtMs + DRAFT_DURATION_MS;
+  const closesAtMs = lockedAtMs + SEASON_DURATION_MS;
+  if (!Number.isSafeInteger(closesAtMs) || !Number.isFinite(new Date(closesAtMs).getTime())) throw new Error("Season schedule is outside the supported date range.");
+  return {
+    opensAt: new Date(opensAtMs).toISOString(),
+    lockedAt: new Date(lockedAtMs).toISOString(),
+    closesAt: new Date(closesAtMs).toISOString(),
+  };
+}
+
 export function getSeasonPhase(season: SeasonSchedule, now = Date.now()): SeasonPhase {
   if (season.status === "complete") return "complete";
   if (season.status !== "open") return "inactive";
@@ -26,4 +45,15 @@ export function getSeasonPhase(season: SeasonSchedule, now = Date.now()): Season
 
 export function canSubmitSeasonEntry(season: SeasonSchedule, now = Date.now()) {
   return season.status === "open" && getSeasonPhase(season, now) === "draft";
+}
+
+export function nextSeasonId(existingIds: string[]) {
+  const existing = new Set(existingIds);
+  const highest = existingIds.reduce((max, id) => {
+    const match = /^season-(\d+)$/.exec(id);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  let next = highest + 1;
+  while (existing.has(`season-${next}`)) next += 1;
+  return `season-${next}`;
 }

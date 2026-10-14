@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   try {
     if (!sameOrigin(request)) return NextResponse.json({ error: "Cross-origin request rejected." }, { status: 403 });
+    if (process.env.PF_AUTO_PAYOUT_ENABLED === "true") return NextResponse.json({ error: "Automatic payouts are enabled; manual award verification is disabled." }, { status: 409 });
     const body = await request.json() as { awardId?: unknown; signature?: unknown };
     if (typeof body.awardId !== "string" || typeof body.signature !== "string") return NextResponse.json({ error: "Provide an award ID and confirmed transaction signature." }, { status: 400 });
     const rows = await queryRows<{ id: string; winner_wallet: string | null; prize_lamports: string; status: string; payment_signature: string | null }>("select id, winner_wallet, prize_lamports, status, payment_signature from pf_daily_awards where id = $1 limit 1", [body.awardId]);

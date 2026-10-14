@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { BackendNotConfigured } from "./config";
+import { sameSiteOrigin } from "./origin.mjs";
 
 export function routeError(error: unknown) {
   if (error instanceof BackendNotConfigured) return NextResponse.json({ error: error.message, code: "NOT_CONFIGURED" }, { status: 503 });
@@ -8,17 +9,7 @@ export function routeError(error: unknown) {
 }
 
 export function sameOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  try {
-    const originHost = new URL(origin).host;
-    const requestHost = new URL(request.url).host;
-    const configuredSite = process.env.NEXT_PUBLIC_SITE_URL;
-    const configuredHost = configuredSite ? new URL(configuredSite).host : null;
-    return originHost === requestHost || originHost === configuredHost;
-  } catch {
-    return false;
-  }
+  return sameSiteOrigin(request);
 }
 
 export function validWallet(value: unknown): value is string {
