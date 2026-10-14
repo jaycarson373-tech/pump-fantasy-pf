@@ -1,8 +1,8 @@
 # Pump Fantasy
 
-Pump Fantasy is a five-pick fantasy contest based on Pump.fun's one-month PnL leaderboard. Each season snapshots the top 50, split into five fixed rank bands. Eligible holders choose one trader from each band during a three-hour draft. Picks are saved per wallet and can be edited until the server-side lock. The scoring period then runs 48 hours with one-day score settlements.
+Pump Fantasy is a five-pick fantasy contest based on Pump.fun's one-month PnL leaderboard. Each season snapshots the top 50, split into five fixed rank bands. Eligible holders choose one trader from each band during a one-hour draft. Picks are saved per wallet and can be edited until the server-side lock. The scoring period then runs 48 hours with one-day score settlements. Confirmed creator fees split 65% into daily rewards and 35% into the weekly/monthly/playoff reserve.
 
-The public root route shows the relaunch page while a season is being prepared or scheduled, then switches to the draft application when the season opens. The site is noindex. Squad submission stays disabled until the backend reports an open draft, the live 50-player roster is available, and the connected wallet passes the signed-message plus 500,000 FANTASY balance check.
+The public root route shows the relaunch page while a season is being prepared or scheduled, then switches to the draft application when the season opens (including visitors already waiting on the page). The site is noindex. Squad submission stays disabled until the backend reports an open draft, the live 50-player roster is available, and the connected wallet passes the signed-message plus 500,000 FANTASY balance check.
 
 ## What is implemented
 
@@ -22,9 +22,13 @@ The Railway project contains the `pump-fantasy-pf` web service and a Postgres se
 
 On Vercel, the production-only `PF_API_PROXY=1` setting enables a `beforeFiles` rewrite that proxies every `/api/*` request to this Railway service; Railway does not set that flag, so the backend serves API routes locally. Keep `NEXT_PUBLIC_SITE_URL` set to the canonical public domain (`https://www.pumpfunfantasy.xyz`) so originless wallet challenges bind to the website users should visit. The origin checker allows that canonical origin and this repo's `pump-fantasy-pf.vercel.app` project domain by default. Set `PUMP_FANTASY_ALLOWED_ORIGINS` on Railway to add any other exact browser origins; wallet challenge messages use the validated page origin, not Railway's internal request host.
 
-The first season row is `season-1` with status `draft`. After the FANTASY token is live, set `FANTASY_MINT_ADDRESS` to the verified mint. Health and preflight verify that the mint is initialized on Solana through the configured RPC; a nonempty address alone is not enough. Set `PF_DAILY_PRIZE_LAMPORTS` to the exact daily SOL prize in lamports, set `PF_PRIZE_WALLET_ADDRESS`, and fund the prize wallet before starting the season. The start endpoint checks that it covers both days of prizes plus fees.
+The first season row is `season-1` with status `draft`. After the FANTASY token is live, set `FANTASY_MINT_ADDRESS` to the verified mint. Health and preflight verify that the mint is initialized on Solana through the configured RPC; a nonempty address alone is not enough. For this relaunch, use `PF_REWARD_MODE=creator-fees`; no fixed daily SOL prize is needed. Set the new dedicated creator wallet public address in both `PF_CREATOR_WALLET_ADDRESS` and `PF_PRIZE_WALLET_ADDRESS`, and its 64-byte JSON keypair in `PF_PAYOUT_SIGNER_KEYPAIR_JSON` (or base58 private key in `PF_CREATOR_PRIVATE_KEY`) on Railway. Set `PF_CREATOR_WALLET_DEDICATED=true`, `PF_FEE_COLLECTION_ENABLED=true`, `PF_AUTO_PAYOUT_ENABLED=true`, and `PF_PAYOUT_NETWORK=mainnet-beta`. Fund at least 0.005 SOL separately for claims and transfers. The creator must match the token's onchain Pump creator, and the token must be SOL-quoted. Shared-fee configurations currently fail closed.
 
-Before launch, call the protected read-only preflight. It checks the live FANTASY mint, database/migrations, prepared draft season, Pump.fun top-50 snapshot, exact prize amount, payout signer/address match, explicit mainnet setting, hard per-award and per-season caps, and enough SOL to cover both daily awards plus fees. It does not start a season or send a transaction.
+The official Pump SDK claims both bonding-curve and PumpSwap creator vaults. Signed claim bytes are persisted before submission; unknown transactions are held for reconciliation. Only finalized withdrawals from those vaults are credited, with a unique transaction receipt preventing double counting. The worker runs every five minutes. 65% of each receipt (rounded down to lamports) enters the daily pool; the remaining 35% enters the reserve. The daily prize freezes at each 24-hour cutoff, with later receipts carrying into the next day. With no eligible entry, the daily allocation carries forward. Missing scoring data holds settlement. Gas costs are funded separately.
+
+Each winner transfer must exactly match its assigned fee receipts. The payout balance check preserves all other daily allocations and the full 35% reserve. Weekly, monthly, and playoff event rules/payouts are not implemented yet; those funds remain reserved until separately configured. Fixed-prize mode remains available for older deployments with its original explicit payout caps.
+
+Before launch, call the protected read-only preflight. It checks the live FANTASY mint, database/migrations, prepared draft season, Pump.fun top-50 snapshot, dedicated creator/signature configuration, onchain creator and quote checks, explicit mainnet setting, and gas funding. In creator-fee mode, award amounts are bounded by confirmed 65% fee allocations instead of a fixed prize. It does not start a season or send a transaction.
 
 You can also run the public and protected checks together from a trusted machine. Set `NEXT_PUBLIC_SITE_URL` to the canonical site and `PF_DATA_INGEST_SECRET` in the shell first. The script never prints the secret, prize wallet, or player list, and it never starts a season or sends a transaction. It exits nonzero unless every launch gate passes.
 
@@ -37,16 +41,14 @@ curl "$NEXT_PUBLIC_SITE_URL/api/admin/season/preflight" \
   -H "Authorization: Bearer $PF_DATA_INGEST_SECRET"
 ```
 
-To open Season 1, call the protected start endpoint once after the token is live and preflight returns `ready: true`. It snapshots Pump.fun's current 1–50 field and opens a three-hour draft by default. For a specific lock time within the next three hours, send `draftLocksAt` as an ISO-8601 timestamp with an explicit timezone; the server rejects past times and durations over three hours. The next 48 hours are split into two daily scoring windows. Later seasons open automatically when the preceding season ends.
+To open Season 1, call the protected start endpoint once after the token is live and preflight returns `ready: true`. It snapshots Pump.fun's current 1–50 field and opens a one-hour draft by default. The server sets the deadline to exactly 60 minutes after the operator starts the season. The next 48 hours are split into two daily scoring windows. Later seasons open automatically when the preceding season ends.
 
 ```bash
 curl -X POST "$NEXT_PUBLIC_SITE_URL/api/admin/season/start" \
   -H "Authorization: Bearer $PF_DATA_INGEST_SECRET"
 ```
 
-For example, to lock the draft at 2:00 PM Eastern on October 13, 2026 (EDT, UTC−4), use `{"draftLocksAt":"2026-10-13T14:00:00-04:00"}` as the JSON request body. Only do this when the preflight is ready and the requested lock time is still in the future.
-
-Daily SOL awards are sent by the protected Railway cron only when `PF_AUTO_PAYOUT_ENABLED=true`, `PF_PAYOUT_NETWORK=mainnet-beta`, a valid `PF_PAYOUT_SIGNER_KEYPAIR_JSON` secret matches `PF_PRIZE_WALLET_ADDRESS`, and both payout caps are set. Store the key only in Railway's secret variables; use a dedicated, funded prize wallet. The worker simulates each transfer, stores the signed transaction and signature before broadcasting, retries only those exact bytes, and marks an award paid only after finalization. An expired or uncertain transaction is held for reconciliation and is never replaced automatically. Apply migration `202610140001_automatic_award_payouts.sql` before enabling the feature. Keep payouts disabled until caps, recipient rules, and the wallet balance have been reviewed.
+Daily SOL awards are sent only when automatic payout and fee collection are enabled and the dedicated signer is configured. Keep all signer keys in Railway secrets. Apply `202610140002_creator_fee_pools.sql` before enabling collection. No mainnet claim or winner transfer is performed by the readiness check or by merely deploying the site.
 
 ## Local development
 

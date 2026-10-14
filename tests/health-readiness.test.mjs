@@ -16,6 +16,6 @@ test("health requires every current schema migration, including automatic payout
     "202610120003_scoring_and_awards.sql",
   ];
   assert.equal(hasRequiredMigrations(base), false);
-  assert.equal(hasRequiredMigrations([...base, "202610140001_automatic_award_payouts.sql"]), true);
+  assert.equal(hasRequiredMigrations([...base, "202610140001_automatic_award_payouts.sql", "202610140002_creator_fee_pools.sql"]), true);
   assert.equal(hasRequiredMigrations([...base, "unrelated-migration.sql"]), false);
 });

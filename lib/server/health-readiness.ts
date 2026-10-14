@@ -7,6 +7,7 @@ const REQUIRED_MIGRATIONS = [
   "202610120002_seed_first_season.sql",
   "202610120003_scoring_and_awards.sql",
   "202610140001_automatic_award_payouts.sql",
+  "202610140002_creator_fee_pools.sql",
 ];
 
 export function hasRequiredMigrations(appliedNames: string[]) {

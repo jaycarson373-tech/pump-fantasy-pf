@@ -15,6 +15,7 @@
     "check:live": "node scripts/check-live-readiness.mjs"
   },
   "dependencies": {
+    "@pump-fun/pump-sdk": "^4.1.0",
     "@solana-program/system": "^0.13.0",
     "@solana/kit": "^7.0.0",
     "@solana/kit-plugin-rpc": "^0.16.0",
@@ -22,7 +23,7 @@
     "@solana/react": "^7.0.0",
     "@types/pg": "^8.23.1",
     "@wallet-standard/ui": "^1.0.3",
-    "next": "16.2.6",
+    "next": "^16.4.0",
     "pg": "^8.23.1",
     "react": "19.2.6",
     "react-dom": "19.2.6",
@@ -30,7 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "9.39.4",
-    "@next/eslint-plugin-next": "16.2.6",
+    "@next/eslint-plugin-next": "^16.4.0",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",

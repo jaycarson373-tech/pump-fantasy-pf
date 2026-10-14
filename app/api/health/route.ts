@@ -45,6 +45,6 @@ export async function GET() {
     walletChecksConfigured,
     tokenMintInitialized,
     activeSeasonConfigured,
-    payoutConfigured: Boolean(process.env.PF_PRIZE_WALLET_ADDRESS && process.env.PF_DAILY_PRIZE_LAMPORTS && /^\d+$/.test(process.env.PF_DAILY_PRIZE_LAMPORTS) && BigInt(process.env.PF_DAILY_PRIZE_LAMPORTS) > 0n),
+    payoutConfigured: process.env.PF_REWARD_MODE === "creator-fees" ? Boolean(process.env.PF_PRIZE_WALLET_ADDRESS && (process.env.PF_PAYOUT_SIGNER_KEYPAIR_JSON || process.env.PF_CREATOR_PRIVATE_KEY) && process.env.PF_AUTO_PAYOUT_ENABLED === "true" && process.env.PF_FEE_COLLECTION_ENABLED === "true") : Boolean(process.env.PF_PRIZE_WALLET_ADDRESS && process.env.PF_DAILY_PRIZE_LAMPORTS && /^\d+$/.test(process.env.PF_DAILY_PRIZE_LAMPORTS) && BigInt(process.env.PF_DAILY_PRIZE_LAMPORTS) > 0n),
   });
 }

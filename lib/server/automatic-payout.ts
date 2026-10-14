@@ -6,6 +6,7 @@ import {
   createKeyPairSignerFromBytes,
   createTransactionMessage,
   getBase64EncodedWireTransaction,
+  getBase58Encoder,
   getSignatureFromTransaction,
   pipe,
   setTransactionMessageFeePayerSigner,
@@ -16,6 +17,7 @@ import { getTransferSolInstruction } from "@solana-program/system";
 import { getBackendConfig } from "./config";
 import { queryRows } from "./database";
 import { validWallet } from "./http";
+import { getFeeTreasury } from "./fee-treasury";
 import { getNativeSolBalance } from "./solana";
 
 type Award = {
@@ -35,16 +37,18 @@ type RpcResult<T> = { result?: T; error?: { message?: string } };
 
 export type PayoutConfiguration = { enabled: boolean; blockers: string[]; signerAddress: string | null; perAwardCap: bigint | null; seasonCap: bigint | null; rpcUrl: string | null };
 
-function readSignerBytes() {
-  const text = process.env.PF_PAYOUT_SIGNER_KEYPAIR_JSON;
+export function readPayoutSignerBytes() {
+  const text = process.env.PF_PAYOUT_SIGNER_KEYPAIR_JSON || process.env.PF_CREATOR_PRIVATE_KEY;
   if (!text) return null;
   try {
-    const parsed: unknown = JSON.parse(text);
-    if (!Array.isArray(parsed) || parsed.length !== 64 || parsed.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) return null;
-    return new Uint8Array(parsed as number[]);
-  } catch {
-    return null;
-  }
+    if (text.trim().startsWith("[")) {
+      const parsed: unknown = JSON.parse(text);
+      if (!Array.isArray(parsed) || parsed.length !== 64 || parsed.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) return null;
+      return new Uint8Array(parsed as number[]);
+    }
+    const decoded = getBase58Encoder().encode(text.trim());
+    return decoded.length === 64 ? new Uint8Array(decoded) : null;
+  } catch { return null; }
 }
 
 function readPositiveLamports(name: string) {
@@ -53,7 +57,7 @@ function readPositiveLamports(name: string) {
 }
 
 async function readSigner() {
-  const bytes = readSignerBytes();
+  const bytes = readPayoutSignerBytes();
   if (!bytes) return null;
   try {
     return await createKeyPairSignerFromBytes(bytes, false);
@@ -70,10 +74,11 @@ export async function getPayoutConfiguration(): Promise<PayoutConfiguration> {
   const blockers: string[] = [];
   const signer = await readSigner();
   const prizeWallet = process.env.PF_PRIZE_WALLET_ADDRESS || "";
-  const perAwardCap = readPositiveLamports("PF_AUTO_PAYOUT_MAX_AWARD_LAMPORTS");
-  const seasonCap = readPositiveLamports("PF_AUTO_PAYOUT_MAX_SEASON_LAMPORTS");
+  const feeMode = process.env.PF_REWARD_MODE === "creator-fees";
+  const perAwardCap = readPositiveLamports("PF_AUTO_PAYOUT_MAX_AWARD_LAMPORTS") ?? (feeMode ? 9223372036854775807n : null);
+  const seasonCap = readPositiveLamports("PF_AUTO_PAYOUT_MAX_SEASON_LAMPORTS") ?? (feeMode ? 9223372036854775807n : null);
   if (!enabled) blockers.push("Set PF_AUTO_PAYOUT_ENABLED=true only after reviewing the signer and payout limits.");
-  if (!signer) blockers.push("Set PF_PAYOUT_SIGNER_KEYPAIR_JSON to a valid 64-byte Solana CLI keypair JSON array in Railway.");
+  if (!signer) blockers.push("Set PF_PAYOUT_SIGNER_KEYPAIR_JSON (64-byte JSON) or PF_CREATOR_PRIVATE_KEY (base58) in Railway.");
   if (!validWallet(prizeWallet)) blockers.push("Set PF_PRIZE_WALLET_ADDRESS to the payout wallet public address.");
   if (signer && validWallet(prizeWallet) && signer.address !== prizeWallet) blockers.push("Payout signer does not match PF_PRIZE_WALLET_ADDRESS.");
   if (!perAwardCap) blockers.push("Set PF_AUTO_PAYOUT_MAX_AWARD_LAMPORTS to a positive per-award cap.");
@@ -155,8 +160,18 @@ async function prepareAward(award: Award, config: PayoutConfiguration) {
   const signer = await readSigner();
   const prizeWallet = process.env.PF_PRIZE_WALLET_ADDRESS || "";
   if (!signer || signer.address !== prizeWallet) throw new Error("Payout signer configuration is invalid.");
+  const rewardSeason = (await queryRows<{ mint_address: string | null; prize_mode: string }>("select mint_address, prize_mode from pf_seasons where id=$1", [award.season_id]))[0];
+  let treasuryMinimum = amount + 5_000n;
+  if (rewardSeason?.prize_mode === "creator-fees") {
+    if (!rewardSeason.mint_address) return "missing-reward-mint";
+    const allocation = await queryRows<{ amount: string }>("select coalesce(sum(daily_lamports),0)::text as amount from pf_creator_fee_receipts where award_id=$1 and mint_address=$2", [award.id, rewardSeason.mint_address]);
+    if (BigInt(allocation[0]?.amount ?? 0) !== amount) throw new Error("Daily award does not match its confirmed 65% fee allocation.");
+    const treasury = await getFeeTreasury(rewardSeason.mint_address);
+    // Keep all other daily allocations and the entire 35% reserve intact.
+    treasuryMinimum = treasury.daily - treasury.paid + treasury.reserve + 5_000n;
+  }
   const balance = await getNativeSolBalance(prizeWallet);
-  if (balance < amount + 5_000n) return "awaiting-payout-funding";
+  if (balance < treasuryMinimum) return "awaiting-payout-funding";
   const lifetime = await rpc<{ value: { blockhash: string; lastValidBlockHeight: number } }>("getLatestBlockhash", [{ commitment: "confirmed" }]);
   const instruction = getTransferSolInstruction({ source: signer, destination: address(award.winner_wallet), amount });
   const message = pipe(
