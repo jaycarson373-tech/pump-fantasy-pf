@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateDailyWinner } from "../lib/server/daily-scoring.ts";
+import { calculateDailyWinner, selectStandingsSnapshots } from "../lib/server/daily-scoring.ts";
 
 const players = Array.from({ length: 10 }, (_, index) => ({
   id: `player-${index + 1}`,
@@ -55,4 +55,42 @@ test("does not award malformed squads with duplicate or missing picks", () => {
 
 test("records no eligible entries distinctly from incomplete scoring data", () => {
   assert.deepEqual(calculateDailyWinner([], players, {}, {}), { kind: "no-eligible-entries" });
+});
+
+test("completed standings compare the opening snapshot with the final snapshot", () => {
+  const snapshots = [
+    { boundary: 0, label: "opening" },
+    { boundary: 1, label: "day one" },
+    { boundary: 2, label: "final" },
+  ];
+
+  assert.deepEqual(selectStandingsSnapshots("complete", snapshots), {
+    baseline: snapshots[0],
+    current: snapshots[2],
+  });
+});
+
+test("completed standings stay unscored if the final snapshot is missing", () => {
+  const snapshots = [{ boundary: 0, label: "opening" }, { boundary: 1, label: "day one" }];
+
+  assert.deepEqual(selectStandingsSnapshots("complete", snapshots), {
+    baseline: snapshots[0],
+    current: undefined,
+  });
+});
+
+test("live standings reset to the latest daily baseline, falling back to opening", () => {
+  const snapshots = [
+    { boundary: 0, label: "opening" },
+    { boundary: 1, label: "day one" },
+  ];
+
+  assert.deepEqual(selectStandingsSnapshots("live", snapshots), {
+    baseline: snapshots[1],
+    current: undefined,
+  });
+  assert.deepEqual(selectStandingsSnapshots("live", snapshots.slice(0, 1)), {
+    baseline: snapshots[0],
+    current: undefined,
+  });
 });

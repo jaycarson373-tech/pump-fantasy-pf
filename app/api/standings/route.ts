@@ -4,6 +4,7 @@ import { getActiveSeasonId, queryRows } from "../../../lib/server/database";
 import { routeError } from "../../../lib/server/http";
 import { fetchPumpLeaderboard } from "../../../lib/server/pumpfun";
 import { tickSeason } from "../../../lib/server/season-results";
+import { selectStandingsSnapshots } from "../../../lib/server/daily-scoring";
 import { getSeasonPhase, type SeasonSchedule } from "../../../lib/server/season-window";
 
 export const runtime = "nodejs";
@@ -26,8 +27,8 @@ export async function GET() {
     ]);
     const season = seasons[0];
     const phase = season ? getSeasonPhase(season) : "inactive";
-    const lastBoundary = phase === "complete" ? 2 : phase === "live" ? 1 : 0;
-    const baseline = scoreSnapshots.find((snapshot) => snapshot.boundary === lastBoundary) ?? (lastBoundary > 0 ? scoreSnapshots.find((snapshot) => snapshot.boundary === lastBoundary - 1) : undefined);
+    const selectedSnapshots = selectStandingsSnapshots(phase, scoreSnapshots);
+    const baseline = selectedSnapshots.baseline;
     const board = entries.length && baseline && phase === "live" ? await fetchPumpLeaderboard(100) : null;
     const liveByWallet = new Map(board?.players.map((player) => [player.wallet, player.pnl_usd]) ?? []);
     const byId = new Map(players.map((player) => [player.id, { ...player, pnl_usd: Number(player.pnl_usd) }]));
@@ -35,7 +36,7 @@ export async function GET() {
       const roster = entry.picks.map((id) => {
         const player = byId.get(id);
         if (!player) return undefined;
-        const pnl = phase === "live" ? liveByWallet.get(player.wallet) : baseline?.pnl_by_wallet[player.wallet];
+        const pnl = phase === "live" ? liveByWallet.get(player.wallet) : selectedSnapshots.current?.pnl_by_wallet[player.wallet];
         const base = baseline?.pnl_by_wallet[player.wallet];
         return { id, rank: player.rank, display_name: player.display_name, wallet: player.wallet, pnl_usd: pnl ?? null, contest_change_usd: pnl !== undefined && base !== undefined ? pnl - base : null };
       }).filter((player) => player !== undefined);

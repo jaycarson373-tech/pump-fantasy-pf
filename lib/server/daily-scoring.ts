@@ -1,5 +1,14 @@
 export type ScoringEntry = { wallet: string; picks: string[] };
 export type ScoringPlayer = { id: string; wallet: string };
+/** Pick the scoring interval shown on the standings board for the current phase. */
+export function selectStandingsSnapshots<T extends { boundary: number }>(phase: string, snapshots: T[]) {
+  const at = (boundary: number) => snapshots.find((snapshot) => snapshot.boundary === boundary);
+  if (phase === "complete") {
+    return { baseline: at(0), current: at(2) };
+  }
+  const baseline = phase === "live" ? at(1) ?? at(0) : at(0);
+  return { baseline, current: undefined };
+}
 
 export type DailyWinnerResult =
   | { kind: "no-eligible-entries" }
