@@ -1,5 +1,6 @@
 import "./relaunch.css";
 import { SeasonOpenWatcher } from "./season-open-watcher";
+import { RelaunchContractAddress } from "./relaunch-ca";
 import type { SeasonPhase } from "../lib/server/season-window";
 
 const rankBands = ["01–10", "11–20", "21–30", "31–40", "41–50"];
@@ -45,6 +46,7 @@ export function RelaunchPage({ phase, opensAt }: RelaunchPageProps) {
             {description}
           </p>
           <div className="relaunch-rule"><span /> FIVE PICKS. ONE LEADERBOARD. A FRESH START.</div>
+          <RelaunchContractAddress />
         </div>
 
         <div className="relaunch-card" aria-label="Preview of the five leaderboard rank bands">
