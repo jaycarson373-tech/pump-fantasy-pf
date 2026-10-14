@@ -3,7 +3,6 @@ import { getBackendConfig } from "../../../lib/server/config";
 import { getActiveSeasonId, queryRows } from "../../../lib/server/database";
 import { routeError } from "../../../lib/server/http";
 import { fetchPumpLeaderboard } from "../../../lib/server/pumpfun";
-import { tickSeason } from "../../../lib/server/season-results";
 import { selectStandingsSnapshots } from "../../../lib/server/daily-scoring";
 import { getSeasonPhase, type SeasonSchedule } from "../../../lib/server/season-window";
 
@@ -16,7 +15,6 @@ type Snapshot = { boundary: number; captured_at: string; pnl_by_wallet: Record<s
 export async function GET() {
   try {
     if (!getBackendConfig().databaseUrl) return NextResponse.json({ configured: false, standings: [], awards: [] });
-    await tickSeason();
     const seasonId = await getActiveSeasonId();
     if (!seasonId) return NextResponse.json({ configured: false, standings: [], awards: [] });
     const [seasons, entries, players, scoreSnapshots] = await Promise.all([
