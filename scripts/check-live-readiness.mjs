@@ -34,8 +34,9 @@ function report(label, passed, detail) {
 }
 
 console.log(`Pump Fantasy launch preflight · ${baseUrl}`);
-const [site, health, players, entry, standings] = await Promise.all([
+const [site, draftRoom, health, players, entry, standings] = await Promise.all([
   get("/"),
+  get("/draft"),
   get("/api/health"),
   get("/api/players"),
   get("/api/entry"),
@@ -44,6 +45,8 @@ const [site, health, players, entry, standings] = await Promise.all([
 
 const siteOk = site.status === 200;
 report("Public site responds", siteOk, site.error || `HTTP ${site.status}`);
+const draftRouteOk = draftRoom.status === 200;
+report("Draft room route responds", draftRouteOk, draftRoom.error || `HTTP ${draftRoom.status}`);
 
 const healthBody = health.body;
 const serviceOk = health.status === 200 && healthBody?.service === "pump-fantasy";
@@ -84,6 +87,6 @@ if (secret) {
   report("Protected launch preflight", false, "set PF_DATA_INGEST_SECRET in this shell to check prize funding and start readiness");
 }
 
-const ready = siteOk && serviceOk && healthBody?.backendConfigured === true && healthBody?.walletChecksConfigured === true && healthBody?.tokenMintInitialized === true && rosterOk && entryServiceOk && standingsOk && preflightReady;
+const ready = siteOk && draftRouteOk && serviceOk && healthBody?.backendConfigured === true && healthBody?.walletChecksConfigured === true && healthBody?.tokenMintInitialized === true && rosterOk && entryServiceOk && standingsOk && preflightReady;
 console.log(ready ? "\nREADY: preflight passed. The season has not been started by this check." : "\nNOT READY: resolve the blockers above. This check is read-only; it never opens a season or sends a transaction.");
 process.exitCode = ready ? 0 : 1;

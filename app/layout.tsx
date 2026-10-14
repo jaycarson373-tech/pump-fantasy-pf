@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://pump-fantasy-pf.vercel.app"),
+  metadataBase: new URL("https://www.pumpfunfantasy.xyz"),
   title: "PumpFun Fantasy League | Draft your five",
   description:
     "Draft one trader from each rank band in the Pump.fun one-month top 50. Track your squad’s daily PnL change.",
