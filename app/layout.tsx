@@ -17,17 +17,18 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://www.pumpfunfantasy.xyz"),
   title: "PumpFun Fantasy League | Draft your five",
   description:
-    "Draft one trader from each rank band in the Pump.fun one-month top 50. Track your squad’s daily PnL change.",
+    "Hold 500,000 FANTASY. Draft five traders in one hour. Compete across 48 hours of Pump.fun PnL.",
+  icons: { icon: "/brand/fantasy-league-mark.svg", apple: "/brand/fantasy-league-mark-180.png" },
   openGraph: {
     title: "PumpFun Fantasy League",
     description: "Draft one trader from each rank band. Build your five and follow the PnL race.",
-    images: [{ url: "/brand/pump-fantasy-banner.png", width: 1500, height: 500 }],
+    images: [{ url: "/brand/fantasy-league-social.png", width: 1500, height: 500 }],
   },
   twitter: {
     card: "summary_large_image",
     title: "PumpFun Fantasy League",
     description: "Draft one trader from each rank band. Build your five and follow the PnL race.",
-    images: ["/brand/pump-fantasy-banner.png"],
+    images: ["/brand/fantasy-league-social.png"],
   },
 };
 

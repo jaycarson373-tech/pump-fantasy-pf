@@ -43,7 +43,7 @@ export async function GET() {
       queryRows<FantasyPlayer & { season_id: string; snapshot_at: string }>("select id, rank, wallet, display_name, profile_url, avatar_url, pnl_usd, snapshot_at from pf_players where season_id = $1 order by rank asc limit 50", [season]),
     ]);
     if (savedPlayers.length === 50) {
-      return NextResponse.json({ configured: true, live: false, source: "season roster snapshot", snapshotAt: savedPlayers[0]?.snapshot_at ?? null, players: savedPlayers.map((player) => ({ ...player, pnl_usd: Number(player.pnl_usd) })) });
+      return NextResponse.json({ configured: true, live: false, source: "season roster snapshot", seasonId: season, snapshotAt: savedPlayers[0]?.snapshot_at ?? null, players: savedPlayers.map((player) => ({ ...player, pnl_usd: Number(player.pnl_usd) })) });
     }
     const seasonRow = seasons[0];
     const phase = seasonRow ? getSeasonPhase(seasonRow) : "inactive";
@@ -52,7 +52,7 @@ export async function GET() {
       if (board.players.length !== 50 || new Set(board.players.map((player) => player.wallet)).size !== 50) return getLiveBoard();
       const observedAt = new Date();
       await saveRosterSnapshot(season, board.players, observedAt);
-      return NextResponse.json({ configured: true, live: false, source: "season opening snapshot", snapshotAt: observedAt.toISOString(), players: board.players });
+      return NextResponse.json({ configured: true, live: false, source: "season opening snapshot", seasonId: season, snapshotAt: observedAt.toISOString(), players: board.players });
     }
     return getLiveBoard();
   } catch {

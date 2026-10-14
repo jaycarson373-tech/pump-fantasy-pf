@@ -7,11 +7,7 @@ export type SeasonSchedule = {
 
 export type SeasonPhase = "draft" | "scheduled" | "live" | "complete" | "misconfigured" | "inactive";
 
-export function shouldShowSeasonRoom(phase: SeasonPhase | "unconfigured") {
-  return phase === "draft" || phase === "live" || phase === "complete";
-}
-
-export const DRAFT_DURATION_MS = 3 * 60 * 60 * 1000;
+export const DRAFT_DURATION_MS = 60 * 60 * 1000;
 export const SEASON_DURATION_MS = 48 * 60 * 60 * 1000;
 
 export function seasonWindowFromOpen(opensAtMs: number) {

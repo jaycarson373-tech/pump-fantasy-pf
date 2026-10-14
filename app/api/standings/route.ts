@@ -1,3 +1,4 @@
+import { getFeeTreasury } from "../../../lib/server/fee-treasury";
 import { NextResponse } from "next/server";
 import { getBackendConfig } from "../../../lib/server/config";
 import { getActiveSeasonId, queryRows } from "../../../lib/server/database";
@@ -43,8 +44,12 @@ export async function GET() {
       return { wallet: entry.wallet, picks: roster, score, scoringReady: complete };
     }).sort((a, b) => (b.score ?? Number.NEGATIVE_INFINITY) - (a.score ?? Number.NEGATIVE_INFINITY) || a.wallet.localeCompare(b.wallet));
     const allAwards = await queryRows<{ id: string; season_id: string; day_number: number; winner_wallet: string | null; score_usd: string | null; prize_lamports: string; status: string; payment_signature: string | null; paid_at: string | null }>("select id, season_id, day_number, winner_wallet, score_usd, prize_lamports, status, payment_signature, paid_at from pf_daily_awards order by created_at desc limit 10");
+    const mint = getBackendConfig().mint;
+    const treasury = mint ? await getFeeTreasury(mint) : null;
     return NextResponse.json({
       configured: true,
+      rewardMode: process.env.PF_REWARD_MODE === "creator-fees" ? "creator-fees" : "fixed",
+      feePools: { dailyBps: 6500, reserveBps: 3500, collectedLamports: treasury?.gross.toString() ?? "0", availableDailyLamports: treasury?.available.toString() ?? "0", reserveLamports: treasury?.reserve.toString() ?? "0", paidLamports: treasury?.paid.toString() ?? "0" },
       seasonId,
       phase,
       prizeLamports: season?.daily_prize_lamports ?? "0",

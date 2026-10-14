@@ -1,0 +1,76 @@
+/* Relaunch identity: a clean sporting league, with the draft as the product. */
+.draft-room { --green: #14f195; --green-ink: #062c20; }
+.draft-room .pf-mark-image { background-image: url('/brand/fantasy-league-mark.svg'); }
+.draft-room .topbar { position: sticky; top: 0; border-top: 4px solid #14f195; height: 80px; }
+.league-live-strip { display: grid; grid-template-columns: 1.25fr 1fr 1fr 1fr; background: #0d1b14; padding: 17px clamp(20px,4.7vw,74px); gap: 25px; color: #edfef5; border-bottom: 1px solid #284333; }
+.league-live-strip > div { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 10px; }
+.league-live-strip > div + div { padding-left: 24px; border-left: 1px solid #284333; }
+.league-live-strip span { color: #94b4a2; font: 650 9px/1.4 var(--font-geist-mono),monospace; letter-spacing: .07em; }
+.league-live-strip strong { width: 100%; font: 650 16px/1.3 var(--font-geist-mono),monospace; letter-spacing: -.04em; }
+.league-phase-dot { width: 6px; height: 6px; border-radius: 50%; background: #9daea5; }
+.league-phase-dot.open { background: #14f195; box-shadow: 0 0 0 4px #14f19518; }
+.draft-room .draft-hero { padding-top: 62px; }
+.draft-room .draft-hero h1 { font-size: clamp(50px,5.4vw,88px); line-height: 1.01; letter-spacing: -.07em; }
+.draft-room .hero-copy-grid { grid-template-columns: 1.12fr 1fr; gap: 36px; align-items: center; }
+.draft-room .draft-hero .hero-copy-grid p { max-width: 510px; font-size: 16px; line-height: 1.7; }
+.draft-room .draft-board-art { padding: 18px; border-radius: 18px; background: #0c2117; }
+.draft-room .board-topline, .draft-room .board-footer { font-size: 8px; letter-spacing: .03em; }
+.draft-room .featured-kol-card { border-radius: 12px; min-height: 187px; padding: 14px 7px; background: #112b1f; }
+.draft-room .featured-kol-card:nth-child(2n) { transform: translateY(8px); }
+.draft-room .featured-kol-card:hover { transform: translateY(-6px); box-shadow: 0 15px 24px #0003; }
+.draft-room .featured-kol-card .pick-number { color: #75ac8e; }
+.draft-room .featured-kol-card .player-label { font-size: 9px; }
+.draft-room .featured-kol-card .player-plus { color: #14f195; background: #14f1950e; }
+.draft-room .draft-ticker { font-size: 9px; }
+.draft-room .band-player:disabled { cursor: default; transform: none; }
+.draft-room .band-player:focus-visible, .draft-room button:focus-visible { outline: 2px solid #14f195; outline-offset: 3px; }
+.squad-save-state { margin: 14px 15px 0; padding: 12px; display: grid; gap: 5px; border: 1px solid #27583e; border-radius: 7px; background: #133623; color: #b4f4ce; }
+.squad-save-state b { font-size: 12px; }
+.squad-save-state span { font-size: 10px; line-height: 1.6; }
+.squad-save-state.dirty { border-color: #715528; background: #352919; color: #f6d392; }
+.draft-room .how-heading h2 { font-size: clamp(35px,4vw,58px); }
+.draft-room .how-grid h3 { font-size: 18px; }
+.draft-room .how-grid p, .draft-room .docs-note p { font-size: 13px; line-height: 1.75; }
+.draft-room .season-pathway p { font-size: 13px; }
+.draft-room .status-cards p, .draft-room .fee-flow p, .draft-room .standings-empty { font-size: 13px; }
+.draft-room .season-pathway ol { grid-template-columns: repeat(3,1fr); }
+.draft-room .roster-note p, .draft-room .season-clock > small { font-size: 11px; }
+.draft-room .roster-slot b { font-size: 13px; }
+.draft-room .roster-slot small { font-size: 10px; }
+.draft-room .no-signature { font-size: 10px; line-height: 1.6; }
+.draft-room .closing-cta > span { display: block; width: clamp(110px,16vw,210px); height: clamp(110px,16vw,210px); font-size: 0; background: center/contain no-repeat url('/brand/fantasy-league-mark.svg'); }
+@media (max-width: 1100px) {
+ .draft-room .hero-copy-grid { grid-template-columns: 1fr; }
+ .draft-room .draft-board-art { max-width: 650px; }
+ .league-live-strip { gap: 14px; }
+ .league-live-strip > div + div { padding-left: 14px; }
+ .league-live-strip strong { font-size: 13px; }
+}
+@media (max-width: 720px) {
+ .league-live-strip { grid-template-columns: 1fr 1fr; padding: 16px 18px; gap: 16px; }
+ .league-live-strip > div + div { padding-left: 0; border-left: none; }
+ .league-live-strip strong { font-size: 13px; }
+ .draft-room .draft-hero { padding-top: 38px; }
+ .draft-room .draft-hero h1 { font-size: clamp(43px,10vw,64px); }
+ .draft-room .draft-hero .hero-copy-grid p { font-size: 14px; }
+ .draft-room .featured-kol-card { min-height: 146px; padding: 10px 3px; }
+ .draft-room .featured-kol-card .player-label { font-size: 7px; }
+ .draft-room .board-footer { gap: 15px; font-size: 6px; }
+ .draft-room .season-pathway ol { grid-template-columns: 1fr; }
+ .draft-room .closing-cta > span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+ .draft-room *, .draft-room *::before, .draft-room *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+.league-rule-summary { display:grid; grid-template-columns:repeat(3,1fr); padding:26px clamp(20px,4.7vw,74px); gap:28px; background:#12291d; color:#f0fff6; border-bottom:1px solid #2a4534; }
+.league-rule-summary > div { display:flex; gap:14px; align-items:center; }
+.league-rule-summary > div > b { color:#14f195; font:600 22px/1 var(--font-geist-mono),monospace; }
+.league-rule-summary strong { display:block; font-size:14px; }
+.league-rule-summary small { display:block; color:#a7c0b0; font-size:11px; margin-top:6px; }
+.draft-room .fee-flow > .reward-split { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+.reward-split article { border:1px solid #dce5de; padding:22px; border-radius:12px; display:grid; gap:9px; background:#f6fcf8; }
+.draft-room .reward-split article b { color:#0a9c61; font-size:46px; letter-spacing:-.06em; padding:0; border:0; background:none; }
+.reward-split strong { font-size:18px; }
+.reward-split small { font-size:12px; color:#597564; line-height:1.6; }
+.draft-room .fee-flow > .section-label { display:block; margin-top:20px; }
+@media(max-width:720px) { .league-rule-summary { grid-template-columns:1fr; gap:22px; } .draft-room .fee-flow > .reward-split { grid-template-columns:1fr; } }

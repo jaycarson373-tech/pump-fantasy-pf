@@ -20,9 +20,9 @@ export async function GET() {
     const phase = seasonRow ? getSeasonPhase(seasonRow) : "inactive";
     const schedule = seasonRow ? { opensAt: seasonRow.opens_at, lockedAt: seasonRow.locked_at, closesAt: seasonRow.closes_at } : null;
     const wallet = await getWalletSession();
-    if (!wallet) return NextResponse.json({ configured: true, authenticated: false, seasonConfigured: phase !== "misconfigured" && phase !== "inactive", phase, schedule, entry: null });
+    if (!wallet) return NextResponse.json({ configured: true, authenticated: false, seasonConfigured: phase !== "misconfigured" && phase !== "inactive", mintAddress: config.mint, minimumTokens: config.minimumTokens?.toString(), seasonId: season, serverTime: new Date().toISOString(), phase, schedule, entry: null });
     const entries = await queryRows<{ picks: string[]; created_at: string; updated_at: string }>("select picks, created_at, updated_at from pf_entries where wallet = $1 and season_id = $2 limit 1", [wallet, season]);
-    return NextResponse.json({ configured: true, authenticated: true, wallet, seasonConfigured: phase !== "misconfigured" && phase !== "inactive", phase, schedule, entry: entries[0] ?? null });
+    return NextResponse.json({ configured: true, authenticated: true, wallet, seasonConfigured: phase !== "misconfigured" && phase !== "inactive", mintAddress: config.mint, minimumTokens: config.minimumTokens?.toString(), seasonId: season, serverTime: new Date().toISOString(), phase, schedule, entry: entries[0] ?? null });
   } catch (error) {
     return routeError(error);
   }
@@ -42,7 +42,7 @@ export async function PUT(request: Request) {
     if (!seasonRow) return NextResponse.json({ error: "The active season does not exist." }, { status: 503 });
     const phase = getSeasonPhase(seasonRow);
     if (phase === "misconfigured") return NextResponse.json({ error: "The season schedule is incomplete or invalid." }, { status: 503 });
-    if (!canSubmitSeasonEntry(seasonRow)) return NextResponse.json({ error: phase === "scheduled" ? "The draft window has not opened yet." : "The three-hour draft window is closed." }, { status: 409 });
+    if (!canSubmitSeasonEntry(seasonRow)) return NextResponse.json({ error: phase === "scheduled" ? "The draft window has not opened yet." : "The one-hour draft window is closed." }, { status: 409 });
     const body = await request.json();
     const picks = body.picks;
     if (!Array.isArray(picks) || picks.length !== 5 || picks.some((id) => typeof id !== "string" || id.length > 100) || new Set(picks).size !== 5) {

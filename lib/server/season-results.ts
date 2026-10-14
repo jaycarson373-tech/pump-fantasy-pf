@@ -1,4 +1,6 @@
 import "server-only";
+import { collectCreatorFees } from "./creator-fees";
+import { getPayoutConfiguration } from "./automatic-payout";
 import { queryRows, withAdvisoryLock, withTransaction } from "./database";
 import { fetchPumpLeaderboard, type FantasyPlayer } from "./pumpfun";
 import { saveRosterSnapshot } from "./players";
@@ -11,7 +13,7 @@ import { processNextAutomaticPayout } from "./automatic-payout";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_GRACE_MS = 15 * 60 * 1000;
-type Season = { id: string; title: string; status: string; opens_at: string | null; locked_at: string | null; closes_at: string | null; daily_prize_lamports: string | number };
+type Season = { id: string; title: string; status: string; opens_at: string | null; locked_at: string | null; closes_at: string | null; daily_prize_lamports: string | number; mint_address: string | null; prize_mode: string };
 type EntryRow = { wallet: string; picks: string[] };
 type ScoreSnapshot = { boundary: number; captured_at: string; pnl_by_wallet: Record<string, number>; missing_wallets: string[] };
 
@@ -23,7 +25,7 @@ async function activeSeason() {
   const configured = await queryRows<{ value: string }>("select value from pf_app_config where key = 'active_season_id' limit 1");
   const seasonId = configured[0]?.value || process.env.PF_ACTIVE_SEASON_ID;
   if (!seasonId) return null;
-  const rows = await queryRows<Season>("select id, title, status, opens_at, locked_at, closes_at, daily_prize_lamports from pf_seasons where id = $1 limit 1", [seasonId]);
+  const rows = await queryRows<Season>("select id, title, status, opens_at, locked_at, closes_at, daily_prize_lamports, mint_address, prize_mode from pf_seasons where id = $1 limit 1", [seasonId]);
   return rows[0] ?? null;
 }
 
@@ -39,6 +41,17 @@ async function recordAward(season: Season, day: 1 | 2, previous: ScoreSnapshot, 
   }
   if (result.kind === "awaiting-data") {
     await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_lamports) values ($1, $2, 'awaiting_data', $3) on conflict (season_id, day_number) do nothing", [season.id, day, season.daily_prize_lamports]);
+    return;
+  }
+  if (season.prize_mode === "creator-fees") {
+    if (!season.mint_address || !season.locked_at) throw new Error("Creator-fee season is missing its mint or cutoff.");
+    const cutoff = new Date(Date.parse(season.locked_at) + day * DAY_MS).toISOString();
+    await withTransaction(async (query) => {
+      const receipts = await query<{ signature: string; daily_lamports: string }>("select signature,daily_lamports from pf_creator_fee_receipts where mint_address=$1 and award_id is null and collected_at <= $2 for update", [season.mint_address, cutoff]);
+      const prize = receipts.reduce((sum, receipt) => sum + BigInt(receipt.daily_lamports), 0n);
+      const awards = await query<{ id: string }>("insert into pf_daily_awards(season_id,day_number,winner_wallet,score_usd,prize_lamports,status) values($1,$2,$3,$4,$5,$6) on conflict(season_id,day_number) do nothing returning id", [season.id,day,result.wallet,result.score,prize.toString(),prize > 0n ? "pending_payment" : "no_creator_fees"]);
+      if (awards[0] && receipts.length) await query("update pf_creator_fee_receipts set award_id=$1 where signature=any($2::text[]) and award_id is null", [awards[0].id, receipts.map((receipt) => receipt.signature)]);
+    });
     return;
   }
   const prize = BigInt(season.daily_prize_lamports || 0);
@@ -85,6 +98,10 @@ export async function tickSeason() {
   return withAdvisoryLock("pump-fantasy-season-tick", async () => {
     const season = await activeSeason();
     if (!season || season.status !== "open" || !season.locked_at || !season.closes_at) return { ok: true, action: "idle", seasonId: season?.id ?? null };
+    // Collection is finalized and journaled before daily results settle.
+    // A collector outage must not prevent timely PnL snapshots.
+    try { if (season.prize_mode === "creator-fees") await collectCreatorFees(); }
+    catch (error) { console.error("Creator-fee collection paused:", error instanceof Error ? error.message : "claim failed"); }
     const now = Date.now();
     const lockedAt = Date.parse(season.locked_at);
     const closesAt = Date.parse(season.closes_at);
@@ -108,6 +125,10 @@ export async function tickSeason() {
       return { ok: true, action: payout.action, seasonId: season.id, snapshots, payout };
     }
 
+    if (season.prize_mode === "creator-fees") {
+      const payoutConfig = await getPayoutConfiguration();
+      if (payoutConfig.blockers.length) return { ok: true, action: "awaiting-reward-configuration", seasonId: season.id };
+    }
     const nextPrize = BigInt(season.daily_prize_lamports || 0);
     const prizeWallet = process.env.PF_PRIZE_WALLET_ADDRESS || "";
     if (nextPrize > 0n) {
@@ -128,7 +149,7 @@ export async function tickSeason() {
       const nextNumber = Number(nextId.slice("season-".length));
       const nextPrizeLamports = nextPrize.toString();
       const nextWindow = seasonWindowFromOpen(Date.now());
-      const inserted = await transactionQuery<{ id: string }>("insert into pf_seasons (id, title, status, opens_at, locked_at, closes_at, daily_prize_lamports, source_url) values ($1, $2, 'draft', null, null, null, $3, $4) on conflict (id) do nothing returning id", [nextId, `Season ${nextNumber}`, nextPrizeLamports, "https://pump.fun/leaderboard"]);
+      const inserted = await transactionQuery<{ id: string }>("insert into pf_seasons (id, title, status, opens_at, locked_at, closes_at, daily_prize_lamports, source_url, mint_address, prize_mode) values ($1, $2, 'draft', null, null, null, $3, $4, $5, $6) on conflict (id) do nothing returning id", [nextId, `Season ${nextNumber}`, nextPrizeLamports, "https://pump.fun/leaderboard", season.mint_address, season.prize_mode]);
       if (!inserted.length) throw new Error("Could not reserve the next season ID safely.");
       await saveRosterSnapshot(nextId, board.players, new Date(board.snapshotAt), transactionQuery);
       const opened = await transactionQuery<{ id: string }>("update pf_seasons set status = 'open', opens_at = $2, locked_at = $3, closes_at = $4 where id = $1 and status = 'draft' returning id", [nextId, nextWindow.opensAt, nextWindow.lockedAt, nextWindow.closesAt]);
