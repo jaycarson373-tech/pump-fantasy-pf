@@ -15,6 +15,7 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
     method: "POST",
     headers: { "content-type": "application/json" },
     cache: "no-store",
+    signal: AbortSignal.timeout(8_000),
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
   });
   if (!response.ok) throw new Error(`Solana RPC returned HTTP ${response.status}.`);
