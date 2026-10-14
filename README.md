@@ -2,7 +2,7 @@
 
 Pump Fantasy is a five-pick fantasy contest based on Pump.fun's one-month PnL leaderboard. Each season snapshots the top 50, split into five fixed rank bands. Eligible holders choose one trader from each band during a three-hour draft. Picks are saved per wallet and can be edited until the server-side lock. The scoring period then runs 48 hours with one-day score settlements.
 
-The public root route is currently the relaunch page. The complete draft application is staged at `/draft` and remains noindex; its submit button stays disabled until the backend reports an open draft, the live 50-player roster is available, and the connected wallet passes the signed-message plus 500,000 FANTASY balance check.
+The public root route shows the relaunch page while a season is being prepared or scheduled, then switches to the draft application when the season opens. The site is noindex. Squad submission stays disabled until the backend reports an open draft, the live 50-player roster is available, and the connected wallet passes the signed-message plus 500,000 FANTASY balance check.
 
 ## What is implemented
 
