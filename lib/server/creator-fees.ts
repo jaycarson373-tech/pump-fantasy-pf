@@ -80,7 +80,7 @@ export async function collectCreatorFees() {
     // from the recorded gross fee split or the long-term reward reserve.
     if (BigInt((await sdk.getCreatorVaultBalanceBothPrograms(signer.publicKey)).toString()) < 50_000n) return "no-claimable-fees";
     const treasury = await getFeeTreasury(mint);
-    const protectedBalance = treasury.daily - treasury.paid + treasury.reserve + 5_000_000n;
+    const protectedBalance = treasury.daily - treasury.paid + treasury.reserve + 2_500_000n;
     if (BigInt(await connection.getBalance(signer.publicKey)) < protectedBalance) return "collection-needs-gas";
     const instructions = await sdk.collectCoinCreatorFeeV2Instructions(signer.publicKey, NATIVE_MINT, TOKEN_PROGRAM_ID);
     const lifetime = await connection.getLatestBlockhash("confirmed");
