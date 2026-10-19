@@ -114,7 +114,7 @@ export function BudgetDraftLab() {
     setFeedbackError(false);
   }
 
-  const scoreDate = snapshotAt ? new Date(snapshotAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Updating";
+  const scoreDate = snapshotAt ? new Date(snapshotAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" }) : "Updating";
 
   return (
     <main className="budget-lab">
