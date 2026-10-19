@@ -18,7 +18,7 @@ import { getBackendConfig } from "./config";
 import { queryRows } from "./database";
 import { validWallet } from "./http";
 import { getFeeTreasury } from "./fee-treasury";
-import { getNativeSolBalance } from "./solana";
+import { getNativeSolBalance, verifyMainnetRpc } from "./solana";
 
 type Award = {
   id: string;
@@ -85,9 +85,8 @@ export async function getPayoutConfiguration(): Promise<PayoutConfiguration> {
   if (!seasonCap) blockers.push("Set PF_AUTO_PAYOUT_MAX_SEASON_LAMPORTS to a positive per-season cap.");
   const network = process.env.PF_PAYOUT_NETWORK || "";
   if (network !== "mainnet-beta") blockers.push("Set PF_PAYOUT_NETWORK=mainnet-beta to explicitly allow mainnet awards.");
-  if (!config.rpcUrl || !/^(https:\/\/)?(mainnet\.helius-rpc\.com|api\.mainnet-beta\.solana\.com)(\/|\?|$)/i.test(config.rpcUrl.replace(/^https?:\/\//i, "https://"))) {
-    blockers.push("SOLANA_RPC_URL must point to a recognized Solana mainnet RPC before automatic payouts can run.");
-  }
+  try { await verifyMainnetRpc(); }
+  catch { blockers.push("SOLANA_RPC_URL must return the Solana mainnet genesis hash before automatic payouts can run."); }
   return { enabled, blockers, signerAddress: signer?.address ?? null, perAwardCap, seasonCap, rpcUrl: config.rpcUrl ?? null };
 }
 

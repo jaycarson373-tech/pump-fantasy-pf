@@ -1,5 +1,6 @@
 import "server-only";
 import { getBackendConfig } from "./config";
+import { createMainnetVerifier } from "./network-identity";
 
 const TOKEN_PROGRAMS = [
   "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
@@ -24,7 +25,13 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
   return body.result;
 }
 
+const verifyNetwork = createMainnetVerifier(() => rpc<string>("getGenesisHash", []));
+export async function verifyMainnetRpc() {
+  await verifyNetwork(getBackendConfig().rpcUrl);
+}
+
 export async function verifyTokenMint(mint: string) {
+  await verifyMainnetRpc();
   if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint)) {
     throw new Error("The configured FANTASY mint is not a valid Solana address.");
   }
@@ -61,6 +68,7 @@ export async function getHolderBalance(wallet: string) {
 }
 
 export async function verifyNativeSolTransfer(signature: string, source: string, destination: string, lamports: string) {
+  await verifyMainnetRpc();
   if (!/^[1-9A-HJ-NP-Za-km-z]{80,90}$/.test(signature) || !/^\d+$/.test(lamports) || BigInt(lamports) <= 0n) return null;
   const transaction = await rpc<{
     slot: number;
@@ -75,6 +83,7 @@ export async function verifyNativeSolTransfer(signature: string, source: string,
 }
 
 export async function getNativeSolBalance(wallet: string) {
+  await verifyMainnetRpc();
   const result = await rpc<{ value: number }>("getBalance", [wallet, { commitment: "confirmed" }]);
   return BigInt(result.value);
 }

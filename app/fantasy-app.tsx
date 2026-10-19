@@ -2,6 +2,7 @@
 
 import "./disposable-stack-polyfill";
 import "./league-relaunch.css";
+import "./launch-polish.css";
 import Image from "next/image";
 import {
   useConnect,
@@ -19,13 +20,6 @@ const subscribeHydration = () => () => {};
 const clientHydrated = () => true;
 const serverHydrated = () => false;
 const DRAFT_ROUNDS = ["TOP 10", "11–20", "21–30", "31–40", "41–50"];
-const FEATURED_KOLS = [
-  { name: "chairman", image: "/players/featured/chairman.png" },
-  { name: "thedetective", image: "/players/featured/thedetective.png" },
-  { name: "cap", image: "/players/featured/cap.png" },
-  { name: "zinc", image: "/players/featured/zinc.png" },
-  { name: "limfork", image: "/players/featured/limfork.png" },
-];
 const PUBLIC_CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_FANTASY_CA || process.env.NEXT_PUBLIC_PF_CA || "").trim();
 const DRAFT_STORAGE_KEY = "pump-fantasy-relaunch-draft-v2";
 type SnapshotTuple = [number, string, string, number, string];
@@ -363,11 +357,12 @@ export function FantasyApp() {
     <main className="app-shell draft-room">
       <header className="topbar" id="top">
         <a className="pf-brand" href="#top" aria-label="Pump Fantasy home">
-          <span className="pf-mark-image" role="img" aria-label="Pump Fantasy crowned pill logo" /><strong>PumpFun Fantasy</strong><em>LEAGUE</em>
+          <span className="pf-mark-image" role="img" aria-label="Pump Fantasy logo" /><strong>PumpFun Fantasy</strong><em>LEAGUE</em>
         </a>
         <nav aria-label="Primary">
           <a className="active" href="#draft">Draft room</a>
-          <a href="#format">Format</a>
+          <a href="/budget-draft">Draft lab</a>
+          <a href="/rules">Rules</a>
           <a href="#status">Season status</a>
         </nav>
         <div className="header-right">
@@ -377,7 +372,7 @@ export function FantasyApp() {
       </header>
 
       <section className="league-live-strip" aria-label="League schedule and eligibility">
-        <div><span className={`league-phase-dot ${draftOpen ? "open" : ""}`} /><span>{phaseName}</span><strong>{timerValue ?? "Opens at launch"}</strong></div>
+        <div><span className={`league-phase-dot ${draftOpen ? "open" : ""}`} /><span>{phaseName}</span><strong>{timerValue ?? "Not scheduled"}</strong></div>
         <div><span>DRAFT WINDOW</span><strong>60 minutes</strong></div>
         <div><span>HOLDER ENTRY</span><strong>500,000 FANTASY</strong></div>
         <div><span>DAILY PRIZE POOL</span><strong>{Number(feePools.availableDailyLamports) > 0 ? `${(Number(feePools.availableDailyLamports) / 1e9).toLocaleString()} SOL` : "65% of creator fees"}</strong></div>
@@ -386,27 +381,28 @@ export function FantasyApp() {
         <div className="draft-eyebrow"><span className="status-lamp" /> PUMP.FUN FANTASY <span className="eyebrow-divider">/</span> ONE-MONTH PNL <a className="pumpfun-pill" href="https://pump.fun/leaderboard?period=monthly" target="_blank" rel="noreferrer">1M LEADERBOARD</a></div>
         <div className="hero-copy-grid">
           <div>
-            <h1>Draft your five.<br /><span>Back your edge.</span></h1>
-              <p>Turn Pump.fun’s top traders into your fantasy squad. Pick one from each rank band, submit within the one-hour draft, then follow their PnL across a 48-hour season.</p>
+            <h1>Draft the leaderboard.<br /><span>Compete on PnL.</span></h1>
+              <p>Draft five traders from Pump.fun’s top 50. Set your lineup in 60 minutes. Compete on their combined PnL change over the next 48 hours.</p>
             <div className="hero-ctas">
               <a className="primary-cta" href="#draft">Pick your squad</a>
-              <a className="secondary-cta" href="#format">See how it scores</a>
+              <a className="secondary-cta" href="/budget-draft">Try a budget draft ↗</a>
             </div>
             <div className="snapshot-stamp"><span className="snapshot-live-dot" /> {leaderboardSource.toUpperCase()} <b>{snapshotAt ? new Date(snapshotAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "UPDATING"}</b></div>
           </div>
-          <div className="draft-board-art" aria-label="Featured Pump.fun KOLs">
-            <div className="board-topline"><span>FACES IN THE FIELD</span><span>FEATURED KOLS</span></div>
-            <div className="board-slots featured-kol-slots">
-              {FEATURED_KOLS.map((kol, index) => (
-                <a className="featured-kol-card" href="#draft" key={kol.name} aria-label={`See the official draft list, featured KOL ${kol.name}`}>
-                  <span className="pick-number">0{index + 1}</span>
-                  <Image className="featured-kol-avatar" src={kol.image} alt="" width={76} height={76} />
-                  <span className="player-label">{kol.name}</span>
-                  <span className="player-plus">KOL</span>
-                </a>
-              ))}
+          <div className="league-board" aria-label="One trader from each leaderboard rank band">
+            <div className="league-board-top"><span>THE DRAFT BOARD</span><b>50 → 5</b></div>
+            <div className="league-board-cards">
+              {[0, 1, 2, 3, 4].map((band) => {
+                const player = players.find((p) => p.rank === selected[band]) ?? players[band * 10];
+                return <a href={`#draft-band-${band}`} className="league-preview-card" key={band} aria-label={`Browse ${DRAFT_ROUNDS[band]} traders`}>
+                  <small>#{player?.rank ?? band * 10 + 1}</small>
+                  <span className="league-avatar">{player?.avatar_url ? <Image src={player.avatar_url} alt="" width={76} height={76} unoptimized /> : player?.display_name?.slice(0, 1).toUpperCase() ?? "?"}</span>
+                  <b>{player?.display_name || (player ? shortAddress(player.wallet) : "Rank band")}</b>
+                  <em>{DRAFT_ROUNDS[band]}</em>
+                </a>;
+              })}
             </div>
-            <div className="board-footer"><span>FEATURED TRADERS</span><span>SEASON FIELD IS FIXED AT LAUNCH</span></div>
+            <div className="league-board-bottom"><span>ONE PICK PER BAND</span><span>{rosterSize ? `${rosterSize} / 5 SELECTED` : "EXPLORE THE FIELD ↗"}</span></div>
           </div>
         </div>
         <div className="draft-ticker"><span>TOP 50 · ONE-MONTH PNL</span><i /><span>5 BANDS · 1 PICK PER BAND</span><i /><span>1 HOUR TO DRAFT · 48 HOURS TO COMPETE</span></div>
@@ -446,7 +442,7 @@ export function FantasyApp() {
           </div>
 
           <aside className="roster-panel">
-            <div className="roster-panel-head"><div><span>YOUR SQUAD</span><b>Five picks</b></div><em>{auth.eligible ? "FANTASY CHECK PASSED" : "CONNECT WALLET"}</em></div>
+            <div className="roster-panel-head"><div><span>YOUR SQUAD</span><b>Five picks</b></div><em>{auth.eligible ? "HOLDER CHECK PASSED" : "CONNECT WALLET"}</em></div>
             <div className={`season-clock ${season.phase}`} aria-live="polite">
               <span>{timerTitle ?? "LEAGUE STATUS"}</span>
               <b>{timerValue ?? phaseName}</b>
@@ -473,22 +469,22 @@ export function FantasyApp() {
         <div className="status-cards">
           <article><span className="status-index">01</span><i className="status-symbol">◎</i><h3>One-month top 50</h3><p>Captured from the Pump.fun 1M profit leaderboard. The five rank bands are fixed for each contest.</p><span className={`status-pill ${playerDataReady ? "active" : "pending"}`}>{playerDataReady ? "50 SNAPSHOT PLAYERS" : "ROSTER UNAVAILABLE"}</span></article>
           <article><span className="status-index">02</span><i className="status-symbol">⌁</i><h3>Daily PnL race</h3><p>For each pick, closing 1M PnL minus opening 1M PnL. Add all five changes; the highest score wins.</p><span className="status-pill pending">{standings.some((row) => row.scoringReady) ? "ROUND SCORES LOADED" : "SCORING STARTS AT DRAFT LOCK"}</span></article>
-          <article><span className="status-index">03</span><i className="status-symbol">▤</i><h3>Holder entry + prize</h3><p>Hold 500,000 FANTASY to submit. 65% of confirmed creator fees funds daily first place; 35% is reserved for weekly, monthly, and playoff rewards.</p><span className="status-pill pending">{auth.eligible ? "TOKEN CHECK PASSED" : "500K FANTASY REQUIRED"}</span></article>
+          <article><span className="status-index">03</span><i className="status-symbol">▤</i><h3>Holder entry + prize</h3><p>Hold 500,000 FANTASY to submit. 65% of confirmed creator fees funds daily first place; 35% remains in the league reserve. Future event payouts require published rules.</p><span className="status-pill pending">{auth.eligible ? "TOKEN CHECK PASSED" : "500K FANTASY REQUIRED"}</span></article>
         </div>
         <div className="live-standings">
           <div className="standings-heading"><div><span className="section-label">DAILY LEADERBOARD</span><h3>Five picks. One score.</h3></div><small>{snapshotAt ? `SEASON FIELD · ${new Date(snapshotAt).toLocaleString()}` : "NO SOURCE SNAPSHOT"}</small></div>
           {standings.length ? <div className="standings-list">{standings.map((row, index) => <div className="standings-row" key={row.wallet}><b className="standing-rank">{String(index + 1).padStart(2, "0")}</b><span>{shortAddress(row.wallet)}</span><strong>{row.scoringReady && row.score !== null ? `${row.score >= 0 ? "+" : "−"}$${Math.abs(row.score).toLocaleString("en-US", { maximumFractionDigits: 2 })}` : "Awaiting verified PnL"}</strong></div>)}</div> : <p className="standings-empty">Submitted squads appear here. Scores begin after the draft locks and a scoring snapshot is captured.</p>}
         </div>
-        <div className="daily-awards"><div className="standings-heading"><div><span className="section-label">DAILY WINNERS</span><h3>Every day has a result.</h3></div><small>65% OF CONFIRMED CREATOR FEES</small></div>{awards.length ? <div className="award-list">{awards.map((award) => <article className="award-card" key={award.id}><span>DAY {award.day_number}</span><b>{award.winner_wallet ? shortAddress(award.winner_wallet) : award.status === "no_eligible_entries" ? "No eligible entries" : "Awaiting complete PnL data"}</b><strong>{award.score_usd === null ? "" : `${award.score_usd >= 0 ? "+" : "−"}$${Math.abs(award.score_usd).toLocaleString("en-US", { maximumFractionDigits: 2 })}`}</strong><small className={award.status === "paid" ? "paid" : "pending"}>{award.status.replaceAll("_", " ").toUpperCase()}</small>{award.payment_signature ? <a href={`https://solscan.io/tx/${award.payment_signature}`} target="_blank" rel="noreferrer">View payment ↗</a> : null}</article>)}</div> : <p className="standings-empty">The season clock captures daily PnL snapshots and calculates the top five-pick squad at each 24-hour mark.</p>}</div><div className="fee-flow"><span className="section-label">CREATOR FEES FUND THE LEAGUE</span><div className="reward-split"><article><b>65%</b><strong>Daily winners</strong><small>{(Number(feePools.availableDailyLamports) / 1e9).toLocaleString(undefined, {maximumFractionDigits: 6})} SOL in the daily pool</small></article><article><b>35%</b><strong>League reward reserve</strong><small>{(Number(feePools.reserveLamports) / 1e9).toLocaleString(undefined, {maximumFractionDigits: 6})} SOL reserved for weekly, monthly, and playoff rewards</small></article></div><p>Only finalized creator-fee claims enter the pools. The daily prize freezes at each 24-hour cutoff; fees confirmed after that cutoff carry into the next daily pool. The 35% reserve is excluded from daily payouts. Weekly, monthly, and playoff payout rules will be published before those events open.</p><span className="section-label">DAILY SETTLEMENT</span><div><b>Daily PnL snapshot</b><i aria-hidden="true">/</i><b>Top squad</b><i aria-hidden="true">/</i><b>Verified SOL transfer</b></div><p>The highest squad PnL change at each daily cutoff wins that day’s pool. A prize is only shown as paid after the winning wallet receives the configured SOL amount and the transaction is verified on Solana.</p></div>
+        <div className="daily-awards"><div className="standings-heading"><div><span className="section-label">DAILY WINNERS</span><h3>Daily results</h3></div><small>65% OF CONFIRMED CREATOR FEES</small></div>{awards.length ? <div className="award-list">{awards.map((award) => <article className="award-card" key={award.id}><span>DAY {award.day_number}</span><b>{award.winner_wallet ? shortAddress(award.winner_wallet) : award.status === "no_eligible_entries" ? "No eligible entries" : "Awaiting complete PnL data"}</b><strong>{award.score_usd === null ? "" : `${award.score_usd >= 0 ? "+" : "−"}$${Math.abs(award.score_usd).toLocaleString("en-US", { maximumFractionDigits: 2 })}`}</strong><small className={award.status === "paid" ? "paid" : "pending"}>{award.status.replaceAll("_", " ").toUpperCase()}</small>{award.payment_signature ? <a href={`https://solscan.io/tx/${award.payment_signature}`} target="_blank" rel="noreferrer">View payment ↗</a> : null}</article>)}</div> : <p className="standings-empty">The season clock captures daily PnL snapshots and calculates the top five-pick squad at each 24-hour mark.</p>}</div><div className="fee-flow"><span className="section-label">CREATOR FEES FUND THE LEAGUE</span><div className="reward-split"><article><b>65%</b><strong>Daily winners</strong><small>{(Number(feePools.availableDailyLamports) / 1e9).toLocaleString(undefined, {maximumFractionDigits: 6})} SOL in the daily pool</small></article><article><b>35%</b><strong>League reward reserve</strong><small>{(Number(feePools.reserveLamports) / 1e9).toLocaleString(undefined, {maximumFractionDigits: 6})} SOL reserved for weekly, monthly, and playoff rewards</small></article></div><p>Only finalized creator-fee claims enter the pools. The daily prize freezes at each 24-hour cutoff; fees confirmed after that cutoff carry into the next daily pool. The 35% reserve is excluded from daily payouts. Weekly, monthly, and playoff payout rules will be published before those events open.</p><span className="section-label">DAILY SETTLEMENT</span><div><b>Daily PnL snapshot</b><i aria-hidden="true">/</i><b>Top squad</b><i aria-hidden="true">/</i><b>Verified SOL transfer</b></div><p>The highest squad PnL change at each daily cutoff wins that day’s pool. A prize is only shown as paid after the winning wallet receives the configured SOL amount and the transaction is verified on Solana.</p></div>
         <div className="season-pathway">
-          <div><span className="section-label">THE LEAGUE KEEPS GOING</span><h3>One season ends. The race continues.</h3><p>Each season runs a 1-hour draft, then 48 hours of scoring. Daily results are captured at the 24-hour marks. When a season closes, the next one-hour draft opens once the fresh top-50 field and funded daily prizes pass the server checks.</p></div>
+          <div><span className="section-label">THE LEAGUE KEEPS GOING</span><h3>A new field every season.</h3><p>Each season runs a 1-hour draft, then 48 hours of scoring. Daily results are captured at the 24-hour marks. When a season closes, the next one-hour draft opens once the fresh top-50 field and funded daily prizes pass the server checks.</p></div>
           <ol><li><b>01</b><span><strong>Draft</strong><small>Pick five before entries lock.</small></span></li><li><b>02</b><span><strong>Season</strong><small>Track the 48-hour PnL race.</small></span></li><li><b>03</b><span><strong>Next season</strong><small>Fresh draft, new standings.</small></span></li></ol>
           <small className="season-pathway-note">Season rollover, score snapshots, and configured SOL payouts run from the protected server cron. Every payout is checked onchain before it is marked paid.</small>
         </div>
       </section>
 
       <section className="how-section" id="format">
-        <div className="how-heading"><span className="section-label">THE FORMAT</span><h2>A real fantasy draft.</h2><p>Simple roster building, transparent scoring, and results that can be checked.</p></div>
+        <div className="how-heading"><span className="section-label">THE FORMAT</span><h2>The league rules.</h2><p>Simple roster building, transparent scoring, and results that can be checked.</p></div>
         <div className="how-grid">
           <article><span>01</span><i className="how-icon">01</i><h3>Build the field</h3><p>At season launch, the one-month Pump.fun top 50 is frozen into five bands of ten. That field stays fixed for all 48 hours.</p></article>
           <article><span>02</span><i className="how-icon">02</i><h3>Pick your five</h3><p>Hold 500,000 FANTASY, connect and sign in, then pick one trader per band. Submit within 60 minutes. Changes only count after you resubmit.</p></article>
@@ -501,9 +497,10 @@ export function FantasyApp() {
       <section className="closing-cta"><span>PF</span><div><p>PUMP FANTASY</p><h2>Pick five.<br />Follow the PnL.</h2><a href="#draft">Build your squad</a></div></section>
 
       <footer>
-        <a className="pf-brand" href="#top"><span className="pf-mark-image" role="img" aria-label="Pump Fantasy crowned pill logo" /><strong>PumpFun Fantasy</strong><em>LEAGUE</em></a>
+        <a className="pf-brand" href="#top"><span className="pf-mark-image" role="img" aria-label="Pump Fantasy logo" /><strong>PumpFun Fantasy</strong><em>LEAGUE</em></a>
         <p>A fantasy draft for the pump.fun culture.</p>
-        <div><a href="#draft">Draft room</a><a href="#format">Format</a><a href="#status">Season status</a></div>
+        <div><a href="#draft">Draft room</a><a href="/budget-draft">Draft lab</a>
+          <a href="/rules">Rules</a><a href="#status">Season status</a></div>
         <small>Independent project; not affiliated with pump.fun. Trader rankings and one-month PnL come from Pump.fun and can change. A submitted squad is scored against the round’s opening snapshot. Connect a wallet holding $FANTASY to enter during an open draft window. Crypto assets are risky; this is not financial advice.</small>
       </footer>
     </main>
