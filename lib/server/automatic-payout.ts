@@ -3,15 +3,15 @@ import {
   address,
   appendTransactionMessageInstruction,
   blockhash,
-  createKeyPairSignerFromBytes,
+  compileTransaction,
+  createNoopSigner,
   createTransactionMessage,
   getBase64EncodedWireTransaction,
-  getBase58Encoder,
+  getTransactionDecoder,
   getSignatureFromTransaction,
   pipe,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
-  signTransactionMessageWithSigners,
 } from "@solana/kit";
 import { getTransferSolInstruction } from "@solana-program/system";
 import { getBackendConfig } from "./config";
@@ -19,6 +19,9 @@ import { queryRows } from "./database";
 import { validWallet } from "./http";
 import { getFeeTreasury } from "./fee-treasury";
 import { getNativeSolBalance, verifyMainnetRpc } from "./solana";
+import { explicitPayoutCap, finalizedPayoutDisposition, RESERVED_AWARD_STATUSES, seasonAwardFits } from "./payout-policy";
+import { managedPayoutAddress, signManagedPayout } from "./managed-signer";
+import { assertFinalizedWire } from "./creator-protocol.mjs";
 
 type Award = {
   id: string;
@@ -37,35 +40,9 @@ type RpcResult<T> = { result?: T; error?: { message?: string } };
 
 export type PayoutConfiguration = { enabled: boolean; blockers: string[]; signerAddress: string | null; perAwardCap: bigint | null; seasonCap: bigint | null; rpcUrl: string | null };
 
-export function readPayoutSignerBytes() {
-  const text = process.env.PF_PAYOUT_SIGNER_KEYPAIR_JSON || process.env.PF_CREATOR_PRIVATE_KEY;
-  if (!text) return null;
-  try {
-    if (text.trim().startsWith("[")) {
-      const parsed: unknown = JSON.parse(text);
-      if (!Array.isArray(parsed) || parsed.length !== 64 || parsed.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) return null;
-      return new Uint8Array(parsed as number[]);
-    }
-    const decoded = getBase58Encoder().encode(text.trim());
-    return decoded.length === 64 ? new Uint8Array(decoded) : null;
-  } catch { return null; }
-}
-
-function readPositiveLamports(name: string) {
-  const value = process.env[name] || "";
-  return /^\d+$/.test(value) && BigInt(value) > 0n ? BigInt(value) : null;
-}
-
 async function readSigner() {
-  const bytes = readPayoutSignerBytes();
-  if (!bytes) return null;
-  try {
-    return await createKeyPairSignerFromBytes(bytes, false);
-  } catch {
-    return null;
-  } finally {
-    bytes.fill(0);
-  }
+  const wallet=managedPayoutAddress();
+  return wallet ? createNoopSigner(wallet) : null;
 }
 
 export async function getPayoutConfiguration(): Promise<PayoutConfiguration> {
@@ -74,11 +51,10 @@ export async function getPayoutConfiguration(): Promise<PayoutConfiguration> {
   const blockers: string[] = [];
   const signer = await readSigner();
   const prizeWallet = process.env.PF_PRIZE_WALLET_ADDRESS || "";
-  const feeMode = process.env.PF_REWARD_MODE === "creator-fees";
-  const perAwardCap = readPositiveLamports("PF_AUTO_PAYOUT_MAX_AWARD_LAMPORTS") ?? (feeMode ? 9223372036854775807n : null);
-  const seasonCap = readPositiveLamports("PF_AUTO_PAYOUT_MAX_SEASON_LAMPORTS") ?? (feeMode ? 9223372036854775807n : null);
+  const perAwardCap = explicitPayoutCap(process.env.PF_AUTO_PAYOUT_MAX_AWARD_LAMPORTS);
+  const seasonCap = explicitPayoutCap(process.env.PF_AUTO_PAYOUT_MAX_SEASON_LAMPORTS);
   if (!enabled) blockers.push("Set PF_AUTO_PAYOUT_ENABLED=true only after reviewing the signer and payout limits.");
-  if (!signer) blockers.push("Set PF_PAYOUT_SIGNER_KEYPAIR_JSON (64-byte JSON) or PF_CREATOR_PRIVATE_KEY (base58) in Railway.");
+  if (!signer) blockers.push("Connect the policy-limited Turnkey signing account for the prize wallet; configure API authentication only as server secrets.");
   if (!validWallet(prizeWallet)) blockers.push("Set PF_PRIZE_WALLET_ADDRESS to the payout wallet public address.");
   if (signer && validWallet(prizeWallet) && signer.address !== prizeWallet) blockers.push("Payout signer does not match PF_PRIZE_WALLET_ADDRESS.");
   if (!perAwardCap) blockers.push("Set PF_AUTO_PAYOUT_MAX_AWARD_LAMPORTS to a positive per-award cap.");
@@ -108,7 +84,7 @@ async function rpc<T>(method: string, params: unknown[]) {
 
 async function markPaid(award: Award) {
   if (!award.payment_signature) return;
-  await queryRows("update pf_daily_awards set status = 'paid', paid_at = coalesce(paid_at, now()), payment_updated_at = now() where id = $1 and status = 'payment_prepared'", [award.id]);
+  await queryRows("update pf_daily_awards set status = 'paid', paid_at = coalesce(paid_at, now()), payment_updated_at = now() where id = $1 and status in ('payment_prepared','payment_unknown')", [award.id]);
 }
 
 async function processPrepared(award: Award) {
@@ -118,11 +94,15 @@ async function processPrepared(award: Award) {
   }
   const statuses = await rpc<{ value: Array<{ err: unknown; confirmationStatus: string | null } | null> }>("getSignatureStatuses", [[award.payment_signature], { searchTransactionHistory: true }]);
   const status = statuses.value[0];
-  if (status?.err) {
-    await queryRows("update pf_daily_awards set status = 'payment_failed', payment_updated_at = now() where id = $1 and status = 'payment_prepared'", [award.id]);
+  const disposition = finalizedPayoutDisposition(status);
+  if (disposition === "failed") {
+    await queryRows("update pf_daily_awards set status = 'payment_failed', payment_updated_at = now() where id = $1 and status in ('payment_prepared','payment_unknown')", [award.id]);
     return "payment-failed";
   }
-  if (status?.confirmationStatus === "finalized") {
+  if (disposition === "paid") {
+    const receipt = await rpc("getTransaction", [award.payment_signature, {encoding:"base64",commitment:"finalized",maxSupportedTransactionVersion:0}]);
+    if (!receipt) return "payment-awaiting-receipt";
+    assertFinalizedWire(award.payment_tx_base64, receipt);
     await markPaid(award);
     return "paid";
   }
@@ -134,7 +114,7 @@ async function processPrepared(award: Award) {
   }
   const submittedSignature = await rpc<string>("sendTransaction", [award.payment_tx_base64, { encoding: "base64", skipPreflight: false, preflightCommitment: "confirmed", maxRetries: 0 }]);
   if (submittedSignature !== award.payment_signature) throw new Error("RPC returned a different signature for the persisted payout transaction.");
-  await queryRows("update pf_daily_awards set payment_attempts = payment_attempts + 1, payment_updated_at = now() where id = $1 and status = 'payment_prepared'", [award.id]);
+  await queryRows("update pf_daily_awards set payment_attempts = payment_attempts + 1, payment_updated_at = now() where id = $1 and status in ('payment_prepared','payment_unknown')", [award.id]);
   return "payment-submitted";
 }
 
@@ -151,8 +131,8 @@ async function prepareAward(award: Award, config: PayoutConfiguration) {
     await queryRows("update pf_daily_awards set status = 'payment_failed', payment_updated_at = now() where id = $1 and status = 'pending_payment'", [award.id]);
     return "invalid-payout-recipient";
   }
-  const seasonReserved = await queryRows<{ total: string }>("select coalesce(sum(prize_lamports), 0)::text as total from pf_daily_awards where season_id = $1 and status in ('paid', 'payment_prepared')", [award.season_id]);
-  if (BigInt(seasonReserved[0]?.total || "0") + amount > config.seasonCap) {
+  const seasonReserved = await queryRows<{ total: string }>("select coalesce(sum(prize_lamports), 0)::text as total from pf_daily_awards where season_id = $1 and status = any($2::text[]) and (status <> 'payment_failed' or payment_signature is not null)", [award.season_id, [...RESERVED_AWARD_STATUSES]]);
+  if (!seasonAwardFits(config.seasonCap, BigInt(seasonReserved[0]?.total || "0"), amount)) {
     await queryRows("update pf_daily_awards set status = 'payment_failed', payment_updated_at = now() where id = $1 and status = 'pending_payment'", [award.id]);
     return "season-cap-exceeded";
   }
@@ -179,11 +159,11 @@ async function prepareAward(award: Award, config: PayoutConfiguration) {
     (tx) => setTransactionMessageLifetimeUsingBlockhash({ blockhash: blockhash(lifetime.value.blockhash), lastValidBlockHeight: BigInt(lifetime.value.lastValidBlockHeight) }, tx),
     (tx) => appendTransactionMessageInstruction(instruction, tx),
   );
-  const signed = await signTransactionMessageWithSigners(message);
-  const wire = getBase64EncodedWireTransaction(signed);
-  const signature = getSignatureFromTransaction(signed);
-  const simulation = await rpc<{ value: { err: unknown } }>("simulateTransaction", [wire, { encoding: "base64", sigVerify: true, commitment: "confirmed" }]);
+  const unsigned = getBase64EncodedWireTransaction(compileTransaction(message));
+  const simulation = await rpc<{ value: { err: unknown } }>("simulateTransaction", [unsigned, { encoding: "base64", sigVerify: false, commitment: "confirmed" }]);
   if (simulation.value.err) throw new Error("Automatic payout simulation failed; no transaction was submitted.");
+  const wire=await signManagedPayout(unsigned,signer.address);
+  const signature=getSignatureFromTransaction(getTransactionDecoder().decode(Buffer.from(wire,"base64")));
   const prepared = await queryRows<{ id: string }>(
     "update pf_daily_awards set status = 'payment_prepared', payment_signature = $2, payment_tx_base64 = $3, payment_blockhash = $4, payment_last_valid_block_height = $5, payment_network = 'mainnet-beta', payment_updated_at = now() where id = $1 and status = 'pending_payment' and payment_signature is null returning id",
     [award.id, signature, wire, lifetime.value.blockhash, String(lifetime.value.lastValidBlockHeight)],
@@ -196,7 +176,7 @@ async function prepareAward(award: Award, config: PayoutConfiguration) {
 export async function processNextAutomaticPayout() {
   const config = await getPayoutConfiguration();
   if (!config.enabled) return { action: "payout-disabled" as const, blockers: config.blockers };
-  const prepared = await queryRows<Award>("select id, season_id, winner_wallet, prize_lamports, status, payment_signature, payment_tx_base64, payment_blockhash, payment_last_valid_block_height, payment_network from pf_daily_awards where status = 'payment_prepared' order by created_at asc limit 1");
+  const prepared = await queryRows<Award>("select id, season_id, winner_wallet, prize_lamports, status, payment_signature, payment_tx_base64, payment_blockhash, payment_last_valid_block_height, payment_network from pf_daily_awards where status in ('payment_prepared','payment_unknown') order by created_at asc limit 1");
   if (prepared[0]) return { action: await processPrepared(prepared[0]), awardId: prepared[0].id };
   const pending = await queryRows<Award>("select id, season_id, winner_wallet, prize_lamports, status, payment_signature, payment_tx_base64, payment_blockhash, payment_last_valid_block_height, payment_network from pf_daily_awards where status = 'pending_payment' order by created_at asc limit 1");
   if (!pending[0]) return { action: "no-pending-award" as const };

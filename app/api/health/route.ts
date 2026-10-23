@@ -3,6 +3,7 @@ import { getBackendConfig } from "../../../lib/server/config";
 import { getActiveSeasonId, queryRows } from "../../../lib/server/database";
 import { hasActiveSeasonRecord, hasRequiredMigrations } from "../../../lib/server/health-readiness";
 import { verifyTokenMint } from "../../../lib/server/solana";
+import { getPayoutConfiguration } from "../../../lib/server/automatic-payout";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,6 +37,7 @@ export async function GET() {
     }
   }
   const walletChecksConfigured = Boolean(config.rpcUrl && config.mint && config.minimumTokens && tokenMintInitialized);
+  const payout=await getPayoutConfiguration();
   return NextResponse.json({
     ok: true,
     service: "pump-fantasy",
@@ -45,6 +47,8 @@ export async function GET() {
     walletChecksConfigured,
     tokenMintInitialized,
     activeSeasonConfigured,
-    payoutConfigured: process.env.PF_REWARD_MODE === "creator-fees" ? Boolean(process.env.PF_PRIZE_WALLET_ADDRESS && (process.env.PF_PAYOUT_SIGNER_KEYPAIR_JSON || process.env.PF_CREATOR_PRIVATE_KEY) && process.env.PF_AUTO_PAYOUT_ENABLED === "true" && process.env.PF_FEE_COLLECTION_ENABLED === "true") : Boolean(process.env.PF_PRIZE_WALLET_ADDRESS && process.env.PF_DAILY_PRIZE_LAMPORTS && /^\d+$/.test(process.env.PF_DAILY_PRIZE_LAMPORTS) && BigInt(process.env.PF_DAILY_PRIZE_LAMPORTS) > 0n),
+    payoutConfigured: payout.blockers.length===0 && (process.env.PF_REWARD_MODE !== "creator-fees" || process.env.PF_FEE_COLLECTION_ENABLED === "true"),
+    payoutBlockers: payout.blockers,
+    payoutVerification: "Configuration only. Actual paid awards require finalized transfer receipts.",
   });
 }

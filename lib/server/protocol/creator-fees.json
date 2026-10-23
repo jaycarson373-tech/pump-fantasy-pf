@@ -1,0 +1,318 @@
+[
+  {
+    "name": "pump",
+    "source": "https://raw.githubusercontent.com/pump-fun/pump-public-docs/main/idl/pump.json",
+    "sha256": "7616681ea557975f9f623ac211080f22a93060781eaf4765b0a488d980997207",
+    "program": "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
+    "instruction": {
+      "name": "collect_creator_fee_v2",
+      "docs": [
+        "Collects creator_fee from creator_vault to the coin creator account"
+      ],
+      "discriminator": [
+        207,
+        17,
+        138,
+        242,
+        4,
+        34,
+        19,
+        56
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true
+        },
+        {
+          "name": "creator_token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "creator"
+              },
+              {
+                "kind": "account",
+                "path": "quote_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "quote_mint"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "associated_token_program"
+            }
+          }
+        },
+        {
+          "name": "creator_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  97,
+                  116,
+                  111,
+                  114,
+                  45,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "creator"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator_vault_token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "creator_vault"
+              },
+              {
+                "kind": "account",
+                "path": "quote_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "quote_mint"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "associated_token_program"
+            }
+          }
+        },
+        {
+          "name": "quote_mint"
+        },
+        {
+          "name": "quote_token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": []
+    },
+    "curve_discriminator": [
+      23,
+      183,
+      248,
+      55,
+      96,
+      216,
+      172,
+      96
+    ]
+  },
+  {
+    "name": "amm",
+    "source": "https://raw.githubusercontent.com/pump-fun/pump-public-docs/main/idl/pump_amm.json",
+    "sha256": "b7d8c57a4d9c4dd0109a9ab893052352333252d4eedced10ac091d4d66cab89b",
+    "program": "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA",
+    "instruction": {
+      "name": "collect_coin_creator_fee",
+      "discriminator": [
+        160,
+        57,
+        89,
+        42,
+        181,
+        139,
+        43,
+        66
+      ],
+      "accounts": [
+        {
+          "name": "quote_mint"
+        },
+        {
+          "name": "quote_token_program"
+        },
+        {
+          "name": "coin_creator"
+        },
+        {
+          "name": "coin_creator_vault_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  114,
+                  101,
+                  97,
+                  116,
+                  111,
+                  114,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "coin_creator"
+              }
+            ]
+          }
+        },
+        {
+          "name": "coin_creator_vault_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "coin_creator_vault_authority"
+              },
+              {
+                "kind": "account",
+                "path": "quote_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "quote_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "coin_creator_token_account",
+          "writable": true
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": []
+    }
+  }
+]
