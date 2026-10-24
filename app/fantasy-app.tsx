@@ -3,6 +3,8 @@
 import "./disposable-stack-polyfill";
 import "./league-relaunch.css";
 import "./launch-polish.css";
+import "./product-upgrade.css";
+import { readLeagueSnapshot } from "../lib/league-refresh.mjs";
 import Image from "next/image";
 import {
   useConnect,
@@ -54,6 +56,12 @@ const snapshotPlayers: BoardPlayer[] = (top50Snapshot.players as SnapshotTuple[]
   pnl_usd: pnl,
   contest_change_usd: null,
 }));
+
+
+function LeagueIcon({kind}: {kind: "refresh" | "search" | "field" | "score" | "receipt"}) {
+  const paths = { refresh: "M20 8a8 8 0 1 0 0 8M20 3v5h-5", search: "M15 15l6 6M17 10a7 7 0 1 1-14 0 7 7 0 0 1 14 0", field: "M3 5h18v14H3zM7 5v14m5-14v14m5-14v14", score: "M3 20V4m0 16h18M6 16l5-6 4 3 6-9", receipt: "M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6m-6 4h6" };
+  return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[kind]} /></svg>;
+}
 
 function ProjectHeaderLinks({ contractAddress }: { contractAddress: string }) {
   const [copied, setCopied] = useState(false);
@@ -201,6 +209,9 @@ function WalletControl({ onAuthChange }: { onAuthChange: (state: AuthState) => v
 
 export function FantasyApp() {
   const [auth, setAuth] = useState<AuthState>({ configured: false, authenticated: false, eligible: false });
+  const [feedRevision, setFeedRevision] = useState(0);
+  const [feedPartial, setFeedPartial] = useState(false);
+  const [feedRefreshing, setFeedRefreshing] = useState(false);
   const [players, setPlayers] = useState<BoardPlayer[]>(snapshotPlayers);
   const [selected, setSelected] = useState<Record<number, number>>({});
   const [hydratedDraftKey, setHydratedDraftKey] = useState("");
@@ -273,27 +284,41 @@ export function FantasyApp() {
   }, [draftKey, hydratedDraftKey, selected]);
 
   useEffect(() => {
-    let active = true;
+    const controller = new AbortController();
+    let inFlight = false;
     const refresh = async () => {
-      const [playerResponse, standingsResponse] = await Promise.all([
-        fetch("/api/players", { cache: "no-store" }),
-        fetch("/api/standings", { cache: "no-store" }),
-      ]);
-      const [playerResult, standingsResult] = await Promise.all([playerResponse.json(), standingsResponse.json()]);
-      if (active && Array.isArray(playerResult.players) && playerResult.players.length === 50) {
-        setPlayers(playerResult.players ?? []);
-        setRosterSeasonId(playerResult.seasonId ?? null);
-        setSnapshotAt(playerResult.snapshotAt ?? top50Snapshot.snapshotAt);
-        setLeaderboardSource(playerResult.source ?? (playerResult.live ? "Live Pump.fun 1M leaderboard" : "Dated fallback snapshot"));
+      if (inFlight || controller.signal.aborted) return;
+      inFlight = true;
+      setFeedRefreshing(true);
+      try {
+        const snapshot = await readLeagueSnapshot({ signal: controller.signal });
+        if (controller.signal.aborted) return;
+        const playerResult = snapshot.players;
+        const standingsResult = snapshot.standings;
+        const fieldValid = Array.isArray(playerResult?.players) && playerResult.players.length === 50;
+        setFeedPartial(snapshot.partial || !fieldValid);
+        if (!fieldValid) {
+          setLeaderboardSource((source) => source.startsWith("Loading") ? "Dated fallback snapshot · refresh unavailable" : source);
+          setSnapshotAt((previous) => previous ?? top50Snapshot.snapshotAt);
+        }
+        if (Array.isArray(playerResult?.players) && playerResult.players.length === 50) {
+          setPlayers(playerResult.players);
+          setRosterSeasonId(playerResult.seasonId ?? null);
+          setSnapshotAt(playerResult.snapshotAt ?? top50Snapshot.snapshotAt);
+          setLeaderboardSource(playerResult.source ?? (playerResult.live ? "Live Pump.fun 1M leaderboard" : "Dated fallback snapshot"));
+        }
+        if (Array.isArray(standingsResult?.standings)) setStandings(standingsResult.standings);
+        if (Array.isArray(standingsResult?.awards)) setAwards(standingsResult.awards);
+        if (standingsResult?.feePools) setFeePools(standingsResult.feePools);
+      } finally {
+        inFlight = false;
+        if (!controller.signal.aborted) setFeedRefreshing(false);
       }
-      if (active && Array.isArray(standingsResult.standings)) setStandings(standingsResult.standings);
-      if (active && Array.isArray(standingsResult.awards)) setAwards(standingsResult.awards);
-      if (active && standingsResult.feePools) setFeePools(standingsResult.feePools);
     };
-    void refresh().catch(() => {});
-    const interval = window.setInterval(() => { void refresh().catch(() => {}); }, 30_000);
-    return () => { active = false; window.clearInterval(interval); };
-  }, []);
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 30_000);
+    return () => { controller.abort(); window.clearInterval(timer); };
+  }, [feedRevision]);
 
   useEffect(() => {
     let active = true;
@@ -414,6 +439,7 @@ export function FantasyApp() {
         <div><b>03</b><span><strong>Compete for 48 hours</strong><small>Picks lock. Daily PnL decides the winner.</small></span></div>
       </section>
       <section className="draft-section" id="draft">
+        <div className="field-refresh"><span role="status">{feedPartial ? 'Some league data could not refresh. The last received field and results remain visible.' : 'Season field and confirmed results'} </span><button type="button" disabled={feedRefreshing} onClick={() => setFeedRevision((n) => n + 1)}>{feedRefreshing ? 'Refreshing…' : 'Refresh field'}<LeagueIcon kind="refresh" /></button></div>
         <div className="draft-heading">
           <div><span className="section-label">THE DRAFT ROOM</span><h2>Draft five traders.</h2><p>Pick one trader from each of the five rank bands in Pump.fun’s one-month top 50. Tap a pick again to remove it.</p></div>
           <div className="draft-progress"><span>ROSTER <b>{rosterSize} / 5</b></span><div>{[0, 1, 2, 3, 4].map((index) => <i className={selected[index] ? "filled" : ""} key={index} />)}</div></div>
@@ -421,7 +447,7 @@ export function FantasyApp() {
 
         <div className="draft-layout">
           <div className="kol-browser">
-            <div className="kol-toolbar"><label className="search-box draft-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a trader or wallet" aria-label="Search top 50 traders" /></label><span className={`board-state ${playerDataReady ? "board-ready" : ""}`}><i /> {playerDataReady ? "50 IN THE FIELD" : "ROSTER UNAVAILABLE"}</span></div>
+            <div className="kol-toolbar"><label className="search-box draft-search"><LeagueIcon kind="search" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a trader or wallet" aria-label="Search top 50 traders" /></label><span className={`board-state ${playerDataReady ? "board-ready" : ""}`}><i /> {playerDataReady ? "50 IN THE FIELD" : "ROSTER UNAVAILABLE"}</span></div>
             <div className="draft-rounds">
               {DRAFT_ROUNDS.map((round, index) => (
                 <article className="draft-round" key={round} id={`draft-band-${index}`}>
@@ -467,9 +493,9 @@ export function FantasyApp() {
       <section className="leaderboard-section-light" id="status">
         <div className="section-topline"><div><span className="section-label">CONTEST STATUS</span><h2>{season.phase === "draft" ? "The draft is open." : season.phase === "scheduled" ? "The next draft is scheduled." : season.phase === "live" ? "The season is underway." : season.phase === "complete" ? "The season window has ended." : "Roster is visible. Entry is not open."}</h2></div><span className="contest-status-pill"><i /> {phaseName}</span></div>
         <div className="status-cards">
-          <article><span className="status-index">01</span><i className="status-symbol">◎</i><h3>One-month top 50</h3><p>Captured from the Pump.fun 1M profit leaderboard. The five rank bands are fixed for each contest.</p><span className={`status-pill ${playerDataReady ? "active" : "pending"}`}>{playerDataReady ? "50 SNAPSHOT PLAYERS" : "ROSTER UNAVAILABLE"}</span></article>
-          <article><span className="status-index">02</span><i className="status-symbol">⌁</i><h3>Daily PnL race</h3><p>For each pick, closing 1M PnL minus opening 1M PnL. Add all five changes; the highest score wins.</p><span className="status-pill pending">{standings.some((row) => row.scoringReady) ? "ROUND SCORES LOADED" : "SCORING STARTS AT DRAFT LOCK"}</span></article>
-          <article><span className="status-index">03</span><i className="status-symbol">▤</i><h3>Holder entry + prize</h3><p>Hold 500,000 FANTASY to submit. 65% of confirmed creator fees funds daily first place; 35% remains in the league reserve. Future event payouts require published rules.</p><span className="status-pill pending">{auth.eligible ? "TOKEN CHECK PASSED" : "500K FANTASY REQUIRED"}</span></article>
+          <article><span className="status-index">01</span><i className="status-symbol"><LeagueIcon kind="field" /></i><h3>One-month top 50</h3><p>Captured from the Pump.fun 1M profit leaderboard. The five rank bands are fixed for each contest.</p><span className={`status-pill ${playerDataReady ? "active" : "pending"}`}>{playerDataReady ? "50 SNAPSHOT PLAYERS" : "ROSTER UNAVAILABLE"}</span></article>
+          <article><span className="status-index">02</span><i className="status-symbol"><LeagueIcon kind="score" /></i><h3>Daily PnL race</h3><p>For each pick, closing 1M PnL minus opening 1M PnL. Add all five changes; the highest score wins.</p><span className="status-pill pending">{standings.some((row) => row.scoringReady) ? "ROUND SCORES LOADED" : "SCORING STARTS AT DRAFT LOCK"}</span></article>
+          <article><span className="status-index">03</span><i className="status-symbol"><LeagueIcon kind="receipt" /></i><h3>Holder entry + prize</h3><p>Hold 500,000 FANTASY to submit. 65% of confirmed creator fees funds daily first place; 35% remains in the league reserve. Future event payouts require published rules.</p><span className="status-pill pending">{auth.eligible ? "TOKEN CHECK PASSED" : "500K FANTASY REQUIRED"}</span></article>
         </div>
         <div className="live-standings">
           <div className="standings-heading"><div><span className="section-label">DAILY LEADERBOARD</span><h3>Five picks. One score.</h3></div><small>{snapshotAt ? `SEASON FIELD · ${new Date(snapshotAt).toLocaleString()}` : "NO SOURCE SNAPSHOT"}</small></div>
