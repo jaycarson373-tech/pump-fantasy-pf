@@ -23,3 +23,7 @@ The review handoff beside this repository records exact commands, test/build res
 ## Final acceptance plan
 
 Recheck the exact production configuration and network, then use a separately reviewed funding cap and a wallet-controlled signature for the smallest representative lifecycle described above. Reject a stale quote/account change, preserve the original signed wire during an uncertain response, reconcile the original signature after a restart and verify exact recipient and mint effects. Compare reserved budgets and liabilities before/after. Publish only finalized genuine receipts. A UI callback alone is not settlement evidence.
+
+## Mainnet follow-through — October 24
+
+Creator-fee collection and automatic award preparation now share a strict simulation-success guard. Only explicit `err: null` is accepted. Incomplete provider evidence cannot reach the managed signer. New runtime tests cover absent/null/missing/error/false/zero results. Existing award reservations, 65/35 allocations, payout caps, original signed-wire recovery and season timing are unchanged.

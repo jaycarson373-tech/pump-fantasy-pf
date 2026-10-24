@@ -1,3 +1,4 @@
+import { requireSuccessfulSimulation } from "./simulation-policy";
 import "server-only";
 import { address, appendTransactionMessageInstructions, blockhash, compileTransaction, createNoopSigner, createTransactionMessage, getBase64EncodedWireTransaction, getSignatureFromTransaction, getTransactionDecoder, setTransactionMessageFeePayerSigner, setTransactionMessageLifetimeUsingBlockhash, pipe } from "@solana/kit";
 import { queryRows, withTransaction } from "./database";
@@ -83,7 +84,7 @@ export async function collectCreatorFees(){
   const fee=(await rpc<{value:number|null}>("getFeeForMessage",[Buffer.from(compiled.messageBytes).toString("base64"),{commitment:"confirmed"}])).value;
   if(fee===null||!Number.isSafeInteger(fee)||fee>25000)throw new Error("Creator-fee collection exceeds the network-fee ceiling.");
   const simulation=await rpc<{value:{err:unknown}}>("simulateTransaction",[unsigned,{encoding:"base64",sigVerify:false,commitment:"confirmed"}]);
-  if(simulation.value.err)throw new Error("Creator-fee claim simulation failed. Nothing was sent.");
+  requireSuccessfulSimulation(simulation);
   const wire=await signManagedPayout(unsigned,creator),signature=getSignatureFromTransaction(getTransactionDecoder().decode(Buffer.from(wire,"base64")));
   const claim:Claim={signature,mint_address:mint,creator_wallet:creator,transaction_base64:wire,last_valid_block_height:String(lifetime.lastValidBlockHeight),status:"prepared"};
   await queryRows("insert into pf_creator_claims(signature,mint_address,creator_wallet,transaction_base64,last_valid_block_height,status) values($1,$2,$3,$4,$5,'prepared')",[signature,mint,creator,wire,claim.last_valid_block_height]);
