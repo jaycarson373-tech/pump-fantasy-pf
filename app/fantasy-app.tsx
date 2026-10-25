@@ -400,13 +400,13 @@ export function FantasyApp() {
         <div><span className={`league-phase-dot ${draftOpen ? "open" : ""}`} /><span>{phaseName}</span><strong>{timerValue ?? "Not scheduled"}</strong></div>
         <div><span>DRAFT WINDOW</span><strong>60 minutes</strong></div>
         <div><span>HOLDER ENTRY</span><strong>500,000 FANTASY</strong></div>
-        <div><span>DAILY PRIZE POOL</span><strong>{Number(feePools.availableDailyLamports) > 0 ? `${(Number(feePools.availableDailyLamports) / 1e9).toLocaleString()} SOL` : "65% of creator fees"}</strong></div>
+        <div><span>{Number(feePools.availableDailyLamports) > 0 ? "FUNDED DAILY POOL" : "DAILY FEE ALLOCATION"}</span><strong>{Number(feePools.availableDailyLamports) > 0 ? `${(Number(feePools.availableDailyLamports) / 1e9).toLocaleString()} SOL` : "65% of creator fees"}</strong></div>
       </section>
       <section className="hero-light draft-hero">
         <div className="draft-eyebrow"><span className="status-lamp" /> PUMP.FUN FANTASY <span className="eyebrow-divider">/</span> ONE-MONTH PNL <a className="pumpfun-pill" href="https://pump.fun/leaderboard?period=monthly" target="_blank" rel="noreferrer">1M LEADERBOARD</a></div>
         <div className="hero-copy-grid">
           <div>
-            <h1>Draft the leaderboard.<br /><span>Compete on PnL.</span></h1>
+            <h1>Pick five traders.<br /><span>Play the PnL.</span></h1>
               <p>Draft five traders from Pump.fun’s top 50. Set your lineup in 60 minutes. Compete on their combined PnL change over the next 48 hours.</p>
             <div className="hero-ctas">
               <a className="primary-cta" href="#draft">Pick your squad</a>
@@ -510,7 +510,7 @@ export function FantasyApp() {
       </section>
 
       <section className="how-section" id="format">
-        <div className="how-heading"><span className="section-label">THE FORMAT</span><h2>The league rules.</h2><p>Simple roster building, transparent scoring, and results that can be checked.</p></div>
+        <div className="how-heading"><span className="section-label">THE FORMAT</span><h2>The league rules.</h2><p>Five rank bands. One locked lineup. Scores follow the published PnL rules.</p></div>
         <div className="how-grid">
           <article><span>01</span><i className="how-icon">01</i><h3>Build the field</h3><p>At season launch, the one-month Pump.fun top 50 is frozen into five bands of ten. That field stays fixed for all 48 hours.</p></article>
           <article><span>02</span><i className="how-icon">02</i><h3>Pick your five</h3><p>Hold 500,000 FANTASY, connect and sign in, then pick one trader per band. Submit within 60 minutes. Changes only count after you resubmit.</p></article>
