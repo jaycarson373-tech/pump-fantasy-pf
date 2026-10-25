@@ -1,3 +1,4 @@
+import { requireSuccessfulSimulation } from "./simulation-policy";
 import "server-only";
 import {
   address,
@@ -161,7 +162,7 @@ async function prepareAward(award: Award, config: PayoutConfiguration) {
   );
   const unsigned = getBase64EncodedWireTransaction(compileTransaction(message));
   const simulation = await rpc<{ value: { err: unknown } }>("simulateTransaction", [unsigned, { encoding: "base64", sigVerify: false, commitment: "confirmed" }]);
-  if (simulation.value.err) throw new Error("Automatic payout simulation failed; no transaction was submitted.");
+  requireSuccessfulSimulation(simulation);
   const wire=await signManagedPayout(unsigned,signer.address);
   const signature=getSignatureFromTransaction(getTransactionDecoder().decode(Buffer.from(wire,"base64")));
   const prepared = await queryRows<{ id: string }>(
