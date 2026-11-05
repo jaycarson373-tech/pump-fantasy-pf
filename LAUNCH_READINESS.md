@@ -12,8 +12,8 @@ Frontend runs on Vercel; all entry, database, collection and payout services run
 - `PF_ACTIVE_SEASON_ID` matching the database season.
 - `PF_REWARD_MODE=creator-fees`.
 - `PF_CREATOR_WALLET_ADDRESS`, `PF_PRIZE_WALLET_ADDRESS`. Use a dedicated creator wallet for this token; its fee vault can aggregate multiple tokens otherwise.
-- `PF_CREATOR_PRIVATE_KEY` (base58) or `PF_PAYOUT_SIGNER_KEYPAIR_JSON` (64-byte JSON array), added directly to Railway secrets. The signing key must match the configured public wallet. No key goes in a public environment variable.
-- `PF_PAYOUT_NETWORK=mainnet-beta` and explicit award/season spending caps where appropriate.
+- `PF_PAYOUT_SIGNER_KEYPAIR_JSON` (64-byte JSON array; no Turnkey account needed), added directly to Railway secrets. The signing key must match the configured public wallet. No key goes in a public environment variable.
+- `PF_PAYOUT_NETWORK=mainnet-beta` and award/season spending caps. Defaults are 1 SOL per award and 2 SOL per season; explicit invalid overrides block payouts.
 
 Keep `PF_FEE_COLLECTION_ENABLED=false` and `PF_AUTO_PAYOUT_ENABLED=false` until the owner reviews the wallet, funding and limits. They are deliberate operator controls, not frontend flags. Collection and awards preserve signed transaction records and reconcile uncertain results without creating replacement payments.
 

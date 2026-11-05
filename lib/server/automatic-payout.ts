@@ -4,7 +4,6 @@ import {
   appendTransactionMessageInstruction,
   blockhash,
   compileTransaction,
-  createNoopSigner,
   createTransactionMessage,
   getBase64EncodedWireTransaction,
   getTransactionDecoder,
@@ -20,8 +19,11 @@ import { validWallet } from "./http";
 import { getFeeTreasury } from "./fee-treasury";
 import { getNativeSolBalance, verifyMainnetRpc } from "./solana";
 import { explicitPayoutCap, finalizedPayoutDisposition, RESERVED_AWARD_STATUSES, seasonAwardFits } from "./payout-policy";
-import { managedPayoutAddress, signManagedPayout } from "./managed-signer";
+import { payoutSigner, signPayout } from "./payout-signer";
 import { assertFinalizedWire } from "./creator-protocol.mjs";
+
+const DEFAULT_AWARD_CAP_LAMPORTS = "1000000000";
+const DEFAULT_SEASON_CAP_LAMPORTS = "2000000000";
 
 type Award = {
   id: string;
@@ -40,21 +42,19 @@ type RpcResult<T> = { result?: T; error?: { message?: string } };
 
 export type PayoutConfiguration = { enabled: boolean; blockers: string[]; signerAddress: string | null; perAwardCap: bigint | null; seasonCap: bigint | null; rpcUrl: string | null };
 
-async function readSigner() {
-  const wallet=managedPayoutAddress();
-  return wallet ? createNoopSigner(wallet) : null;
-}
-
 export async function getPayoutConfiguration(): Promise<PayoutConfiguration> {
   const config = getBackendConfig();
   const enabled = process.env.PF_AUTO_PAYOUT_ENABLED === "true";
   const blockers: string[] = [];
-  const signer = await readSigner();
+  const signer = await payoutSigner().catch(() => {
+    blockers.push("Invalid payout keypair or wallet mismatch. Configure PF_PAYOUT_SIGNER_KEYPAIR_JSON for the prize wallet.");
+    return null;
+  });
   const prizeWallet = process.env.PF_PRIZE_WALLET_ADDRESS || "";
-  const perAwardCap = explicitPayoutCap(process.env.PF_AUTO_PAYOUT_MAX_AWARD_LAMPORTS);
-  const seasonCap = explicitPayoutCap(process.env.PF_AUTO_PAYOUT_MAX_SEASON_LAMPORTS);
+  const perAwardCap = explicitPayoutCap(process.env.PF_AUTO_PAYOUT_MAX_AWARD_LAMPORTS ?? DEFAULT_AWARD_CAP_LAMPORTS);
+  const seasonCap = explicitPayoutCap(process.env.PF_AUTO_PAYOUT_MAX_SEASON_LAMPORTS ?? DEFAULT_SEASON_CAP_LAMPORTS);
   if (!enabled) blockers.push("Set PF_AUTO_PAYOUT_ENABLED=true only after reviewing the signer and payout limits.");
-  if (!signer) blockers.push("Connect the policy-limited Turnkey signing account for the prize wallet; configure API authentication only as server secrets.");
+  if (!signer) blockers.push("Configure PF_PAYOUT_SIGNER_KEYPAIR_JSON as a server-only secret matching the prize wallet.");
   if (!validWallet(prizeWallet)) blockers.push("Set PF_PRIZE_WALLET_ADDRESS to the payout wallet public address.");
   if (signer && validWallet(prizeWallet) && signer.address !== prizeWallet) blockers.push("Payout signer does not match PF_PRIZE_WALLET_ADDRESS.");
   if (!perAwardCap) blockers.push("Set PF_AUTO_PAYOUT_MAX_AWARD_LAMPORTS to a positive per-award cap.");
@@ -136,7 +136,7 @@ async function prepareAward(award: Award, config: PayoutConfiguration) {
     await queryRows("update pf_daily_awards set status = 'payment_failed', payment_updated_at = now() where id = $1 and status = 'pending_payment'", [award.id]);
     return "season-cap-exceeded";
   }
-  const signer = await readSigner();
+  const signer = await payoutSigner();
   const prizeWallet = process.env.PF_PRIZE_WALLET_ADDRESS || "";
   if (!signer || signer.address !== prizeWallet) throw new Error("Payout signer configuration is invalid.");
   const rewardSeason = (await queryRows<{ mint_address: string | null; prize_mode: string }>("select mint_address, prize_mode from pf_seasons where id=$1", [award.season_id]))[0];
@@ -162,7 +162,7 @@ async function prepareAward(award: Award, config: PayoutConfiguration) {
   const unsigned = getBase64EncodedWireTransaction(compileTransaction(message));
   const simulation = await rpc<{ value: { err: unknown } }>("simulateTransaction", [unsigned, { encoding: "base64", sigVerify: false, commitment: "confirmed" }]);
   if (simulation.value.err) throw new Error("Automatic payout simulation failed; no transaction was submitted.");
-  const wire=await signManagedPayout(unsigned,signer.address);
+  const wire=await signPayout(unsigned,signer.address);
   const signature=getSignatureFromTransaction(getTransactionDecoder().decode(Buffer.from(wire,"base64")));
   const prepared = await queryRows<{ id: string }>(
     "update pf_daily_awards set status = 'payment_prepared', payment_signature = $2, payment_tx_base64 = $3, payment_blockhash = $4, payment_last_valid_block_height = $5, payment_network = 'mainnet-beta', payment_updated_at = now() where id = $1 and status = 'pending_payment' and payment_signature is null returning id",
