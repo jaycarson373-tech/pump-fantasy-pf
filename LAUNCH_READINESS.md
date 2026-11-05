@@ -28,3 +28,7 @@ Run `npm run check:live` against the canonical URL. This check is read-only and 
 ## Release checks
 
 38 domain tests cover scoring, award recovery, creator-fee allocation, network identity, season timing, origin binding and draft persistence. Lint and production compilation are required. Browser QA includes the actual roster, mobile layouts and saving/reloading five practice picks. No funded payout has been performed by the coding agent.
+
+## Green palette refresh — November 5, 2026
+
+Presentation-only update on latest main: Pump-green primary actions, forest-green draft panels and mint surfaces. Blue remains on a secondary preview card and small data details. Existing layout, eligibility, fee allocation, wallet flow and activation controls are preserved. Desktop 1440px and phone 390px checked without horizontal overflow. No financial execution was performed.
