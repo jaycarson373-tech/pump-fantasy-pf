@@ -2111,3 +2111,6 @@ dialog.inspect-overlay::backdrop {
 .x-social { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 8px; color: #10271a; transition: background .15s; }
 .x-social:hover { background: #e7f4ea; }
 @media (max-width: 400px) { .header-actions { gap: 5px; } .pfl-header { gap: 8px; padding-inline: 14px; } .pfl-header .pfl-brand { gap: 6px; } }
+
+.pfl-footer { flex-wrap: wrap; }
+.pfl-footer > .footer-market-link { flex-basis: 100%; grid-column: 1 / -1; justify-content: flex-end; border-top: 1px solid #244332; padding-top: 16px; margin-top: 8px; min-height: 44px; }

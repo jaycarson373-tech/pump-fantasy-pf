@@ -591,9 +591,6 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
             : "WEEKLY DRAFTS"}
         </span>
         <span>HOLD 500,000+ $PFL</span>
-        <a className="dex-link" href={dexUrl} target="_blank" rel="noreferrer">
-          DEXSCREENER <Arrow />
-        </a>
         <span>{countdown}</span>
       </div>
       <main>
@@ -1332,7 +1329,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
         <Link href="/rewards">Rewards</Link>
         <Link href="/champion">Championship</Link>
         <a href="https://x.com/PFLeague_fun" target="_blank" rel="noopener noreferrer"><XIcon /> @PFLeague_fun</a>
-        <a href={dexUrl} target="_blank" rel="noreferrer">
+        <a className="footer-market-link" href={dexUrl} target="_blank" rel="noreferrer">
           Dexscreener <Arrow />
         </a>
       </footer>
