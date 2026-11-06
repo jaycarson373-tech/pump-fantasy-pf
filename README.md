@@ -66,3 +66,20 @@ npm run build
 ```
 
 `npm run test:fees` verifies migration preservation, fee accounting and real season-worker settlement against a **new, empty local PostgreSQL database** whose name starts with `pf_fee_test`. Supply its `DATABASE_URL`; do not inject production secrets. It disables collection/payouts, uses stored local score fixtures and sends no transactions. It refuses a database that already contains the app schema.
+
+For a complete **local, no-prize** wallet/entry rehearsal, create a new empty PostgreSQL
+`pf_wallet_test_<run>` database on localhost, then run
+`PF_WALLET_TEST_DATABASE_URL=<local-url> node --conditions=react-server scripts/dev-wallet-test.mjs`
+from a checkout without `.env` files. Use Node 24. The script generates disposable session/admin
+secrets in memory, migrates that empty database, seeds the saved 50-player field, opens the
+existing isolated test-draft mode and serves `http://127.0.0.1:3187`. It fixes the exact local
+origin configuration and selects the devnet wallet chain. Production remains mainnet by default.
+No production environment variables are inherited by the server. It refuses to overwrite an
+existing test database. Stop with Ctrl-C; use a fresh database for another run.
+
+This exercises message authentication and saved picks, **not** token ownership, real prizes,
+scoring or transactions. The existing no-prize test season waives balances; it never relaxes
+real-season holder checks. For production holder acceptance, use a separate real devnet mint
+and test setup; changing the wallet chain alone does not make server balance checks devnet.
+`NEXT_PUBLIC_WALLET_NETWORK` accepts `mainnet` (default) or `devnet`; configure the matching
+browser RPC. Follow the kit's `wallet-e2e-devnet` skill for real Phantom observation.
