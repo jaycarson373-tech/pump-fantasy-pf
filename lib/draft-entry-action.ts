@@ -1,6 +1,7 @@
 type DraftEntryState = {
   busy: boolean;
   pickCount: number;
+  requiredPicks: number;
   authenticated: boolean;
   eligible: boolean;
   draftOpen: boolean;
@@ -8,7 +9,7 @@ type DraftEntryState = {
 };
 
 export function canStartDraftEntry(state: DraftEntryState) {
-  return !state.busy && state.pickCount === 5 && state.draftOpen && state.rosterReady
+  return !state.busy && (state.requiredPicks === 5 || state.requiredPicks === 6) && state.pickCount === state.requiredPicks && state.draftOpen && state.rosterReady
     && (!state.authenticated || state.eligible);
 }
 

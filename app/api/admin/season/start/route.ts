@@ -1,8 +1,10 @@
+import { squadSizeForSeason } from "../../../../../lib/community-roster";
+import { saveCommunityRosterSnapshot } from "../../../../../lib/server/community-roster";
 import { openTestDraft, closeTestDraft } from "../../../../../lib/server/test-draft";
 import { getBackendConfig } from "../../../../../lib/server/config";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { queryRows, withAdvisoryLock } from "../../../../../lib/server/database";
+import { withTransaction, withAdvisoryLock } from "../../../../../lib/server/database";
 import { routeError, sameOrigin } from "../../../../../lib/server/http";
 import { saveRosterSnapshot } from "../../../../../lib/server/players";
 import { getSeasonPhase, seasonWindowFromOpen } from "../../../../../lib/server/season-window";
@@ -42,13 +44,20 @@ export async function POST(request: Request) {
       const lockedAt = new Date(window.lockedAt);
       const closesAt = new Date(window.closesAt);
       const draftMinutes = 60;
-      await saveRosterSnapshot(seasonId, boardPlayers, new Date(readiness.observedAt));
-      const updated = await queryRows<{ id: string }>("update pf_seasons set status = 'open', opens_at = $2, locked_at = $3, closes_at = $4, daily_prize_lamports = $5, mint_address=$6, prize_mode=$7 where id = $1 and status = 'draft' returning id", [seasonId, opensAt.toISOString(), lockedAt.toISOString(), closesAt.toISOString(), readiness.dailyPrizeLamports, getBackendConfig().mint, process.env.PF_REWARD_MODE === "creator-fees" ? "creator-fees" : "fixed"]);
+      const squadSize = squadSizeForSeason(seasonId);
+      const updated = await withTransaction(async query => {
+        const locked = await query<{ id: string }>("select id from pf_seasons where id=$1 and status='draft' for update", [seasonId]);
+        if (!locked.length) return [];
+        await saveRosterSnapshot(seasonId, boardPlayers, new Date(readiness.observedAt!), query);
+        if (squadSize === 6) await saveCommunityRosterSnapshot(seasonId, boardPlayers.map(player => player.wallet), query);
+        return query<{ id: string }>("update pf_seasons set status = 'open', opens_at = $2, locked_at = $3, closes_at = $4, daily_prize_lamports = $5, mint_address=$6, prize_mode=$7,squad_size=$8 where id = $1 and status = 'draft' returning id", [seasonId, opensAt.toISOString(), lockedAt.toISOString(), closesAt.toISOString(), readiness.dailyPrizeLamports, getBackendConfig().mint, process.env.PF_REWARD_MODE === "creator-fees" ? "creator-fees" : "fixed", squadSize]);
+      });
       if (updated.length !== 1) return NextResponse.json({ error: "Season state changed before launch; refresh the season status and try again." }, { status: 409 });
 
       return NextResponse.json({
         ok: true,
         seasonId,
+        squadSize,
         phase: getSeasonPhase({ status: "open", opens_at: opensAt.toISOString(), locked_at: lockedAt.toISOString(), closes_at: closesAt.toISOString() }),
         opensAt: opensAt.toISOString(),
         draftLocksAt: lockedAt.toISOString(),

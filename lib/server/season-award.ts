@@ -6,16 +6,17 @@ import { isWalletTestSeason } from "./season-window";
 type ClosingSeason = { id: string; prize_mode: string; mint_address: string | null; closes_at: string | null };
 
 async function seasonWinner(seasonId: string): Promise<DailyWinnerResult> {
-  const [entries, players, snapshots] = await Promise.all([
+  const [entries, players, snapshots, seasons] = await Promise.all([
     queryRows<ScoringEntry>("select wallet,picks from pf_entries where season_id=$1", [seasonId]),
     queryRows<ScoringPlayer>("select id,wallet from pf_players where season_id=$1", [seasonId]),
     queryRows<{ boundary: number; pnl_by_wallet: Record<string, number> }>("select boundary,pnl_by_wallet from pf_score_snapshots where season_id=$1 and boundary in (0,2)", [seasonId]),
+    queryRows<{ squad_size: number }>("select squad_size from pf_seasons where id=$1", [seasonId]),
   ]);
   if (!entries.length) return { kind: "no-eligible-entries" };
   const opening = snapshots.find(snapshot => snapshot.boundary === 0);
   const closing = snapshots.find(snapshot => snapshot.boundary === 2);
   if (!opening || !closing) return { kind: "awaiting-data" };
-  return calculateDailyWinner(entries, players, opening.pnl_by_wallet, closing.pnl_by_wallet);
+  return calculateDailyWinner(entries, players, opening.pnl_by_wallet, closing.pnl_by_wallet, seasons[0]?.squad_size ?? 0);
 }
 
 /** Daily and season awards claim independent portions of the same receipts. */

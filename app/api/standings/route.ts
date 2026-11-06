@@ -1,3 +1,5 @@
+import { fetchPickedCommunityPnl, validateSquad } from "../../../lib/community-roster";
+import { fetchCommunityPnl } from "../../../lib/server/community-data";
 import { getFeeTreasury } from "../../../lib/server/fee-treasury";
 import { DAILY_FEE_BPS, SEASON_FEE_BPS, REWARD_RESERVE_BPS } from "../../../lib/server/fee-accounting";
 import { NextResponse } from "next/server";
@@ -20,7 +22,7 @@ export async function GET() {
     const seasonId = await getActiveSeasonId();
     if (!seasonId) return NextResponse.json({ configured: false, standings: [], awards: [] });
     const [seasons, entries, players, scoreSnapshots] = await Promise.all([
-      queryRows<SeasonSchedule & { id: string; daily_prize_lamports: string }>("select id, status, opens_at, locked_at, closes_at, daily_prize_lamports from pf_seasons where id = $1 limit 1", [seasonId]),
+      queryRows<SeasonSchedule & { id: string; squad_size: number; daily_prize_lamports: string }>("select squad_size, id, status, opens_at, locked_at, closes_at, daily_prize_lamports from pf_seasons where id = $1 limit 1", [seasonId]),
       queryRows<EntryRow>("select wallet, picks from pf_entries where season_id = $1 order by created_at asc", [seasonId]),
       queryRows<{ id: string; rank: number; display_name: string | null; wallet: string; pnl_usd: string }>("select id, rank, display_name, wallet, pnl_usd from pf_players where season_id = $1 order by rank asc", [seasonId]),
       queryRows<Snapshot>("select boundary, captured_at, pnl_by_wallet, missing_wallets from pf_score_snapshots where season_id = $1 and boundary in (0, 1, 2) order by boundary asc", [seasonId]),
@@ -30,7 +32,9 @@ export async function GET() {
     const selectedSnapshots = selectStandingsSnapshots(phase, scoreSnapshots);
     const baseline = selectedSnapshots.baseline;
     const board = entries.length && baseline && phase === "live" ? await fetchPumpLeaderboard(100) : null;
-    const liveByWallet = new Map(board?.players.map((player) => [player.wallet, player.pnl_usd]) ?? []);
+    const communityWallets = new Set(players.filter(player => player.rank > 50).map(player => player.wallet));
+    const communityPnl = board ? await fetchPickedCommunityPnl(players, entries.flatMap(entry => entry.picks), fetchCommunityPnl) : {};
+    const liveByWallet = new Map([...(board?.players.filter(player => !communityWallets.has(player.wallet)).map((player): [string, number] => [player.wallet, player.pnl_usd]) ?? []), ...Object.entries(communityPnl)]);
     const byId = new Map(players.map((player) => [player.id, { ...player, pnl_usd: Number(player.pnl_usd) }]));
     const standings = entries.map((entry) => {
       const roster = entry.picks.map((id) => {
@@ -38,9 +42,9 @@ export async function GET() {
         if (!player) return undefined;
         const pnl = phase === "live" ? liveByWallet.get(player.wallet) : selectedSnapshots.current?.pnl_by_wallet[player.wallet];
         const base = baseline?.pnl_by_wallet[player.wallet];
-        return { id, rank: player.rank, display_name: player.display_name, wallet: player.wallet, pnl_usd: pnl ?? null, contest_change_usd: pnl !== undefined && base !== undefined ? pnl - base : null };
+        return { id, rank: player.rank, display_name: player.display_name, wallet: player.wallet, pnl_usd: pnl ?? null, contest_change_usd: Number.isFinite(pnl) && Number.isFinite(base) ? pnl! - base! : null };
       }).filter((player) => player !== undefined);
-      const complete = roster.length === 5 && roster.every((player) => player.contest_change_usd !== null);
+      const complete = validateSquad(entry.picks, players, season?.squad_size ?? 0) && roster.every((player) => player.contest_change_usd !== null);
       const score = complete ? roster.reduce((sum, player) => sum + (player.contest_change_usd ?? 0), 0) : null;
       return { wallet: entry.wallet, picks: roster, score, scoringReady: complete };
     }).sort((a, b) => (b.score ?? Number.NEGATIVE_INFINITY) - (a.score ?? Number.NEGATIVE_INFINITY) || a.wallet.localeCompare(b.wallet));
@@ -52,6 +56,7 @@ export async function GET() {
       rewardMode: process.env.PF_REWARD_MODE === "creator-fees" ? "creator-fees" : "fixed",
       feePools: { dailyBps: Number(DAILY_FEE_BPS), seasonBps: Number(SEASON_FEE_BPS), reserveBps: Number(REWARD_RESERVE_BPS), collectedLamports: treasury?.gross.toString() ?? "0", availableDailyLamports: treasury?.available.toString() ?? "0", availableSeasonLamports: treasury?.seasonAvailable.toString() ?? "0", reserveLamports: treasury?.reserve.toString() ?? "0", paidLamports: treasury?.paid.toString() ?? "0" },
       seasonId,
+      squadSize: season?.squad_size,
       phase,
       prizeLamports: season?.daily_prize_lamports ?? "0",
       prizeWallet: process.env.PF_PRIZE_WALLET_ADDRESS ?? null,

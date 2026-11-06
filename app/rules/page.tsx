@@ -4,7 +4,7 @@ import '../launch-polish.css';
 
 export const metadata: Metadata = {
   title: 'League rules | Pump Fantasy League',
-  description: 'The PFL format: draft five traders, follow their PnL and compete for daily and season rewards.',
+  description: 'The PFL format: draft traders, follow their PnL and compete for daily and season rewards.',
 };
 
 export default function Rules() {
@@ -12,9 +12,9 @@ export default function Rules() {
     <Link href="/">Pump Fantasy League <span> / Rules</span></Link>
     <p className="rules-kicker">LEAGUE RULES · $PFL</p>
     <h1>The PFL<br />playbook.</h1>
-    <p className="rules-lead">Pick a trader in every rank band. Submit your five. Follow the combined PnL change — that is your score.</p>
+    <p className="rules-lead">Season 1 squads have five ranked traders. From Season 2, add one registered community 6th Man. All six players count equally toward squad PnL. Creating a player burns 500,000 PFL once; it does not replace the separate holding requirement to submit a squad. Each season’s community pool freezes when drafting opens.</p>
     <div className="rules-overview" aria-label="Season format">
-      <div><b>5 traders</b><span>One from each band</span></div>
+      <div><b>5 ranked traders</b><span>From Season 2, add a 6th Man</span></div>
       <div><b>60 min</b><span>To submit your squad</span></div>
       <div><b>48 hours</b><span>Of season scoring</span></div>
     </div>
@@ -26,7 +26,7 @@ export default function Rules() {
     </section>
     <section>
       <h2>02 — Score the change</h2>
-      <p>Each trader scores the change in their reported one-month PnL between the scoring snapshots. Add the changes for all five picks. The highest combined score wins.</p>
+      <p>Each trader scores the change in their reported PnL between the scoring snapshots. Add the changes for all picks. The highest combined score wins.</p>
       <p>Daily rounds use their own starting snapshots. The season score measures the full 48 hours. The historical PnL displayed on a trader card is their starting reference, not points already earned.</p>
       <details><summary>Ties, negative scores and missing data</summary><p>Negative changes count. Ties are resolved by wallet address in ascending order. A missing trader or incomplete snapshot holds the result for review; it does not become a zero or an invented score.</p></details>
     </section>

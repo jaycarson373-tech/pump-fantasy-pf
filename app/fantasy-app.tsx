@@ -5,6 +5,8 @@ import "./league-relaunch.css";
 import "./launch-polish.css";
 import "./draft-ux.css";
 import Image from "next/image";
+import { LeagueBanners } from "./league-banners";
+import { CreatePlayer } from "./create-player";
 import {
   useConnect,
   useConnectedWallet,
@@ -31,7 +33,7 @@ function shortAddress(address: string) {
 
 type AuthState = { configured: boolean; authenticated: boolean; eligible: boolean; wallet?: string; balance?: string; minimumTokens?: string };
 type SeasonPhase = "unconfigured" | "inactive" | "scheduled" | "draft" | "live" | "complete" | "misconfigured";
-type SeasonState = { configured: boolean; seasonConfigured: boolean; phase: SeasonPhase; seasonId?: string; serverTime?: string; mintAddress?: string; minimumTokens?: string; schedule?: { opensAt: string | null; lockedAt: string | null; closesAt: string | null } | null };
+type SeasonState = { configured: boolean; seasonConfigured: boolean; phase: SeasonPhase; seasonId?: string; squadSize?: number; serverTime?: string; mintAddress?: string; minimumTokens?: string; schedule?: { opensAt: string | null; lockedAt: string | null; closesAt: string | null } | null };
 type BoardPlayer = { id: string; rank: number; wallet: string; display_name: string | null; profile_url: string | null; avatar_url: string | null; pnl_usd: number; contest_change_usd: number | null };
 
 const snapshotPlayers: BoardPlayer[] = (top50Snapshot.players as SnapshotTuple[]).map(([rank, wallet, displayName, pnl, avatar]) => ({
@@ -46,7 +48,7 @@ const snapshotPlayers: BoardPlayer[] = (top50Snapshot.players as SnapshotTuple[]
 }));
 
 
-type WalletVerification = { verify: () => Promise<boolean> };
+type WalletVerification = { verify: (requireEligibility?: boolean) => Promise<boolean> };
 
 function assertConnectedWallet(address: string | undefined) {
   if (!address || solanaClient.wallet.getState().connected?.account.address !== address) {
@@ -71,19 +73,21 @@ function WalletControl({ onAuthChange, verificationRef }: { onAuthChange: (state
   const address = connected?.account.address;
   const pendingVerification = useRef<((verified: boolean) => void) | null>(null);
   const authRevision = useRef(0);
+  const pendingRequireEligibility = useRef(true);
 
   useImperativeHandle(verificationRef, () => ({
-    async verify() {
+    async verify(requireEligibility = true) {
       if (auth.authenticated && auth.wallet === address) {
         assertConnectedWallet(auth.wallet);
-        return auth.eligible;
+        return !requireEligibility || auth.eligible;
       }
       if (address) {
-        const verified = await verifyWallet(address);
+        const verified = await verifyWallet(address, requireEligibility);
         if (!verified) setOpen(true);
         return verified;
       }
       setOpen(true);
+      pendingRequireEligibility.current = requireEligibility;
       return new Promise<boolean>((resolve) => { pendingVerification.current = resolve; });
     },
   }));
@@ -108,7 +112,7 @@ function WalletControl({ onAuthChange, verificationRef }: { onAuthChange: (state
       pendingVerification.current = null;
       setOpen(false);
       if (resume) {
-        const verified = await verifyWallet(active.account.address);
+        const verified = await verifyWallet(active.account.address, pendingRequireEligibility.current);
         if (!verified) setOpen(true);
         resume(verified);
       }
@@ -141,7 +145,7 @@ function WalletControl({ onAuthChange, verificationRef }: { onAuthChange: (state
     return () => { active = false; };
   }, [address, onAuthChange]);
 
-  async function verifyWallet(walletAddress = address) {
+  async function verifyWallet(walletAddress = address, requireEligibility = true) {
     if (!walletAddress) return false;
     authRevision.current++;
     setAuthBusy(true);
@@ -163,7 +167,7 @@ function WalletControl({ onAuthChange, verificationRef }: { onAuthChange: (state
       authRevision.current++;
       setAuth(next);
       onAuthChange(next);
-      return next.eligible;
+      return !requireEligibility || next.eligible;
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Wallet verification failed.");
       return false;
@@ -267,13 +271,13 @@ export function FantasyApp() {
       const response = await fetch("/api/entry", { cache: "no-store" });
       const body = await response.json() as SeasonState;
       if (!active) return;
-      if (!response.ok || !body.phase) return;
+      if (!response.ok || !body.phase) { setSeasonConfigured(false); return; }
       setSeason(body);
       if (body.serverTime) setClockOffset(Date.parse(body.serverTime) - Date.now());
       setSeasonConfigured(Boolean(body.seasonConfigured));
     };
-    void refreshSeason().catch(() => {});
-    const interval = window.setInterval(() => { void refreshSeason().catch(() => {}); }, 15_000);
+    void refreshSeason().catch(() => { if (active) setSeasonConfigured(false); });
+    const interval = window.setInterval(() => { void refreshSeason().catch(() => { if (active) setSeasonConfigured(false); }); }, 15_000);
     return () => { active = false; window.clearInterval(interval); };
   }, []);
 
@@ -283,7 +287,10 @@ export function FantasyApp() {
     return () => { window.clearInterval(interval); window.clearTimeout(firstTick); };
   }, []);
 
-  const rosterIdentity = players.map((player) => player.id).join(",");
+  const squadSize = season.squadSize === 5 || season.squadSize === 6 ? season.squadSize : 0;
+  const hasSixthSlot = squadSize === 6;
+  const slots = Array.from({ length: squadSize || 5 }, (_, index) => index);
+  const rosterIdentity = players.map((player) => `${player.id}:${player.wallet}`).join(",");
   const draftScope = `${DRAFT_STORAGE_KEY}:${season.seasonId ?? "preview"}:${rosterSeasonId ? rosterIdentity : "preview"}`;
   const guestDraftKey = `${draftScope}:guest`;
   const draftKey = `${draftScope}:${auth.wallet ?? "guest"}`;
@@ -293,9 +300,11 @@ export function FantasyApp() {
     const restored: Record<number, number> = {};
     try {
       const saved = JSON.parse(window.localStorage.getItem(draftKey) ?? window.localStorage.getItem(guestDraftKey) ?? "{}") as Record<string, unknown>;
-      for (let band = 0; band < 5; band += 1) {
+      for (let band = 0; band < (squadSize || 5); band += 1) {
         const rank = saved[String(band)];
-        if (typeof rank === "number" && Math.floor((rank - 1) / 10) === band && rank <= 50) restored[band] = rank;
+        if (typeof rank !== "number" || !players.some(player => player.rank === rank)) continue;
+        if (band < 5 && Math.floor((rank - 1) / 10) === band && rank <= 50) restored[band] = rank;
+        if (band === 5 && rank > 50) restored[band] = rank;
       }
     } catch { /* Storage is optional; submission is always saved on the server. */ }
     const timer = window.setTimeout(() => {
@@ -306,7 +315,7 @@ export function FantasyApp() {
       setHydratedDraftKey(draftKey);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [draftKey, guestDraftKey, entryBusy, hydratedDraftKey]);
+  }, [draftKey, guestDraftKey, entryBusy, hydratedDraftKey, players, squadSize]);
 
   useEffect(() => {
     if (hydratedDraftKey !== draftKey) return;
@@ -322,33 +331,34 @@ export function FantasyApp() {
         fetch("/api/standings", { cache: "no-store" }),
       ]);
       const [playerResult, standingsResult] = await Promise.all([playerResponse.json(), standingsResponse.json()]);
-      if (active && Array.isArray(playerResult.players) && playerResult.players.length === 50) {
-        setPlayers(playerResult.players ?? []);
+      if (active && playerResponse.ok && Array.isArray(playerResult.players) && playerResult.players.length === 50) {
+        setPlayers([...playerResult.players, ...(Array.isArray(playerResult.communityPlayers) ? playerResult.communityPlayers : [])]);
         setRosterSeasonId(playerResult.seasonId ?? null);
         setSnapshotAt(playerResult.snapshotAt ?? top50Snapshot.snapshotAt);
         setLeaderboardSource(playerResult.source ?? (playerResult.live ? "Live Pump.fun 1M leaderboard" : "Dated fallback snapshot"));
+      } else if (active) {
+        setRosterSeasonId(null);
       }
       if (active && Array.isArray(standingsResult.standings)) setStandings(standingsResult.standings);
       if (active && Array.isArray(standingsResult.awards)) setAwards(standingsResult.awards);
       if (active && standingsResult.feePools) setFeePools(standingsResult.feePools);
     };
-    void refresh().catch(() => {});
-    const interval = window.setInterval(() => { void refresh().catch(() => {}); }, 30_000);
+    void refresh().catch(() => { if (active) setRosterSeasonId(null); });
+    const interval = window.setInterval(() => { void refresh().catch(() => { if (active) setRosterSeasonId(null); }); }, 30_000);
     return () => { active = false; window.clearInterval(interval); };
   }, []);
 
   useEffect(() => {
     let active = true;
     if (entryBusy || !auth.authenticated || !season.seasonId || rosterSeasonId !== season.seasonId || hydratedDraftKey !== draftKey || serverEntryLoaded.current === draftKey) return;
-    const ids = rosterIdentity.split(",");
     fetch("/api/entry", { cache: "no-store" }).then(async (response) => ({ ok: response.ok, body: await response.json() })).then(({ ok, body }) => {
       if (!active || !ok || body.seasonId !== season.seasonId || body.wallet !== auth.wallet) return;
       serverEntryLoaded.current = draftKey;
       if (Array.isArray(body.entry?.picks)) {
         const restored: Record<number, number> = {};
         for (const id of body.entry.picks as string[]) {
-          const index = ids.indexOf(id);
-          if (index >= 0) restored[Math.floor(index / 10)] = index + 1;
+          const player = players.find(item => item.id === id);
+          if (player) restored[player.rank > 50 ? 5 : Math.floor((player.rank - 1) / 10)] = player.rank;
         }
         setSelected(restored);
         setSavedPicks(body.entry.picks);
@@ -357,10 +367,10 @@ export function FantasyApp() {
       }
     }).catch(() => {});
     return () => { active = false; };
-  }, [auth.authenticated, auth.wallet, draftKey, hydratedDraftKey, rosterIdentity, rosterSeasonId, season.seasonId, entryBusy]);
+  }, [auth.authenticated, auth.wallet, draftKey, hydratedDraftKey, rosterIdentity, rosterSeasonId, season.seasonId, entryBusy, players]);
 
   async function submitEntry() {
-    const picks = [0, 1, 2, 3, 4].map((band) => players.find((player) => player.rank === selected[band])?.id);
+    const picks = slots.map((band) => players.find((player) => player.rank === selected[band])?.id);
     if (picks.some((pick) => !pick)) return;
     setEntryBusy(true);
     setEntryMessage("");
@@ -393,7 +403,7 @@ export function FantasyApp() {
   }
 
   const rosterSize = Object.keys(selected).length;
-  const nextDraftBand = DRAFT_ROUNDS.findIndex((_, index) => !selected[index]);
+  const nextDraftBand = slots.findIndex(index => !selected[index]);
 
   function selectPlayer(band: number, rank: number) {
     const next = { ...selected };
@@ -402,7 +412,7 @@ export function FantasyApp() {
     setSelected(next);
     setEntryMessage("");
     if (selected[band]) return;
-    const nextBand = DRAFT_ROUNDS.findIndex((_, index) => !next[index]);
+    const nextBand = slots.findIndex(index => !next[index]);
     if (nextBand < 0) return;
     window.requestAnimationFrame(() => {
       const card = document.getElementById(`draft-band-${nextBand}`);
@@ -413,15 +423,17 @@ export function FantasyApp() {
       card.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
     });
   }
-  const playerDataReady = players.length === 50;
+  const rankedPlayers = players.filter(player => player.rank <= 50);
+  const communityPlayers = players.filter(player => player.rank > 50);
+  const playerDataReady = rankedPlayers.length === 50 && (!hasSixthSlot || communityPlayers.length > 0);
   const rosterMatchesSeason = Boolean(season.seasonId && rosterSeasonId === season.seasonId);
   const effectiveNow = clockNow ? clockNow + clockOffset : 0;
   const lockPassed = Boolean(effectiveNow && season.schedule?.lockedAt && effectiveNow >= Date.parse(season.schedule.lockedAt));
   const walletTest = season.seasonId?.startsWith("wallet-test-") ?? false;
   const draftOpen = season.phase === "draft" && !lockPassed;
   const picksLocked = season.phase === "live" || season.phase === "complete" || (season.phase === "draft" && lockPassed);
-  const currentPicks = [0, 1, 2, 3, 4].map((band) => players.find((player) => player.rank === selected[band])?.id);
-  const hasSavedSquad = savedPicks.length === 5;
+  const currentPicks = slots.map((band) => players.find((player) => player.rank === selected[band])?.id);
+  const hasSavedSquad = squadSize > 0 && savedPicks.length === squadSize;
   const hasUnsavedChanges = hasSavedSquad && currentPicks.some((pick) => !pick || !savedPicks.includes(pick));
   const phaseName = walletTest && season.phase === "draft" ? "TEST DRAFT OPEN" : season.phase === "draft" ? "DRAFT OPEN" : season.phase === "scheduled" ? "UP NEXT" : season.phase === "live" ? "SEASON LIVE" : season.phase === "complete" ? "SEASON COMPLETE" : season.phase === "misconfigured" ? "SCHEDULE ERROR" : "PRE-SEASON";
   const filteredPlayers = (band: number) => players
@@ -429,6 +441,7 @@ export function FantasyApp() {
     .filter((player) => !search || `${player.display_name ?? ""} ${player.wallet}`.toLowerCase().includes(search.toLowerCase()));
   return (
     <main className="app-shell draft-room">
+      <LeagueBanners season={season} now={effectiveNow} />
       <header className="topbar" id="top">
         <a className="pf-brand" href="#top" aria-label="Pump Fantasy League home">
           <span className="pf-mark-image" role="img" aria-label="Pump Fantasy League logo" /><strong>Pump Fantasy League</strong><em>$PFL</em>
@@ -454,7 +467,7 @@ export function FantasyApp() {
         <div className="hero-copy-grid">
           <div>
             <h1>Your picks.<br /><span>Their PnL.</span></h1>
-              <p>Fantasy sports for the trenches. Pick five traders from Pump.fun’s top 50, build your lineup and compete on their combined PnL change.</p>
+              <p>{hasSixthSlot ? "Fantasy sports for the trenches. Pick five ranked traders plus one 6th Man. All six score equally on their PnL change." : "Fantasy sports for the trenches. Pick five traders from Pump.fun’s top 50, build your lineup and compete on their combined PnL change."}</p>
             <div className="hero-ctas">
               <a className="primary-cta" href="#draft">Build my lineup</a><a className="pfl-rules-link" href="/rules">Learn the format <span aria-hidden="true">↗</span></a>
             </div>
@@ -473,7 +486,7 @@ export function FantasyApp() {
                 </a>;
               })}
             </div>
-            <div className="league-board-bottom"><span>ONE PICK PER BAND</span><span>{rosterSize ? `${rosterSize} / 5 SELECTED` : "EXPLORE THE FIELD ↗"}</span></div>
+            <div className="league-board-bottom"><span>ONE PICK PER BAND</span><span>{rosterSize ? `${rosterSize} / ${squadSize || 5} SELECTED` : "EXPLORE THE FIELD ↗"}</span></div>
           </div>
         </div>
         <div className="draft-ticker"><span>TOP 50 · ONE-MONTH PNL</span><i /><span>5 BANDS · 1 PICK PER BAND</span><i /><span>1 HOUR TO DRAFT · 48 HOURS TO COMPETE</span></div>
@@ -481,13 +494,13 @@ export function FantasyApp() {
 
       <section className="league-rule-summary" aria-label="How the league works">
         <div><b>01</b><span><strong>{walletTest ? "Sign in for the test draft" : "Hold 500k PFL"}</strong><small>Connect your wallet and sign in.</small></span></div>
-        <div><b>02</b><span><strong>Draft in one hour</strong><small>One trader per band. Submit your five.</small></span></div>
+        <div><b>02</b><span><strong>Draft in one hour</strong><small>{hasSixthSlot ? "Five ranked picks plus one 6th Man. Submit your six." : "One trader per band. Submit your five."}</small></span></div>
         <div><b>03</b><span><strong>Compete for 48 hours</strong><small>Picks lock. Daily PnL decides the winner.</small></span></div>
       </section>
       <section className="draft-section" id="draft">
         <div className="draft-heading">
-          <div><span className="section-label">THE DRAFT ROOM</span><h2>Build your starting five.</h2><p>One pick from each rank band. Choose your lineup below, then submit when the draft is open.</p></div>
-          <div className="draft-progress"><span>ROSTER <b>{rosterSize} / 5</b></span><div>{[0, 1, 2, 3, 4].map((index) => <i className={selected[index] ? "filled" : ""} key={index} />)}</div></div>
+          <div><span className="section-label">THE DRAFT ROOM</span><h2>{hasSixthSlot ? "Build your starting five + 6th Man." : "Build your starting five."}</h2><p>{hasSixthSlot ? "One pick from each rank band, plus one community player. All six score equally. Submit when the draft is open." : "One pick from each rank band. Choose your lineup below, then submit when the draft is open."}</p></div>
+          <div className="draft-progress"><span>ROSTER <b>{rosterSize} / {squadSize || 5}</b></span><div>{slots.map((index) => <i className={selected[index] ? "filled" : ""} key={index} />)}</div></div>
         </div>
 
         <div className="draft-layout">
@@ -508,61 +521,69 @@ export function FantasyApp() {
                   ))}{filteredPlayers(index).length === 0 ? <p className="search-empty">No matching traders in this rank band.</p> : null}</div> : <div className="round-empty"><span className="rank-stack"><i /><i /><i /></span><div><b>Top-50 source snapshot unavailable</b><small>Check the source leaderboard before opening a contest.</small></div></div>}
                 </article>
               ))}
+              {hasSixthSlot ? <article className={`draft-round ${nextDraftBand === 5 && !picksLocked ? "next-pick" : ""}`} id="draft-band-5">
+                <div className="draft-round-head"><span className="round-number">06</span><div><b>6th Man</b><small>CHOOSE 1 COMMUNITY PLAYER</small></div><span className="round-pick">PICK 1</span></div>
+                {communityPlayers.length && rosterMatchesSeason ? <div className="band-players">{communityPlayers.filter(player => !search || `${player.display_name ?? ""} ${player.wallet}`.toLowerCase().includes(search.toLowerCase())).map(player => <button type="button" aria-pressed={selected[5] === player.rank} disabled={picksLocked || entryBusy} className={`band-player ${selected[5] === player.rank ? "selected" : ""}`} key={player.id} onClick={() => selectPlayer(5, player.rank)}>
+                  <span className="player-rank">6TH</span><span className="player-avatar" aria-hidden="true" style={player.avatar_url ? { backgroundImage: `url("${player.avatar_url}")` } : undefined}>{player.display_name?.slice(0, 1).toUpperCase()}</span><span className="player-identity"><b>{player.display_name || shortAddress(player.wallet)}</b><small>{shortAddress(player.wallet)}</small></span><strong className="pnl-positive">${player.pnl_usd.toLocaleString("en-US", { maximumFractionDigits: 0 })}<small>PNL</small></strong><span className="player-select-mark">{selected[5] === player.rank ? "✓" : "+"}</span>
+                </button>)}</div> : <div className="round-empty"><div><b>Community roster unavailable</b><small>The season’s frozen community roster must load before you can submit.</small></div></div>}
+              </article> : null}
             </div>
             <div className="draft-board-footnote"><span className="status-lamp" /> Rank bands use the saved top-50 snapshot. Choose one trader in every band; a trader’s displayed 1M PnL is their starting mark, not a contest score.</div>
           </div>
 
           <aside className="roster-panel">
-            <div className="roster-panel-head"><div><span>YOUR SQUAD</span><b>Five picks</b></div></div>
+            <div className="roster-panel-head"><div><span>YOUR SQUAD</span><b>{hasSixthSlot ? "Six picks" : "Five picks"}</b></div></div>
             <div className={`season-clock ${season.phase}`} aria-live="polite">
               <span>LEAGUE STATUS</span>
               <b>{phaseName}</b>
               <small>{season.phase === "draft" ? "Submit during the open draft window. Picks saved only on this device are not entered." : season.phase === "live" ? "Drafts are locked. The 48-hour scoring period is underway." : season.phase === "complete" ? "This season has ended. The next draft opens after the new field and funded prizes pass launch checks." : season.phase === "scheduled" ? "The draft opens at the scheduled start time." : season.phase === "misconfigured" ? "The season schedule needs an operator check." : "Browse the field and build your lineup. Submission opens with the next draft."}</small>
             </div>
             <div className="roster-slots">
-              {[0, 1, 2, 3, 4].map((band) => {
+              {slots.map((band) => {
                 const player = players.find((item) => item.rank === selected[band]);
-                return <div className="roster-slot" key={band}><i>{String(band + 1).padStart(2, "0")}</i><span><b>{player?.display_name || (player ? shortAddress(player.wallet) : "Open pick")}</b><small>{player ? `Rank #${player.rank} · ${player.pnl_usd >= 0 ? "+" : ""}$${player.pnl_usd.toLocaleString("en-US", { maximumFractionDigits: 0 })} 1M PnL` : `Choose from ranks ${band * 10 + 1}–${band * 10 + 10}`}</small></span></div>;
+                return <div className="roster-slot" key={band}><i>{String(band + 1).padStart(2, "0")}</i><span><b>{player?.display_name || (player ? shortAddress(player.wallet) : "Open pick")}</b><small>{player ? `${band === 5 ? "6th Man" : `Rank #${player.rank}`} · ${player.pnl_usd >= 0 ? "+" : ""}$${player.pnl_usd.toLocaleString("en-US", { maximumFractionDigits: 0 })} ${band === 5 ? "PnL" : "1M PnL"}` : band === 5 ? "Choose a community player" : `Choose from ranks ${band * 10 + 1}–${band * 10 + 10}`}</small></span></div>;
               })}
             </div>
-            <div className="roster-note"><span className="note-mark">i</span><p>{rosterSize === 5 ? "Five traders drafted. Submit to enter. Local picks alone do not count." : "Pick one trader in each of the five rank bands. Your draft saves on this device."} {auth.authenticated ? `Wallet verified${auth.balance ? ` · ${auth.balance} $PFL` : ""}.` : "Connect a wallet holding at least 500,000 $PFL to verify eligibility."}</p></div>
+            <div className="roster-note"><span className="note-mark">i</span><p>{squadSize > 0 && rosterSize === squadSize ? `${hasSixthSlot ? "Six" : "Five"} traders drafted. Submit to enter. Local picks alone do not count.` : `Pick one trader in each of the five rank bands${hasSixthSlot ? " and one 6th Man" : ""}. Your draft saves on this device.`} {auth.authenticated ? `Wallet verified${auth.balance ? ` · ${auth.balance} $PFL` : ""}.` : "Connect a wallet holding at least 500,000 $PFL to verify eligibility."}</p></div>
             <button className="clear-draft-button" type="button" onClick={() => { setSelected({}); setEntryMessage(""); }} disabled={rosterSize === 0 || picksLocked || entryBusy}>Clear draft</button>
-            <button className="lock-button" disabled={!canStartDraftEntry({ busy: entryBusy, pickCount: rosterSize, authenticated: auth.authenticated, eligible: auth.eligible, draftOpen: seasonConfigured && draftOpen, rosterReady: playerDataReady && rosterMatchesSeason })} onClick={submitEntry}>{entryBusy ? "Saving squad…" : season.phase === "live" || season.phase === "complete" ? "Draft locked" : !seasonConfigured || !draftOpen ? "Draft opens at launch" : !playerDataReady || !rosterMatchesSeason ? "Loading season roster" : rosterSize !== 5 ? `Pick ${5 - rosterSize} more` : hasSavedSquad ? "Save squad changes" : "Submit squad"}</button>
-            {hasSavedSquad ? <div className={`squad-save-state ${hasUnsavedChanges ? "dirty" : "saved"}`} role="status"><b>{hasUnsavedChanges ? "Changes not submitted" : "Squad submitted"}</b><span>{hasUnsavedChanges ? "Your previous submission still counts. Save your changes before the deadline." : picksLocked ? "Your final five are locked for this season." : `Saved ${savedAt ? new Date(savedAt).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) : "on the server"}. Edit and resubmit before the clock ends.`}</span></div> : null}
+            <button className="lock-button" disabled={!canStartDraftEntry({ busy: entryBusy, pickCount: rosterSize, requiredPicks: squadSize, authenticated: auth.authenticated, eligible: auth.eligible, draftOpen: seasonConfigured && draftOpen, rosterReady: playerDataReady && rosterMatchesSeason })} onClick={submitEntry}>{entryBusy ? "Saving squad…" : season.phase === "live" || season.phase === "complete" ? "Draft locked" : !seasonConfigured || !draftOpen ? "Draft opens at launch" : !playerDataReady || !rosterMatchesSeason ? "Loading season roster" : rosterSize !== squadSize ? `Pick ${squadSize - rosterSize} more` : hasSavedSquad ? "Save squad changes" : "Submit squad"}</button>
+            {hasSavedSquad ? <div className={`squad-save-state ${hasUnsavedChanges ? "dirty" : "saved"}`} role="status"><b>{hasUnsavedChanges ? "Changes not submitted" : "Squad submitted"}</b><span>{hasUnsavedChanges ? "Your previous submission still counts. Save your changes before the deadline." : picksLocked ? `Your final ${hasSixthSlot ? "six" : "five"} are locked for this season.` : `Saved ${savedAt ? new Date(savedAt).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) : "on the server"}. Edit and resubmit before the clock ends.`}</span></div> : null}
             {entryMessage ? <p className="entry-message" role="status">{entryMessage}</p> : null}
             <small className="no-signature">Wallet message signature only. No transaction or token transfer.</small>
           </aside>
         </div>
       </section>
 
+      <CreatePlayer wallet={auth.wallet} verify={() => walletVerification.current?.verify(false) ?? Promise.resolve(false)} onBusy={setEntryBusy} />
+
       <section className="leaderboard-section-light" id="status">
         <div className="section-topline"><div><span className="section-label">CONTEST STATUS</span><h2>{season.phase === "draft" ? "The draft is open." : season.phase === "scheduled" ? "The next draft is scheduled." : season.phase === "live" ? "The season is underway." : season.phase === "complete" ? "The season window has ended." : "Roster is visible. Entry is not open."}</h2></div><span className="contest-status-pill"><i /> {phaseName}</span></div>
         <div className="status-cards">
           <article><span className="status-index">01</span><i className="status-symbol">◎</i><h3>One-month top 50</h3><p>Captured from the Pump.fun 1M profit leaderboard. The five rank bands are fixed for each contest.</p><span className={`status-pill ${playerDataReady ? "active" : "pending"}`}>{playerDataReady ? "50 SNAPSHOT PLAYERS" : "ROSTER UNAVAILABLE"}</span></article>
-          <article><span className="status-index">02</span><i className="status-symbol">⌁</i><h3>Daily PnL race</h3><p>For each pick, closing 1M PnL minus opening 1M PnL. Add all five changes; the highest score wins.</p><span className="status-pill pending">{standings.some((row) => row.scoringReady) ? "ROUND SCORES LOADED" : "SCORING STARTS AT DRAFT LOCK"}</span></article>
+          <article><span className="status-index">02</span><i className="status-symbol">⌁</i><h3>Daily PnL race</h3><p>{hasSixthSlot ? "Five ranked picks plus one 6th Man. Each scores its PnL change equally; add all six changes for your score." : "For each pick, closing 1M PnL minus opening 1M PnL. Add all five changes; the highest score wins."}</p><span className="status-pill pending">{standings.some((row) => row.scoringReady) ? "ROUND SCORES LOADED" : "SCORING STARTS AT DRAFT LOCK"}</span></article>
           <article><span className="status-index">03</span><i className="status-symbol">▤</i><h3>Holder entry + prize</h3><p>Hold 500,000 PFL to submit. The planned fee split is 40% for daily winners, 45% for the season winner and 15% for championship bonuses. Activation is pending.</p><span className="status-pill pending">{auth.eligible ? "TOKEN CHECK PASSED" : "500K PFL REQUIRED"}</span></article>
         </div>
         <div className="live-standings">
-          <div className="standings-heading"><div><span className="section-label">DAILY LEADERBOARD</span><h3>Five picks. One score.</h3></div><small>{snapshotAt ? `SEASON FIELD · ${new Date(snapshotAt).toLocaleString()}` : "NO SOURCE SNAPSHOT"}</small></div>
+          <div className="standings-heading"><div><span className="section-label">DAILY LEADERBOARD</span><h3>{hasSixthSlot ? "Six picks. One score." : "Five picks. One score."}</h3></div><small>{snapshotAt ? `SEASON FIELD · ${new Date(snapshotAt).toLocaleString()}` : "NO SOURCE SNAPSHOT"}</small></div>
           {standings.length ? <div className="standings-list">{standings.map((row, index) => <div className="standings-row" key={row.wallet}><b className="standing-rank">{String(index + 1).padStart(2, "0")}</b><span>{shortAddress(row.wallet)}</span><strong>{row.scoringReady && row.score !== null ? `${row.score >= 0 ? "+" : "−"}$${Math.abs(row.score).toLocaleString("en-US", { maximumFractionDigits: 2 })}` : "Awaiting verified PnL"}</strong></div>)}</div> : <p className="standings-empty">Submitted squads appear here. Scores begin after the draft locks and a scoring snapshot is captured.</p>}
         </div>
-        <div className="daily-awards"><div className="standings-heading"><div><span className="section-label">LEAGUE WINNERS</span><h3>Daily + season results</h3></div><small>DAILY + SEASON AWARDS</small></div>{awards.length ? <div className="award-list">{awards.map((award) => <article className="award-card" key={award.id}><span>{award.award_kind === "season" ? "48H SEASON" : `DAY ${award.day_number}`}</span><b>{award.winner_wallet ? shortAddress(award.winner_wallet) : award.status === "no_eligible_entries" ? "No eligible entries" : "Awaiting complete PnL data"}</b><strong>{award.score_usd === null ? "" : `${award.score_usd >= 0 ? "+" : "−"}$${Math.abs(award.score_usd).toLocaleString("en-US", { maximumFractionDigits: 2 })}`}</strong><small className={award.status === "paid" ? "paid" : "pending"}>{award.status.replaceAll("_", " ").toUpperCase()}</small>{award.payment_signature ? <a href={`https://solscan.io/tx/${award.payment_signature}`} target="_blank" rel="noreferrer">View payment ↗</a> : null}</article>)}</div> : <p className="standings-empty">The season clock captures daily PnL snapshots and calculates the top five-pick squad at each 24-hour mark.</p>}</div><div className="fee-flow"><span className="section-label">PLANNED CREATOR-FEE SPLIT</span><div className="reward-split"><article><b>40%</b><strong>Daily winners</strong><small>{(Number(feePools.availableDailyLamports) / 1e9).toLocaleString(undefined, {maximumFractionDigits: 6})} SOL in the daily pool</small></article><article><b>45%</b><strong>48-hour season winner</strong><small>{(Number(feePools.availableSeasonLamports) / 1e9).toLocaleString(undefined, {maximumFractionDigits: 6})} SOL in the season pool</small></article><article><b>15%</b><strong>Championship bonus reserves</strong><small>{(Number(feePools.reserveLamports) / 1e9).toLocaleString(undefined, {maximumFractionDigits: 6})} SOL reserved for championship bonuses</small></article></div><p>The 40/45/15 split is awaiting activation. Balances above reflect existing recorded allocations. Only finalized creator-fee claims enter the pools. The daily prize freezes at each 24-hour cutoff; fees confirmed after that cutoff carry into the next daily pool. The season pool freezes at the 48-hour close and rewards the highest total PnL change from the opening snapshot. The championship reserve cannot fund daily or season payouts; championship bonus rules will be published before release.</p><span className="section-label">DAILY SETTLEMENT</span><div><b>Daily PnL snapshot</b><i aria-hidden="true">/</i><b>Top squad</b><i aria-hidden="true">/</i><b>Verified SOL transfer</b></div><p>The highest squad PnL change at each daily cutoff wins that day’s pool. A prize is only shown as paid after the winning wallet receives the configured SOL amount and the transaction is verified on Solana.</p></div>
+        <div className="daily-awards"><div className="standings-heading"><div><span className="section-label">LEAGUE WINNERS</span><h3>Daily + season results</h3></div><small>DAILY + SEASON AWARDS</small></div>{awards.length ? <div className="award-list">{awards.map((award) => <article className="award-card" key={award.id}><span>{award.award_kind === "season" ? "48H SEASON" : `DAY ${award.day_number}`}</span><b>{award.winner_wallet ? shortAddress(award.winner_wallet) : award.status === "no_eligible_entries" ? "No eligible entries" : "Awaiting complete PnL data"}</b><strong>{award.score_usd === null ? "" : `${award.score_usd >= 0 ? "+" : "−"}$${Math.abs(award.score_usd).toLocaleString("en-US", { maximumFractionDigits: 2 })}`}</strong><small className={award.status === "paid" ? "paid" : "pending"}>{award.status.replaceAll("_", " ").toUpperCase()}</small>{award.payment_signature ? <a href={`https://solscan.io/tx/${award.payment_signature}`} target="_blank" rel="noreferrer">View payment ↗</a> : null}</article>)}</div> : <p className="standings-empty">{hasSixthSlot ? "The season clock captures daily PnL snapshots and calculates the top six-pick squad at each 24-hour mark." : "The season clock captures daily PnL snapshots and calculates the top five-pick squad at each 24-hour mark."}</p>}</div><div className="fee-flow"><span className="section-label">PLANNED CREATOR-FEE SPLIT</span><div className="reward-split"><article><b>40%</b><strong>Daily winners</strong><small>{(Number(feePools.availableDailyLamports) / 1e9).toLocaleString(undefined, {maximumFractionDigits: 6})} SOL in the daily pool</small></article><article><b>45%</b><strong>48-hour season winner</strong><small>{(Number(feePools.availableSeasonLamports) / 1e9).toLocaleString(undefined, {maximumFractionDigits: 6})} SOL in the season pool</small></article><article><b>15%</b><strong>Championship bonus reserves</strong><small>{(Number(feePools.reserveLamports) / 1e9).toLocaleString(undefined, {maximumFractionDigits: 6})} SOL reserved for championship bonuses</small></article></div><p>The 40/45/15 split is awaiting activation. Balances above reflect existing recorded allocations. Only finalized creator-fee claims enter the pools. The daily prize freezes at each 24-hour cutoff; fees confirmed after that cutoff carry into the next daily pool. The season pool freezes at the 48-hour close and rewards the highest total PnL change from the opening snapshot. The championship reserve cannot fund daily or season payouts; championship bonus rules will be published before release.</p><span className="section-label">DAILY SETTLEMENT</span><div><b>Daily PnL snapshot</b><i aria-hidden="true">/</i><b>Top squad</b><i aria-hidden="true">/</i><b>Verified SOL transfer</b></div><p>The highest squad PnL change at each daily cutoff wins that day’s pool. A prize is only shown as paid after the winning wallet receives the configured SOL amount and the transaction is verified on Solana.</p></div>
         <div className="season-pathway">
           <div><span className="section-label">THE LEAGUE KEEPS GOING</span><h3>A new draft every season.</h3><p>Each season runs a 1-hour draft, then 48 hours of scoring. Daily results are captured at the 24-hour marks. When a season closes, the next one-hour draft opens once the latest saved top-50 field and funded daily prizes pass the server checks.</p></div>
-          <ol><li><b>01</b><span><strong>Draft</strong><small>Pick five before entries lock.</small></span></li><li><b>02</b><span><strong>Season</strong><small>Track the 48-hour PnL race.</small></span></li><li><b>03</b><span><strong>Next season</strong><small>Fresh draft, new standings.</small></span></li></ol>
+          <ol><li><b>01</b><span><strong>Draft</strong><small>{hasSixthSlot ? "Pick six before entries lock." : "Pick five before entries lock."}</small></span></li><li><b>02</b><span><strong>Season</strong><small>Track the 48-hour PnL race.</small></span></li><li><b>03</b><span><strong>Next season</strong><small>Fresh draft, new standings.</small></span></li></ol>
           <small className="season-pathway-note">Season rollover, score snapshots, and configured SOL payouts run from the protected server cron. Every payout is checked onchain before it is marked paid.</small>
         </div>
       </section>
 
       <section className="how-section" id="format">
-        <div className="how-heading"><span className="section-label">THE FORMAT</span><h2>Know the game.</h2><p>Five picks. Equal slots. Your lineup scores the change, not the trader’s past profit.</p></div>
+        <div className="how-heading"><span className="section-label">THE FORMAT</span><h2>Know the game.</h2><p>{hasSixthSlot ? "Six picks. Equal slots. Your lineup scores the change, not the trader’s past profit." : "Five picks. Equal slots. Your lineup scores the change, not the trader’s past profit."}</p></div>
         <div className="how-grid">
           <article><span>01</span><i className="how-icon">01</i><h3>Scout the top 50</h3><p>At season launch, the one-month Pump.fun top 50 is frozen into five bands of ten. That field stays fixed for all 48 hours.</p></article>
-          <article><span>02</span><i className="how-icon">02</i><h3>Fill every slot</h3><p>Hold 500,000 PFL, connect and sign in, then pick one trader per band. Submit within 60 minutes. Changes only count after you resubmit.</p></article>
-          <article><span>03</span><i className="how-icon">03</i><h3>Track your lineup</h3><p>Each pick scores its change in one-month PnL between the round’s opening and closing snapshots. Sum your five.</p></article>
+          <article><span>02</span><i className="how-icon">02</i><h3>Fill every slot</h3><p>{hasSixthSlot ? "Hold 500,000 PFL, connect and sign in, then pick five ranked traders plus one 6th Man. Submit within 60 minutes. Changes only count after you resubmit." : "Hold 500,000 PFL, connect and sign in, then pick one trader per band. Submit within 60 minutes. Changes only count after you resubmit."}</p></article>
+          <article><span>03</span><i className="how-icon">03</i><h3>Track your lineup</h3><p>{hasSixthSlot ? "Each pick scores its PnL change between the round’s opening and closing snapshots. Sum your six, with equal weight for the 6th Man." : "Each pick scores its change in one-month PnL between the round’s opening and closing snapshots. Sum your five."}</p></article>
           <article><span>04</span><i className="how-icon">04</i><h3>Check the results</h3><p>The top squad at each daily snapshot is recorded. A SOL award is shown as paid only after the onchain transfer is verified.</p></article>
         </div>
-        <div className="docs-note"><div><span>SCORING RULE</span><h3>Measure the move.</h3></div><p>For each trader, take closing 1M PnL minus opening 1M PnL. Add the five results. The highest total wins. Day 1 compares the scoring start with hour 24; Day 2 compares hour 24 with hour 48. Negative changes count. Equal scores are ordered by wallet address. Missing PnL data holds settlement for review.</p></div>
+        <div className="docs-note"><div><span>SCORING RULE</span><h3>Measure the move.</h3></div><p>{hasSixthSlot ? "For each trader, take closing PnL minus opening PnL. Add the six results with equal weight. The highest total wins." : "For each trader, take closing 1M PnL minus opening 1M PnL. Add the five results. The highest total wins."} Day 1 compares the scoring start with hour 24; Day 2 compares hour 24 with hour 48. Negative changes count. Equal scores are ordered by wallet address. Missing PnL data holds settlement for review.</p></div>
       </section>
 
       <section className="closing-cta"><span>PF</span><div><p>PUMP FANTASY LEAGUE</p><h2>Your lineup.<br />Your league.</h2><a href="#draft">Build your squad</a></div></section>
