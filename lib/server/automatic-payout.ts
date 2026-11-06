@@ -47,6 +47,14 @@ export type PayoutConfiguration = { enabled: boolean; blockers: string[]; signer
 export async function getPayoutConfiguration(): Promise<PayoutConfiguration> {
   const config = getBackendConfig();
   const enabled = process.env.PF_AUTO_PAYOUT_ENABLED === "true";
+  if (!enabled) return {
+    enabled,
+    blockers: ["Set PF_AUTO_PAYOUT_ENABLED=true only after reviewing the signer and payout limits."],
+    signerAddress: null,
+    perAwardCap: null,
+    seasonCap: null,
+    rpcUrl: config.rpcUrl ?? null,
+  };
   const blockers: string[] = [];
   const signer = await payoutSigner().catch(() => {
     blockers.push("Invalid payout keypair or wallet mismatch. Configure PF_PAYOUT_SIGNER_KEYPAIR_JSON for the prize wallet.");
@@ -55,7 +63,6 @@ export async function getPayoutConfiguration(): Promise<PayoutConfiguration> {
   const prizeWallet = process.env.PF_PRIZE_WALLET_ADDRESS || "";
   const perAwardCap = explicitPayoutCap(process.env.PF_AUTO_PAYOUT_MAX_AWARD_LAMPORTS ?? DEFAULT_AWARD_CAP_LAMPORTS);
   const seasonCap = explicitPayoutCap(process.env.PF_AUTO_PAYOUT_MAX_SEASON_LAMPORTS ?? DEFAULT_SEASON_CAP_LAMPORTS);
-  if (!enabled) blockers.push("Set PF_AUTO_PAYOUT_ENABLED=true only after reviewing the signer and payout limits.");
   if (!signer) blockers.push("Configure PF_PAYOUT_SIGNER_KEYPAIR_JSON as a server-only secret matching the prize wallet.");
   if (!validWallet(prizeWallet)) blockers.push("Set PF_PRIZE_WALLET_ADDRESS to the payout wallet public address.");
   if (signer && validWallet(prizeWallet) && signer.address !== prizeWallet) blockers.push("Payout signer does not match PF_PRIZE_WALLET_ADDRESS.");
