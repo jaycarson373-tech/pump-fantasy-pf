@@ -151,7 +151,7 @@ async function prepareAward(award: Award, config: PayoutConfiguration) {
     if (allocation !== amount) throw new Error("Award does not match its assigned fee pool. Reconcile its receipt allocation before payout.");
     const treasury = await getFeeTreasury(rewardSeason.mint_address);
     // All unpaid daily/season allocations and championship reserves stay covered.
-    treasuryMinimum = treasury.gross - treasury.paid + 5_000n;
+    treasuryMinimum = treasury.gross - treasury.paid + treasury.leagueSolReserved + 5_000n;
   }
   const balance = await getNativeSolBalance(prizeWallet);
   if (balance < treasuryMinimum) return "awaiting-payout-funding";
