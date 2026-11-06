@@ -33,5 +33,12 @@
   .pfl-promo-group[aria-hidden=true] { display: none; }
 }
 
-.header-actions .contract-full { width: min(310px, 80vw); white-space: normal; overflow-wrap: anywhere; user-select: all; pointer-events: auto; }
+.header-actions .contract-full { width: max-content; max-width: calc(100vw - 32px); white-space: nowrap; overflow-x: auto; user-select: all; pointer-events: auto; }
 .contract-explorer { color: inherit; font-size: 13px; padding: 10px 2px; }
+.header-actions .contract-copy, .header-actions .x-social { height: 36px; border: 1px solid #d9dfda; border-radius: 9px; background: #fff; color: #152019; }
+.header-actions .contract-copy { width: auto; gap: 8px; padding: 0 11px; flex-wrap: nowrap; white-space: nowrap; }
+.header-actions .contract-short { display: inline-block; white-space: nowrap; font: 600 10px/1 var(--font-geist-mono), monospace; }
+.header-actions .contract-label { color: #657168; font: 750 9px/1 var(--font-geist-mono), monospace; letter-spacing: .12em; }
+.header-actions .x-social { width: 36px; }
+.header-actions .x-social svg { width: 16px; height: 16px; }
+@media (max-width: 600px) { .header-actions .contract-full { position: fixed; left: 16px; right: 16px; top: 72px; width: auto; max-width: none; white-space: nowrap; } }

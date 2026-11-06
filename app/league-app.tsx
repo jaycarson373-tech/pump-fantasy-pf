@@ -669,6 +669,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
               onClick={() => void copyContract()}
               aria-label={`Copy PFL contract address ${publicMint}`}
             >
+              <span className="contract-label">CA</span>
               <span className="contract-short">
                 {copyStatus ||
                   `${publicMint.slice(0, 4)}…${publicMint.slice(-4)}`}
