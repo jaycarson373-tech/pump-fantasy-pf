@@ -6,7 +6,7 @@ import { fetchPumpLeaderboard, type FantasyPlayer } from "./pumpfun";
 import { saveRosterSnapshot } from "./players";
 import { validWallet } from "./http";
 import { getNativeSolBalance } from "./solana";
-import { nextSeasonId, seasonWindowFromOpen } from "./season-window";
+import { isWalletTestSeason, nextSeasonId, seasonWindowFromOpen } from "./season-window";
 import { calculateDailyWinner } from "./daily-scoring";
 import { recoverBoundaryAward, type AwardBoundary } from "./boundary-award";
 import { processNextAutomaticPayout } from "./automatic-payout";
@@ -97,7 +97,7 @@ async function captureBoundary(season: Season, boundary: 0 | 1 | 2) {
 export async function tickSeason() {
   return withAdvisoryLock("pump-fantasy-season-tick", async () => {
     const season = await activeSeason();
-    if (!season || season.status !== "open" || !season.locked_at || !season.closes_at) return { ok: true, action: "idle", seasonId: season?.id ?? null };
+    if (!season || isWalletTestSeason(season.id) || season.status !== "open" || !season.locked_at || !season.closes_at) return { ok: true, action: "idle", seasonId: season?.id ?? null };
     // Collection is finalized and journaled before daily results settle.
     // A collector outage must not prevent timely PnL snapshots.
     try { if (season.prize_mode === "creator-fees") await collectCreatorFees(); }

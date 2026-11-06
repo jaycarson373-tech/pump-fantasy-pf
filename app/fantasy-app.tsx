@@ -71,11 +71,11 @@ function ProjectHeaderLinks({ contractAddress }: { contractAddress: string }) {
 
   return (
     <div className="header-actions">
-      <a className="social-x-button" href="https://x.com/PumpFunFantasy_" target="_blank" rel="noreferrer" aria-label="PumpFun Fantasy on X" title="X">
+      <a className="social-x-button" href="https://x.com/PumpFun_Fantasy" target="_blank" rel="noreferrer" aria-label="PumpFun Fantasy on X" title="X">
         <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18.901 1.153h3.68l-8.04 9.19 9.46 12.5h-7.406l-5.8-7.584-6.637 7.584h-3.684l8.6-9.83L.004 1.153h7.594l5.242 6.932 6.06-6.932Zm-1.29 19.49h2.039L6.486 3.238H4.298L17.61 20.643Z" /></svg>
       </a>
-      <button className="ca-copy-button" onClick={copyContractAddress} disabled={!contractAddress} aria-label={contractAddress ? "Copy contract address" : "Contract address not set"} title={contractAddress ? "Copy contract address" : "Contract address not set"}>
-        <span className="ca-label">CA:</span>{contractAddress ? <code>{shortAddress(contractAddress)}</code> : <code>Pending</code>}{copied ? <span className="ca-copied">COPIED</span> : null}
+      <button className="ca-copy-button" onClick={copyContractAddress} disabled={!contractAddress} aria-label={contractAddress ? "Copy contract address" : "Contract address not set"} title={contractAddress || "Contract address not set"}>
+        <span className="ca-label">CA:</span>{contractAddress ? <code>{contractAddress}</code> : <code>Pending</code>}{copied ? <span className="ca-copied">COPIED</span> : null}
       </button>
       {copied ? <span className="copy-status" role="status">CA COPIED</span> : null}
     </div>
@@ -105,8 +105,10 @@ function WalletControl({ onAuthChange }: { onAuthChange: (state: AuthState) => v
     let active = true;
     fetch("/api/auth/session", { cache: "no-store" }).then((response) => response.json()).then((result: AuthState) => {
       if (active && result.authenticated && result.wallet === address) {
-        setAuth(result);
-        onAuthChange(result);
+        const balance = result.balance as unknown as { displayBalance?: string; minimumTokens?: string } | undefined;
+        const next = { ...result, balance: balance?.displayBalance, minimumTokens: balance?.minimumTokens };
+        setAuth(next);
+        onAuthChange(next);
       } else if (active) {
         const next = { configured: result.configured, authenticated: false, eligible: false };
         setAuth(next);
@@ -245,12 +247,14 @@ export function FantasyApp() {
   }, []);
 
   const rosterIdentity = players.map((player) => player.id).join(",");
-  const draftKey = `${DRAFT_STORAGE_KEY}:${season.seasonId ?? "preview"}:${rosterSeasonId ? rosterIdentity : "preview"}:${auth.wallet ?? "guest"}`;
+  const draftScope = `${DRAFT_STORAGE_KEY}:${season.seasonId ?? "preview"}:${rosterSeasonId ? rosterIdentity : "preview"}`;
+  const guestDraftKey = `${draftScope}:guest`;
+  const draftKey = `${draftScope}:${auth.wallet ?? "guest"}`;
 
   useEffect(() => {
     const restored: Record<number, number> = {};
     try {
-      const saved = JSON.parse(window.localStorage.getItem(draftKey) ?? "{}") as Record<string, unknown>;
+      const saved = JSON.parse(window.localStorage.getItem(draftKey) ?? window.localStorage.getItem(guestDraftKey) ?? "{}") as Record<string, unknown>;
       for (let band = 0; band < 5; band += 1) {
         const rank = saved[String(band)];
         if (typeof rank === "number" && Math.floor((rank - 1) / 10) === band && rank <= 50) restored[band] = rank;
@@ -264,7 +268,7 @@ export function FantasyApp() {
       setHydratedDraftKey(draftKey);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [draftKey]);
+  }, [draftKey, guestDraftKey]);
 
   useEffect(() => {
     if (hydratedDraftKey !== draftKey) return;
@@ -341,12 +345,13 @@ export function FantasyApp() {
   const rosterMatchesSeason = Boolean(season.seasonId && rosterSeasonId === season.seasonId);
   const effectiveNow = clockNow ? clockNow + clockOffset : 0;
   const lockPassed = Boolean(effectiveNow && season.schedule?.lockedAt && effectiveNow >= Date.parse(season.schedule.lockedAt));
+  const walletTest = season.seasonId?.startsWith("wallet-test-") ?? false;
   const draftOpen = season.phase === "draft" && !lockPassed;
   const picksLocked = season.phase === "live" || season.phase === "complete" || (season.phase === "draft" && lockPassed);
   const currentPicks = [0, 1, 2, 3, 4].map((band) => players.find((player) => player.rank === selected[band])?.id);
   const hasSavedSquad = savedPicks.length === 5;
   const hasUnsavedChanges = hasSavedSquad && currentPicks.some((pick) => !pick || !savedPicks.includes(pick));
-  const phaseName = season.phase === "draft" ? "DRAFT OPEN" : season.phase === "scheduled" ? "UP NEXT" : season.phase === "live" ? "SEASON LIVE" : season.phase === "complete" ? "SEASON COMPLETE" : season.phase === "misconfigured" ? "SCHEDULE ERROR" : "PRE-SEASON";
+  const phaseName = walletTest && season.phase === "draft" ? "TEST DRAFT OPEN" : season.phase === "draft" ? "DRAFT OPEN" : season.phase === "scheduled" ? "UP NEXT" : season.phase === "live" ? "SEASON LIVE" : season.phase === "complete" ? "SEASON COMPLETE" : season.phase === "misconfigured" ? "SCHEDULE ERROR" : "PRE-SEASON";
   const timerTitle = season.phase === "draft" ? "DRAFT CLOSES IN" : season.phase === "live" ? "SEASON ENDS IN" : season.phase === "scheduled" ? "DRAFT OPENS IN" : null;
   const timerTarget = season.phase === "draft" ? season.schedule?.lockedAt : season.phase === "live" ? season.schedule?.closesAt : season.phase === "scheduled" ? season.schedule?.opensAt : undefined;
   const timerValue = countdownLabel(timerTarget, effectiveNow);
@@ -374,8 +379,8 @@ export function FantasyApp() {
       <section className="league-live-strip" aria-label="League schedule and eligibility">
         <div><span className={`league-phase-dot ${draftOpen ? "open" : ""}`} /><span>{phaseName}</span><strong>{timerValue ?? "Not scheduled"}</strong></div>
         <div><span>DRAFT WINDOW</span><strong>60 minutes</strong></div>
-        <div><span>HOLDER ENTRY</span><strong>500,000 FANTASY</strong></div>
-        <div><span>DAILY PRIZE POOL</span><strong>{Number(feePools.availableDailyLamports) > 0 ? `${(Number(feePools.availableDailyLamports) / 1e9).toLocaleString()} SOL` : "65% of creator fees"}</strong></div>
+        <div><span>HOLDER ENTRY</span><strong>{walletTest ? "Wallet test" : "500,000 FANTASY"}</strong></div>
+        <div><span>DAILY PRIZE POOL</span><strong>{walletTest ? "No prizes · test draft" : Number(feePools.availableDailyLamports) > 0 ? `${(Number(feePools.availableDailyLamports) / 1e9).toLocaleString()} SOL` : "65% of creator fees"}</strong></div>
       </section>
       <section className="hero-light draft-hero">
         <div className="draft-eyebrow"><span className="status-lamp" /> PUMP.FUN FANTASY <span className="eyebrow-divider">/</span> ONE-MONTH PNL <a className="pumpfun-pill" href="https://pump.fun/leaderboard?period=monthly" target="_blank" rel="noreferrer">1M LEADERBOARD</a></div>
@@ -383,6 +388,7 @@ export function FantasyApp() {
           <div>
             <h1>Draft the leaderboard.<br /><span>Compete on PnL.</span></h1>
               <p>Draft five traders from Pump.fun’s top 50. Set your lineup in 60 minutes. Compete on their combined PnL change over the next 48 hours.</p>
+            {timerValue && timerTitle ? <div className="homepage-countdown" aria-label="Draft countdown"><span>{timerTitle}</span><strong role="timer">{timerValue}</strong></div> : null}
             <div className="hero-ctas">
               <a className="primary-cta" href="#draft">Pick your squad</a>
               <a className="secondary-cta" href="/budget-draft">Try a budget draft ↗</a>
@@ -409,7 +415,7 @@ export function FantasyApp() {
       </section>
 
       <section className="league-rule-summary" aria-label="How the league works">
-        <div><b>01</b><span><strong>Hold 500k FANTASY</strong><small>Connect your wallet and sign in.</small></span></div>
+        <div><b>01</b><span><strong>{walletTest ? "Sign in for the test draft" : "Hold 500k FANTASY"}</strong><small>Connect your wallet and sign in.</small></span></div>
         <div><b>02</b><span><strong>Draft in one hour</strong><small>One trader per band. Submit your five.</small></span></div>
         <div><b>03</b><span><strong>Compete for 48 hours</strong><small>Picks lock. Daily PnL decides the winner.</small></span></div>
       </section>
@@ -442,7 +448,7 @@ export function FantasyApp() {
           </div>
 
           <aside className="roster-panel">
-            <div className="roster-panel-head"><div><span>YOUR SQUAD</span><b>Five picks</b></div><em>{auth.eligible ? "HOLDER CHECK PASSED" : "CONNECT WALLET"}</em></div>
+            <div className="roster-panel-head"><div><span>YOUR SQUAD</span><b>Five picks</b></div></div>
             <div className={`season-clock ${season.phase}`} aria-live="polite">
               <span>{timerTitle ?? "LEAGUE STATUS"}</span>
               <b>{timerValue ?? phaseName}</b>

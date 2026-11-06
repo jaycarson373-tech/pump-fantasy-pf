@@ -3,7 +3,7 @@ import { getBackendConfig } from "../../../lib/server/config";
 import { getActiveSeasonId, queryRows } from "../../../lib/server/database";
 import { routeError, sameOrigin } from "../../../lib/server/http";
 import { getWalletSession } from "../../../lib/server/session";
-import { getHolderBalance } from "../../../lib/server/solana";
+import { getEntryBalance } from "../../../lib/server/solana";
 import { canSubmitSeasonEntry, getSeasonPhase, type SeasonSchedule } from "../../../lib/server/season-window";
 
 export const runtime = "nodejs";
@@ -48,7 +48,7 @@ export async function PUT(request: Request) {
     if (!Array.isArray(picks) || picks.length !== 5 || picks.some((id) => typeof id !== "string" || id.length > 100) || new Set(picks).size !== 5) {
       return NextResponse.json({ error: "Choose exactly five different traders, one from each rank band." }, { status: 400 });
     }
-    const eligible = await getHolderBalance(wallet);
+    const eligible = await getEntryBalance(wallet, season);
     if (!eligible.eligible) return NextResponse.json({ error: `Hold at least ${eligible.minimumTokens} tokens to submit an eligible lineup.`, code: "NOT_ELIGIBLE" }, { status: 403 });
     const players = await queryRows<Player>("select id, rank, wallet from pf_players where season_id = $1 and id = any($2::text[])", [season, picks]);
     const bands = new Set(players.map((player) => Math.floor((player.rank - 1) / 10)));

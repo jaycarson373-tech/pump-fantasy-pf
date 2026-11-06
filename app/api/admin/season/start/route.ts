@@ -1,3 +1,4 @@
+import { openTestDraft, closeTestDraft } from "../../../../../lib/server/test-draft";
 import { getBackendConfig } from "../../../../../lib/server/config";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
@@ -22,7 +23,13 @@ export async function POST(request: Request) {
     const authorization = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
     if (!secret || !matchesSecret(authorization, secret)) return NextResponse.json({ error: "Not authorized." }, { status: 401 });
 
+    const text = await request.text();
+    if (text.length > 1000) return NextResponse.json({ error: "Invalid draft action." }, { status: 400 });
+    const action = text ? JSON.parse(text)?.action ?? "open" : "open";
+    if (!["open", "test-open", "test-close"].includes(action)) return NextResponse.json({ error: "Unknown draft action." }, { status: 400 });
     const launch = await withAdvisoryLock("pump-fantasy-season-start", async () => {
+      if (action === "test-open") return NextResponse.json(await openTestDraft());
+      if (action === "test-close") return NextResponse.json(await closeTestDraft());
       const readiness = await getSeasonLaunchReadiness();
       if (!readiness.ready || !readiness.season || !readiness.dailyPrizeLamports || !readiness.observedAt) {
         return NextResponse.json({ error: "Season launch preflight failed.", blockers: readiness.blockers }, { status: 503 });

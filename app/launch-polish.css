@@ -80,3 +80,5 @@
 .league-preview-card:nth-child(2) small,.league-preview-card:nth-child(2) em{color:#c6dffc}
 .draft-room .closing-cta>span{opacity:.08}
 .draft-room .season-pathway>.section-label{color:#83e8ad}
+
+.homepage-countdown{display:flex;flex-direction:column;gap:8px;margin:24px 0;color:#baffd8}.homepage-countdown>span{font-size:12px;font-weight:700;letter-spacing:.12em}.homepage-countdown>strong{font-family:monospace;font-size:clamp(28px,4vw,48px);font-variant-numeric:tabular-nums;line-height:1.1}.header-actions .ca-copy-button code{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}@media(max-width:640px){.header-actions .ca-copy-button code{max-width:130px}}

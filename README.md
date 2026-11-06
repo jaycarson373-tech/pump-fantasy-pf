@@ -43,6 +43,10 @@ curl "$NEXT_PUBLIC_SITE_URL/api/admin/season/preflight" \
 
 To open Season 1, call the protected start endpoint once after the token is live and preflight returns `ready: true`. It snapshots Pump.fun's current 1–50 field and opens a one-hour draft by default. The server sets the deadline to exactly 60 minutes after the operator starts the season. The next 48 hours are split into two daily scoring windows. Later seasons open automatically when the preceding season ends.
 
+From this checkout, run `sh scripts/open-draft.sh` with the Railway CLI authenticated. The script injects the existing production admin secret without displaying it and opens the real holder-only draft only when preflight passes. The homepage countdown follows the server deadline and survives reloads.
+
+For an unfunded wallet-flow check before token launch, run `sh scripts/open-draft.sh test-open`, then `sh scripts/open-draft.sh test-close` after testing. The test uses a separate season and permits any wallet that signs in. If the live leaderboard is unavailable, this explicitly labeled test uses the archived field. Test drafts never collect fees, score awards, pay prizes, or roll over. Closing restores the prepared real season and its 500,000-token requirement; test entries remain in the separate test season. Do not leave the temporary test active as the real contest.
+
 ```bash
 curl -X POST "$NEXT_PUBLIC_SITE_URL/api/admin/season/start" \
   -H "Authorization: Bearer $PF_DATA_INGEST_SECRET"

@@ -5,7 +5,7 @@ import { getBackendConfig } from "../../../../lib/server/config";
 import { queryRows } from "../../../../lib/server/database";
 import { routeError, sameOrigin, validWallet } from "../../../../lib/server/http";
 import { setWalletSession } from "../../../../lib/server/session";
-import { getHolderBalance } from "../../../../lib/server/solana";
+import { getEntryBalance } from "../../../../lib/server/solana";
 import { siteOriginHost } from "../../../../lib/server/origin.mjs";
 
 export const runtime = "nodejs";
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     if (!valid) return NextResponse.json({ error: "Wallet signature did not verify." }, { status: 401 });
     const consumed = await queryRows<{ wallet: string }>("delete from pf_nonces where wallet = $1 and nonce = $2 returning wallet", [wallet, nonceRecord.nonce]);
     if (consumed.length !== 1) return NextResponse.json({ error: "Sign-in challenge was already used. Please try again." }, { status: 401 });
-    const balance = await getHolderBalance(wallet);
+    const balance = await getEntryBalance(wallet);
     await setWalletSession(wallet);
     return NextResponse.json({ wallet, balance, eligible: balance.eligible });
   } catch (error) {
