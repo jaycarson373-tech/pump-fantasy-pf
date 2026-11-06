@@ -1,0 +1,10 @@
+/* Interaction cues inherit the current league theme without resizing cards. */
+body .draft-room .draft-round{scroll-margin-top:24px}
+body .draft-room .draft-round.next-pick{border-color:var(--green);box-shadow:inset 0 0 0 1px var(--green)}
+body .draft-room .draft-round.next-pick .draft-round-head{box-shadow:inset 3px 0 var(--green)}
+
+/* Settle near sections while leaving taller draft/results content freely scrollable. */
+html:has(.draft-room){scroll-snap-type:y proximity;scroll-padding-top:16px}
+body .draft-room{overflow:clip}
+body .draft-room>:is(.draft-hero,.draft-section,.leaderboard-section-light,.how-section,.closing-cta){scroll-snap-align:start}
+@media(prefers-reduced-motion:reduce){html:has(.draft-room){scroll-snap-type:none}}

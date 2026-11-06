@@ -3,6 +3,7 @@
 import "./disposable-stack-polyfill";
 import "./league-relaunch.css";
 import "./launch-polish.css";
+import "./draft-ux.css";
 import Image from "next/image";
 import {
   useConnect,
@@ -392,6 +393,26 @@ export function FantasyApp() {
   }
 
   const rosterSize = Object.keys(selected).length;
+  const nextDraftBand = DRAFT_ROUNDS.findIndex((_, index) => !selected[index]);
+
+  function selectPlayer(band: number, rank: number) {
+    const next = { ...selected };
+    if (next[band] === rank) delete next[band];
+    else next[band] = rank;
+    setSelected(next);
+    setEntryMessage("");
+    if (selected[band]) return;
+    const nextBand = DRAFT_ROUNDS.findIndex((_, index) => !next[index]);
+    if (nextBand < 0) return;
+    window.requestAnimationFrame(() => {
+      const card = document.getElementById(`draft-band-${nextBand}`);
+      const header = card?.querySelector(".draft-round-head");
+      if (!card || !header) return;
+      const bounds = header.getBoundingClientRect();
+      if (bounds.top >= 0 && bounds.bottom <= window.innerHeight) return;
+      card.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+    });
+  }
   const playerDataReady = players.length === 50;
   const rosterMatchesSeason = Boolean(season.seasonId && rosterSeasonId === season.seasonId);
   const effectiveNow = clockNow ? clockNow + clockOffset : 0;
@@ -474,14 +495,14 @@ export function FantasyApp() {
             <div className="kol-toolbar"><label className="search-box draft-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a trader or wallet" aria-label="Search top 50 traders" /></label><span className={`board-state ${playerDataReady ? "board-ready" : ""}`}><i /> {playerDataReady ? "50 IN THE FIELD" : "ROSTER UNAVAILABLE"}</span></div>
             <div className="draft-rounds">
               {DRAFT_ROUNDS.map((round, index) => (
-                <article className="draft-round" key={round} id={`draft-band-${index}`}>
+                <article className={`draft-round ${index === nextDraftBand && !picksLocked ? "next-pick" : ""}`} key={round} id={`draft-band-${index}`}>
                   <div className="draft-round-head">
                     <span className="round-number">0{index + 1}</span>
                     <div><b>{index === 0 ? "Top 10" : `Ranks ${round}`}</b><small>CHOOSE 1 OF 10</small></div>
                     <span className="round-pick">PICK 1</span>
                   </div>
                   {playerDataReady ? <div className="band-players">{filteredPlayers(index).map((player) => (
-                    <button type="button" aria-pressed={selected[index] === player.rank} disabled={picksLocked || entryBusy} className={`band-player ${selected[index] === player.rank ? "selected" : ""}`} key={player.id} onClick={() => { setSelected((current) => { const next = { ...current }; if (next[index] === player.rank) delete next[index]; else next[index] = player.rank; return next; }); setEntryMessage(""); }}>
+                    <button type="button" aria-pressed={selected[index] === player.rank} disabled={picksLocked || entryBusy} className={`band-player ${selected[index] === player.rank ? "selected" : ""}`} key={player.id} onClick={() => selectPlayer(index, player.rank)}>
                       <span className="player-rank">#{player.rank}</span><span className="player-avatar" aria-hidden="true" style={player.avatar_url ? { backgroundImage: `url("${player.avatar_url}")` } : undefined}>{player.display_name?.slice(0, 1).toUpperCase()}</span><span className="player-identity"><b>{player.display_name || shortAddress(player.wallet)}</b><small>{shortAddress(player.wallet)}</small></span><strong className="pnl-positive">${player.pnl_usd.toLocaleString("en-US", { maximumFractionDigits: 0 })}<small>1M PNL</small></strong><span className="player-select-mark">{selected[index] === player.rank ? "✓" : "+"}</span>
                     </button>
                   ))}{filteredPlayers(index).length === 0 ? <p className="search-empty">No matching traders in this rank band.</p> : null}</div> : <div className="round-empty"><span className="rank-stack"><i /><i /><i /></span><div><b>Top-50 source snapshot unavailable</b><small>Check the source leaderboard before opening a contest.</small></div></div>}
