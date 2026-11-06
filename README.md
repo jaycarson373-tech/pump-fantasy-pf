@@ -18,7 +18,7 @@ Pump.fun's public leaderboard endpoint is an external dependency. If it omits a 
 
 ## Railway production setup
 
-The Railway project contains the `pump-fantasy-pf` web service and a Postgres service. `DATABASE_URL` on the web service references Railway Postgres. The service runs the idempotent SQL migrator before starting Next.js, so the schema is ready before health checks pass. The `SOLANA_RPC_URL`, `PF_SESSION_SECRET`, and `PF_DATA_INGEST_SECRET` are server-side variables. Keep them private.
+The Railway project contains the `pump-fantasy-pf` web service and a Postgres service. `DATABASE_URL` on the web service references Railway Postgres. `npm start` runs the idempotent SQL migrator before starting Next.js, so the schema is ready even when Railway uses its service-level start command instead of the repository deploy configuration. A failed migration prevents startup. The `SOLANA_RPC_URL`, `PF_SESSION_SECRET`, and `PF_DATA_INGEST_SECRET` are server-side variables. Keep them private.
 
 On Vercel, the production-only `PF_API_PROXY=1` setting enables a `beforeFiles` rewrite that proxies every `/api/*` request to this Railway service; Railway does not set that flag, so the backend serves API routes locally. Keep `NEXT_PUBLIC_SITE_URL` set to the canonical public domain (`https://www.pumpfunfantasy.xyz`) so originless wallet challenges bind to the website users should visit. The origin checker allows that canonical origin and this repo's `pump-fantasy-pf.vercel.app` project domain by default. Set `PUMP_FANTASY_ALLOWED_ORIGINS` on Railway to add any other exact browser origins; wallet challenge messages use the validated page origin, not Railway's internal request host.
 

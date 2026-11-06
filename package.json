@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
-    "start": "next start",
+    "start": "node scripts/migrate.mjs && next start",
     "lint": "eslint . --ignore-pattern .next",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "test:fees": "node --conditions=react-server scripts/test-fee-ledger.mjs",
