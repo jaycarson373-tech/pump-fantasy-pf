@@ -13,6 +13,20 @@ export function validateTestRoster(pool: unknown, picks: string[], captain: stri
   validateRosterSelection(catalog.players, picks, captain);
 }
 
+/** Retain historical entries while removing the rehearsal from the active league. */
+export async function retireTestRound(id: string) {
+  if (!/^test-[a-zA-Z0-9_-]{1,55}$/.test(id)) throw Error("Only a test- prefixed season can be retired here");
+  return withTransaction(async (q) => {
+    await q("select pg_advisory_xact_lock(hashtext('pfl-create-season'))");
+    const [season] = await q<{format:string}>("select format from pfl_seasons where id=$1 for update",[id]);
+    if (!season) throw Error("Test season does not exist; check the retirement ID");
+    if (season.format !== TEST_FORMAT) throw Error("Refusing to retire a real competition through the test control");
+    await q("update pfl_rounds set status='locked' where season_id=$1 and status<>'complete'",[id]);
+    await q("update pfl_seasons set status='paused' where id=$1",[id]);
+    return {id, retired:true};
+  });
+}
+
 /** Explicit operator rehearsal; no ranking attestations, scoring or reward authority. */
 export async function openTestRound(id: string) {
   if (!/^test-[a-zA-Z0-9_-]{1,55}$/.test(id)) throw Error("Use a unique test- prefixed round ID");
