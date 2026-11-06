@@ -1,11 +1,3 @@
-.pfl-ca { position: relative; }
-.pfl-ca > button { display: flex; align-items: center; gap: 7px; height: 44px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: inherit; cursor: pointer; }
-.pfl-ca > button > span:first-child { font-size: 10px; font-weight: 800; }
-.pfl-ca code { font-size: 11px; }
-.pfl-ca-details { display: none; position: absolute; z-index: 60; top: 100%; right: 0; width: min(320px, 85vw); padding: 14px; background: #fff; color: #10271a; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 12px 24px #00180c24; }
-.pfl-ca-details code { display: block; overflow-wrap: anywhere; user-select: all; margin-bottom: 8px; }
-.pfl-ca-details a, .pfl-ca-details [role=status] { display: block; font-size: 12px; }
-.pfl-ca:hover .pfl-ca-details, .pfl-ca:focus-within .pfl-ca-details { display: block; }
 .pfl-promo-reel { background: #071b14; color: #fff; border-bottom: 3px solid #93f36b; }
 .pfl-promo-desk { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 24px; font: 700 9px/1.2 monospace; letter-spacing: .12em; }
 .pfl-promo-desk > span { display: flex; align-items: center; gap: 8px; }
@@ -29,14 +21,17 @@
 .pfl-promo-reel:focus-within .pfl-promo-group, .pfl-promo-reel[data-paused=true] .pfl-promo-group { width: 100%; flex-wrap: wrap; padding: 0 12px 12px; }
 .pfl-promo-reel:focus-within .pfl-promo-spot, .pfl-promo-reel[data-paused=true] .pfl-promo-spot { flex: 1 1 320px; }
 .pfl-promo-reel:focus-within [aria-hidden=true].pfl-promo-group, .pfl-promo-reel[data-paused=true] [aria-hidden=true].pfl-promo-group { display: none; }
-.pfl-promo-reel a:focus-visible, .pfl-promo-reel button:focus-visible, .pfl-ca a:focus-visible, .pfl-ca button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.pfl-promo-reel a:focus-visible, .pfl-promo-reel button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .pfl-promo-spot { min-width: 0; }
 .sixth-man-scouting { margin-top: 28px; padding: 24px 0; border-top: 2px solid var(--green); scroll-margin-top: 24px; }
 @keyframes pfl-promo-scroll { to { transform: translateX(-50%); } }
-@media (max-width: 760px) { .pfl-header .pfl-brand > span { display: none; } .pfl-ca > button { padding: 0 7px; gap: 4px; } .pfl-promo-desk { padding-inline: 14px; } }
+@media (max-width: 760px) { .pfl-header .pfl-brand > span { display: none; } .pfl-promo-desk { padding-inline: 14px; } }
 @media (prefers-reduced-motion: reduce) {
   .pfl-promo-track { width: 100%; animation: none; }
   .pfl-promo-group { width: 100%; flex-wrap: wrap; padding: 0 12px 12px; }
   .pfl-promo-spot { flex: 1 1 320px; }
   .pfl-promo-group[aria-hidden=true] { display: none; }
 }
+
+.header-actions .contract-full { width: min(310px, 80vw); white-space: normal; overflow-wrap: anywhere; user-select: all; pointer-events: auto; }
+.contract-explorer { color: inherit; font-size: 13px; padding: 10px 2px; }

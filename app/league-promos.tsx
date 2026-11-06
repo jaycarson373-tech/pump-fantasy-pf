@@ -3,21 +3,6 @@
 import { useState } from "react";
 import "./league-promos.css";
 
-const PFL_MINT = "PFLnhH2Rn2kd2maipS8ueJVCojHsrnraPLn3HAQoB8W";
-
-/** Projects26 public-token-identity: full-value copy, honest failure, selectable fallback. */
-export function TokenIdentity() {
-  const [feedback, setFeedback] = useState("");
-  async function copy() {
-    try { await navigator.clipboard.writeText(PFL_MINT); setFeedback("Copied"); }
-    catch { setFeedback("Copy manually below"); }
-  }
-  return <div className="pfl-ca">
-    <button type="button" onClick={() => void copy()} title={PFL_MINT} aria-label="Copy PFL contract address"><span>CA</span><code>PFLn…oB8W</code><span aria-hidden="true">⧉</span></button>
-    <div className="pfl-ca-details"><code>{PFL_MINT}</code><a href={`https://solscan.io/token/${PFL_MINT}`} target="_blank" rel="noopener noreferrer">View token ↗</a><span role="status">{feedback}</span></div>
-  </div>;
-}
-
 type Spot = { tone: string; label: string; headline: string; detail: string; href: string; action: string; numeral: string };
 function PromoGroup({ spots, duplicate = false }: { spots: Spot[]; duplicate?: boolean }) {
   return <div className="pfl-promo-group" aria-hidden={duplicate || undefined} inert={duplicate || undefined}>

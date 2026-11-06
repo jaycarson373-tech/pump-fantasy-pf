@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { LeaguePromos, TokenIdentity } from "./league-promos";
+import { LeaguePromos } from "./league-promos";
 import { promoSeasonClock } from "../lib/promo-clock";
 import {
   useCallback,
@@ -549,7 +549,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
       await navigator.clipboard.writeText(publicMint);
       setCopyStatus("Copied");
     } catch {
-      setCopyStatus("Copy failed");
+      setCopyStatus("Copy manually");
     }
     if (copyTimer.current) clearTimeout(copyTimer.current);
     copyTimer.current = setTimeout(() => setCopyStatus(""), 2200);
@@ -643,6 +643,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
               </span>
             </button>
           )}
+          {publicMint && <a className="contract-explorer" href={`https://solscan.io/token/${publicMint}`} target="_blank" rel="noopener noreferrer" aria-label="View PFL token on Solscan">↗</a>}
           <a
             className="x-social"
             href="https://x.com/PFLeague_fun"
@@ -653,7 +654,6 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
           >
             <XIcon />
           </a>
-          <TokenIdentity />
           <WalletControl
             onAuthChange={authChange}
             verificationRef={verification}
