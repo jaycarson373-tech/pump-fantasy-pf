@@ -1,3 +1,4 @@
+import { leagueControlStatus } from "../../../../lib/server/league/control-status";
 import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
 import {
@@ -18,6 +19,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not authorized" }, { status: 401 });
   try {
     const body = await request.json();
+    if (body.action === "status")
+      return NextResponse.json(leagueControlStatus(), { headers: { "Cache-Control": "no-store" } });
     if (body.action === "create-season")
       return NextResponse.json(await createSeason(body));
     if (body.action === "tick") return NextResponse.json(await tickLeague());
