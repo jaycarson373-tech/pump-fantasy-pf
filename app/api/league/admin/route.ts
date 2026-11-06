@@ -1,5 +1,4 @@
 import { leagueControlStatus } from "../../../../lib/server/league/control-status";
-import { openTestRound } from "../../../../lib/server/league/test-round";
 import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
 import {
@@ -24,8 +23,6 @@ export async function POST(request: Request) {
       return NextResponse.json(leagueControlStatus(), { headers: { "Cache-Control": "no-store" } });
     if (body.action === "create-season")
       return NextResponse.json(await createSeason(body));
-    if (body.action === "open-test-round")
-      return NextResponse.json(await openTestRound(body.id));
     if (body.action === "tick") return NextResponse.json(await tickLeague());
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) {
