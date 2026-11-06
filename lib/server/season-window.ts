@@ -53,3 +53,12 @@ export function nextSeasonId(existingIds: string[]) {
   while (existing.has(`season-${next}`)) next += 1;
   return `season-${next}`;
 }
+
+/** Reserved for isolated, unfunded operator browser checks. */
+export function isWalletTestSeason(id: string) {
+  return /^wallet-test-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id);
+}
+
+export function canUseWalletTestEntry(id: string, season: SeasonSchedule, now = Date.now()) {
+  return isWalletTestSeason(id) && canSubmitSeasonEntry(season, now);
+}

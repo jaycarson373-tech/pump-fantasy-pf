@@ -1,0 +1,3 @@
+{
+  "installCommand": "npm ci --ignore-scripts --min-release-age=7 --no-audit --no-fund"
+}

@@ -3,7 +3,7 @@ import { address, appendTransactionMessageInstructions, blockhash, compileTransa
 import { queryRows, withTransaction } from "./database";
 import { getFeeTreasury } from "./fee-treasury";
 import { getBackendConfig } from "./config";
-import { managedPayoutAddress, signManagedPayout } from "./managed-signer";
+import { payoutSigner, signPayout } from "./payout-signer";
 import { collectedFeesFromBalances, splitCreatorFees } from "./fee-accounting";
 import { creatorAddresses, bondingCurveAddress, assertDirectSolCreator, directCollectionInstructions, assertFinalizedWire, WSOL, TOKEN } from "./creator-protocol.mjs";
 import { verifyMainnetRpc } from "./solana";
@@ -59,7 +59,7 @@ export async function collectCreatorFees(){
   const outstanding=await queryRows<Claim>("select * from pf_creator_claims where status in ('prepared','unknown') order by created_at limit 1");
   if(outstanding[0])return resumeClaim(outstanding[0]);
   if((await creatorFeeConfigurationBlockers()).length)return "collection-not-configured";
-  const creator=managedPayoutAddress();if(!creator)return "collection-no-signer";
+  const creator=(await payoutSigner())?.address;if(!creator)return "collection-no-signer";
   if(creator!==process.env.PF_CREATOR_WALLET_ADDRESS)return "collection-signer-mismatch";
   const a=await creatorAddresses(creator);
   const vaults=await rpc<{value:Array<ParsedAccount|null>}>("getMultipleAccounts",[[a.solVault,a.ammATA],{encoding:"jsonParsed",commitment:"finalized"}]);
@@ -84,7 +84,7 @@ export async function collectCreatorFees(){
   if(fee===null||!Number.isSafeInteger(fee)||fee>25000)throw new Error("Creator-fee collection exceeds the network-fee ceiling.");
   const simulation=await rpc<{value:{err:unknown}}>("simulateTransaction",[unsigned,{encoding:"base64",sigVerify:false,commitment:"confirmed"}]);
   if(simulation.value.err)throw new Error("Creator-fee claim simulation failed. Nothing was sent.");
-  const wire=await signManagedPayout(unsigned,creator),signature=getSignatureFromTransaction(getTransactionDecoder().decode(Buffer.from(wire,"base64")));
+  const wire=await signPayout(unsigned,creator),signature=getSignatureFromTransaction(getTransactionDecoder().decode(Buffer.from(wire,"base64")));
   const claim:Claim={signature,mint_address:mint,creator_wallet:creator,transaction_base64:wire,last_valid_block_height:String(lifetime.lastValidBlockHeight),status:"prepared"};
   await queryRows("insert into pf_creator_claims(signature,mint_address,creator_wallet,transaction_base64,last_valid_block_height,status) values($1,$2,$3,$4,$5,'prepared')",[signature,mint,creator,wire,claim.last_valid_block_height]);
   return resumeClaim(claim);

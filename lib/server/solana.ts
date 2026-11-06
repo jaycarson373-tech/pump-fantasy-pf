@@ -1,4 +1,6 @@
 import "server-only";
+import { getActiveSeasonId, queryRows } from "./database";
+import { canUseWalletTestEntry, type SeasonSchedule } from "./season-window";
 import { getBackendConfig } from "./config";
 import { createMainnetVerifier } from "./network-identity";
 
@@ -86,4 +88,15 @@ export async function getNativeSolBalance(wallet: string) {
   await verifyMainnetRpc();
   const result = await rpc<{ value: number }>("getBalance", [wallet, { commitment: "confirmed" }]);
   return BigInt(result.value);
+}
+
+/** Eligibility is tied to a server-owned season, never to client claims. */
+export async function getEntryBalance(wallet: string, seasonId?: string) {
+  const id = seasonId ?? await getActiveSeasonId();
+  if (id) {
+    const rows = await queryRows<SeasonSchedule>("select status, opens_at, locked_at, closes_at from pf_seasons where id=$1", [id]);
+    if (rows[0] && canUseWalletTestEntry(id, rows[0]))
+      return { rawBalance: "0", decimals: 0, displayBalance: "0", minimumTokens: "0", eligible: true };
+  }
+  return getHolderBalance(wallet);
 }

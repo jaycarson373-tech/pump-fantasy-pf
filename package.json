@@ -15,7 +15,6 @@
     "check:live": "node scripts/check-live-readiness.mjs"
   },
   "dependencies": {
-    "@turnkey/sdk-server": "8.7.1",
     "@solana-program/system": "^0.13.0",
     "@solana/kit": "^7.0.0",
     "@solana/kit-plugin-rpc": "^0.16.0",
