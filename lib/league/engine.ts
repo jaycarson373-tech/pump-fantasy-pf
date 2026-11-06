@@ -34,7 +34,7 @@ export type Trader = {
   avatar: string | null;
   pnlMicros: string;
   roiBps: number | null;
-  trades: number;
+  trades: number | null;
   sourceUrl: string;
 };
 export const DAY = 86_400_000;
@@ -69,6 +69,7 @@ export function validatePool(players: Trader[]) {
       !p.name ||
       p.name.length > 100 ||
       !/^-?\d+$/.test(p.pnlMicros) ||
+      typeof p.trades !== "number" ||
       !Number.isSafeInteger(p.trades) ||
       p.trades < 1 ||
       (p.roiBps !== null && !Number.isSafeInteger(p.roiBps))
@@ -90,6 +91,13 @@ export function validateRoster(
   captain: string,
 ) {
   validatePool(players);
+  validateRosterSelection(players, picks, captain);
+}
+export function validateRosterSelection(
+  players: Pick<Trader, "id" | "rank">[],
+  picks: string[],
+  captain: string,
+) {
   if (
     !Array.isArray(picks) ||
     picks.length !== 7 ||
