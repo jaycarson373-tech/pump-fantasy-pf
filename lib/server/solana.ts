@@ -12,7 +12,7 @@ const TOKEN_PROGRAMS = [
 
 type RpcResponse<T> = { result?: T; error?: { message?: string } };
 
-async function rpc<T>(method: string, params: unknown[]): Promise<T> {
+export async function rpc<T>(method: string, params: unknown[]): Promise<T> {
   const { rpcUrl } = getBackendConfig();
   if (!rpcUrl) throw new Error("Solana RPC is not configured.");
   const response = await fetch(rpcUrl, {
