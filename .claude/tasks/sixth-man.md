@@ -1,7 +1,7 @@
 **Status:** done
 **Owner:** codex--pf-sixth-man
 **Branch:** codex/sixth-man
-**Next:** Publish the verified draft PR; resolve public Pump.fun access and browser/Phantom verification before activation.
+**Next:** Resolve public Pump.fun access and browser/Phantom verification before activation; implementation is published as draft PR11.
 
 Actor: Codex. Approved implementation: five ranked picks plus a sixth community pick from Season 2, equal scoring, frozen community field, permanent registration for one 500,000 PFL burn, three moving banners, and shared FE-template inclusion. Exact Season 2 Rules paragraph approved. GitHub credential and generated disposable local test keys approved; no live spend or deployment. Base 85cfaf1424eb5a54bf29e676348067ca912e6e6b includes interaction-only PR9; target codex/new-ui-flows remains at that revision.
 
@@ -16,3 +16,5 @@ Verification: Node24.22.1, existing dependency tree, disposable local PostgreSQL
 Portable FE kit: committed c22d691 on solo/sixth-man-banner, integrated locally into solo/kit-init as f0d85b5. Template/gallery/catalog/map/provenance updated. Kit focused13 passed; npm run check49 passed/39 donor-dependent skipped/0failed. No kit remote or deployment.
 
 Release limits: browser access host unavailable, so no visual/mobile/Phantom smoke pass. No funded burn proof, production migrations, activation or deployment. CI uses ubuntu-latest; no verified blocking zero-dollar budget or isolated runner, so PR remains draft and hosted jobs must not run. Source-provider access, browser/wallet verification and release gates remain mandatory before activation.
+
+Delivery: tested source35698ac published on origin/codex/sixth-man in draft https://github.com/jaycarson373-tech/pump-fantasy-pf/pull/11 targeting codex/new-ui-flows (PR9). Local preview3196 stopped after HTTP smoke. No production actions. The shared context helper only supports canonical-main paths and refused this new isolated task file; its initial update used a content-hash guard in the exclusively owned worktree.
