@@ -8,13 +8,14 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { TIERS, tierFor, type Trader } from "../lib/league/engine";
+import { TIERS, tierFor } from "../lib/league/engine";
 import {
   WalletControl,
   type AuthState,
   type WalletVerification,
 } from "./wallet-control";
 import "./starting-seven.css";
+import { displayRoster, savedRoster, type DisplayTrader as Trader } from "../lib/league/display-roster";
 type Page =
   "home" | "draft" | "team" | "leaderboard" | "rewards" | "rules" | "champion";
 type Round = {
@@ -100,7 +101,6 @@ type State = {
   }[];
   champions?: SeasonRow[];
 };
-const EMPTY_PLAYERS: Trader[] = [];
 const pages: [Page, string, string][] = [
   ["home", "Home", "/"],
   ["draft", "Draft", "/draft"],
@@ -376,7 +376,8 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
     return () => clearInterval(t);
   }, []);
   const round = data.round,
-    players = data.players ?? EMPTY_PLAYERS,
+    field = displayRoster(data.players),
+    players = field.players,
     key = `pfl-seven:${round?.id ?? "preseason"}:${auth.wallet ?? "guest"}`;
   const picks = selection.key === key ? selection.picks : [],
     captain = selection.key === key ? selection.captain : "";
@@ -424,7 +425,8 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
     return () => clearTimeout(hydration);
   }, [key, round, data.roster, players, auth.wallet]);
   const editable =
-    !!round &&
+    !field.preview &&
+    !!round?.pool_hash &&
     round.status === "open" &&
     clock.now >= Date.parse(round.opens_at) &&
     clock.now < Date.parse(round.locks_at);
@@ -853,7 +855,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                     {TIERS[tier].max}
                   </span>
                 </div>
-                {data.status === "loading" ? (
+                {data.status === "loading" && !players.length ? (
                   <div
                     className="league-skeleton"
                     aria-label="Loading traders"
@@ -888,13 +890,13 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                           <span>
                             <strong>{p.name}</strong>
                             <small>
-                              {p.trades.toLocaleString()} qualifying trades
+                              {p.trades === null ? short(p.wallet) : `${p.trades.toLocaleString()} qualifying trades`}
                             </small>
                           </span>
                         </button>
                         <div className="trader-pnl">
                           <b>{money(p.pnlMicros)}</b>
-                          <small>30D NET PNL</small>
+                          <small>{field.preview ? "1M PNL" : "30D NET PNL"}</small>
                         </div>
                         <button
                           className="pick-button"
@@ -931,7 +933,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                 )}
                 <div className="source-line">
                   {players.length
-                    ? `${players.length} verified traders · snapshot ${new Date(round!.pool_observed_at!).toLocaleString()}`
+                    ? `${players.length} ${field.preview ? "Pump.fun traders" : "verified traders"} · snapshot ${new Date(field.preview ? savedRoster.snapshotAt : round!.pool_observed_at!).toISOString().slice(0, 16).replace("T", " ")} UTC`
                     : ""}
                   <button onClick={() => void refresh()} disabled={refreshing}>
                     {refreshing ? "Refreshing…" : "Refresh field"}
@@ -1427,7 +1429,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
             <h2>{inspect.name}</h2>
             <dl>
               <div>
-                <dt>30-day net PnL</dt>
+                <dt>{field.preview ? "Pump.fun 1M PnL" : "30-day net PnL"}</dt>
                 <dd>{money(inspect.pnlMicros)}</dd>
               </div>
               <div>
@@ -1440,7 +1442,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
               </div>
               <div>
                 <dt>Qualifying trades</dt>
-                <dd>{inspect.trades}</dd>
+                <dd>{inspect.trades ?? "Not available"}</dd>
               </div>
             </dl>
             <a href={inspect.sourceUrl} target="_blank" rel="noreferrer">
