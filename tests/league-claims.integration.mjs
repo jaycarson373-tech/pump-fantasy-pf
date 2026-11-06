@@ -133,6 +133,17 @@ try{
  assert.equal((await processLeagueClaims(season)).action,'claim-confirmed');
  assert.equal((await db.query('select status from pfl_claims where entitlement_id=$1',[later])).rows[0].status,'confirmed');
  assert.equal((await db.query('select status from pfl_claims where entitlement_id=$1',[uncertain])).rows[0].status,'unknown');
+ // Unlimited removes operator caps, never earned-entitlement or treasury limits.
+ process.env.PF_AUTO_PAYOUT_MAX_AWARD_RAW='unlimited';
+ process.env.PF_AUTO_PAYOUT_MAX_SEASON_RAW='unlimited';
+ finalized=false;failed=false;height=100;
+ const unlimited=await entitlement('unlimited','100001');
+ const beforeUnlimited=signCount;
+ assert.equal((await claimEntitlement(unlimited,winner)).action,'claim-submitted');
+ assert.equal(signCount,beforeUnlimited+1,'explicit unlimited permits an earned amount beyond prior caps');
+ const unfunded=await entitlement('unfunded','300001');
+ await rejects(unfunded,/finalized PUMP fee allocations/);
+ assert.equal(signCount,beforeUnlimited+1,'unlimited cannot authorize an unbacked entitlement');
  process.stdout.write('PASS: real PG claims bind owner/assets, preserve receipt funding, enforce caps, persist before send, replay one wire, unknown/expired recovery, finalized exact bytes + actual PUMP delta, OFF reconciliation, atomic entitlement claim and signed-failure reservations.\n');
 }finally{
  await closeDatabasePool();if(db)await db.end();

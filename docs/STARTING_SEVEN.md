@@ -84,6 +84,13 @@ Verification of the PUMP candidate:97unit tests, TypeScript, lint, production bu
 
 ## Operator launch and payout commands
 
+Payout amount limits accept the explicit value `unlimited` when the operator wants
+no per-award or per-season cap. For example, `payouts-on unlimited unlimited <UTC-deadline>`
+retains the separate authorization deadline. Empty or malformed limits still block
+claims. Unlimited does not bypass earned entitlements, finalized fee allocations,
+treasury liabilities, recipient binding, or on-chain amount limits. This command
+also enables collection and payouts; use it only during the authorized activation.
+
 Run `sh scripts/pfl-control.sh status` from this checkout using Node24 and the installed Railway CLI. The script pins the existing PFL project/environment/web-service IDs and https://www.pfleague.fun. It never lists Railway variables, reads a wallet key, or prints authentication tokens. `status` requires the deployed `POST /api/league/admin` status action from this revision. An older deployment returning Unknown action must be upgraded first.
 
 The shell script prompts for `PF_DATA_INGEST_SECRET` with terminal echo disabled and does not save it, unless it was already securely injected. Log in to Railway yourself. Do not put secret values in shell command arguments or paste them into chat. Changing settings uses the CLI's existing authenticated account; this is a separate operation from wallet signing. Configuration changes trigger Railway redeployment. Commands poll the authenticated running service for up to three minutes and fail if it does not confirm the requested settings. The previous process may keep running during replacement, so OFF is not confirmed until the script says so. Already submitted transfers cannot be cancelled.

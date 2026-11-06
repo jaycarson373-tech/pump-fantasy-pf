@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 import {pumpRaw, operation, assertConfigured} from '../scripts/pfl-control.mjs';
 import {leagueControlStatus} from '../lib/server/league/control-status.ts';
 const future='2099-01-01T00:00:00Z';
+test('explicit unlimited payout amounts preserve the separate run deadline',()=>{
+ const values=operation(['payouts-on','unlimited','unlimited',future]).values;
+ assert.equal(values.PF_AUTO_PAYOUT_MAX_AWARD_RAW,'unlimited');
+ assert.equal(values.PF_AUTO_PAYOUT_MAX_SEASON_RAW,'unlimited');
+ assert.equal(values.PF_AUTO_PAYOUT_RUN_UNTIL,'2099-01-01T00:00:00.000Z');
+ assert.throws(()=>operation(['payouts-on','unlimited','10',future]));
+ assert.equal(operation(['payouts-on','10','unlimited',future]).values.PF_AUTO_PAYOUT_MAX_AWARD_RAW,'10000000');
+});
 test('operator controls preserve exact PUMP caps and refuse unsafe inputs',()=>{
  assert.equal(pumpRaw('9007199254.740993'),'9007199254740993');
  for(const amount of ['0','-1','1e6','1.0000001','NaN','18446744073709.551616'])assert.throws(()=>pumpRaw(amount));

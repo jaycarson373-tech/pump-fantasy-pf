@@ -43,8 +43,10 @@ export function operation(args) {
     case 'start-draft': return { command, body: draftRequest(args) };
     case 'payouts-on': {
       if (args.length !== 4) throw Error('Use payouts-on <max-PUMP-per-award> <max-PUMP-per-season> <future-UTC-deadline>.');
-      const award = pumpRaw(first), season = pumpRaw(second);
-      if (BigInt(award) > BigInt(season)) throw Error('The per-award cap must not exceed the season cap.');
+      const award = first === 'unlimited' ? first : pumpRaw(first);
+      const season = second === 'unlimited' ? second : pumpRaw(second);
+      if (season !== 'unlimited' && (award === 'unlimited' || BigInt(award) > BigInt(season)))
+        throw Error('The per-award cap must not exceed the season cap.');
       return { command, values: {
         PF_LEGACY_COMPETITION: 'false', PF_LEAGUE_WORKER_ENABLED: 'true',
         PF_FEE_COLLECTION_ENABLED: 'true', PF_AUTO_PAYOUT_ENABLED: 'true',
