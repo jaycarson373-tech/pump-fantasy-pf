@@ -21,7 +21,6 @@ const subscribeHydration = () => () => {};
 const clientHydrated = () => true;
 const serverHydrated = () => false;
 const DRAFT_ROUNDS = ["TOP 10", "11–20", "21–30", "31–40", "41–50"];
-const PUBLIC_CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_FANTASY_CA || process.env.NEXT_PUBLIC_PF_CA || "").trim();
 const DRAFT_STORAGE_KEY = "pump-fantasy-relaunch-draft-v2";
 type SnapshotTuple = [number, string, string, number, string];
 
@@ -56,32 +55,6 @@ const snapshotPlayers: BoardPlayer[] = (top50Snapshot.players as SnapshotTuple[]
   contest_change_usd: null,
 }));
 
-function ProjectHeaderLinks({ contractAddress }: { contractAddress: string }) {
-  const [copied, setCopied] = useState(false);
-
-  async function copyContractAddress() {
-    if (!contractAddress) return;
-    try {
-      await navigator.clipboard.writeText(contractAddress);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      setCopied(false);
-    }
-  }
-
-  return (
-    <div className="header-actions">
-      <a className="social-x-button" href="https://x.com/PumpFun_Fantasy" target="_blank" rel="noreferrer" aria-label="PumpFun Fantasy on X" title="X">
-        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18.901 1.153h3.68l-8.04 9.19 9.46 12.5h-7.406l-5.8-7.584-6.637 7.584h-3.684l8.6-9.83L.004 1.153h7.594l5.242 6.932 6.06-6.932Zm-1.29 19.49h2.039L6.486 3.238H4.298L17.61 20.643Z" /></svg>
-      </a>
-      <button className="ca-copy-button" onClick={copyContractAddress} disabled={!contractAddress} aria-label={contractAddress ? "Copy contract address" : "Contract address not set"} title={contractAddress || "Contract address not set"}>
-        <span className="ca-label">CA:</span>{contractAddress ? <code>{contractAddress}</code> : <code>Pending</code>}{copied ? <span className="ca-copied">COPIED</span> : null}
-      </button>
-      {copied ? <span className="copy-status" role="status">CA COPIED</span> : null}
-    </div>
-  );
-}
 
 type WalletVerification = { verify: () => Promise<boolean> };
 
@@ -459,7 +432,6 @@ export function FantasyApp() {
           <a href="#status">Season status</a>
         </nav>
         <div className="header-right">
-          <ProjectHeaderLinks contractAddress={season.mintAddress ?? PUBLIC_CONTRACT_ADDRESS} />
           <WalletControl onAuthChange={onAuthChange} verificationRef={walletVerification} />
         </div>
       </header>
