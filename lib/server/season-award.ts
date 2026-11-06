@@ -30,7 +30,7 @@ export async function settleSeasonAward(season: ClosingSeason) {
   const result = await seasonWinner(season.id);
   const winner = result.kind === "winner" ? { wallet: result.wallet, score: result.score } : { wallet: null, score: null };
   await withTransaction(async query => {
-    const receipts = await query<{ signature: string; season_lamports: string }>("select signature,season_lamports from pf_creator_fee_receipts where mint_address=$1 and season_award_id is null and season_lamports>0 and collected_at <= $2 for update", [season.mint_address, season.closes_at]);
+    const receipts = await query<{ signature: string; season_lamports: string }>("select signature,season_lamports from pf_creator_fee_receipts where competition_format='legacy' and mint_address=$1 and season_award_id is null and season_lamports>0 and collected_at <= $2 for update", [season.mint_address, season.closes_at]);
     const noEntries = result.kind === "no-eligible-entries";
     const prize = noEntries ? 0n : receipts.reduce((total, receipt) => total + BigInt(receipt.season_lamports), 0n);
     let status = prize > 0n ? "pending_payment" : "no_creator_fees";

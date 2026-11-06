@@ -1,0 +1,43 @@
+.pfl-promo-reel { background: #071b14; color: #fff; border-bottom: 3px solid #93f36b; }
+.pfl-promo-desk { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 24px; font: 700 9px/1.2 monospace; letter-spacing: .12em; }
+.pfl-promo-desk > span { display: flex; align-items: center; gap: 8px; }
+.pfl-promo-desk b { background: #dfff59; color: #102617; padding: 3px 6px; font-style: italic; }
+.pfl-promo-desk i { height: 1px; width: 24px; background: #6c9a80; }
+.pfl-promo-desk button { background: transparent; border: 1px solid #ffffff55; border-radius: 3px; color: #fff; padding: 6px 9px; cursor: pointer; font: inherit; letter-spacing: 0; }
+.pfl-promo-window { overflow: hidden; }
+.pfl-promo-track { display: flex; width: max-content; animation: pfl-promo-scroll 45s linear infinite; }
+.pfl-promo-group { display: flex; flex-shrink: 0; gap: 12px; padding: 0 12px 10px 0; }
+.pfl-promo-spot { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 20px; width: clamp(340px, 38vw, 570px); min-height: 110px; padding: 18px 22px; border: 1px solid #ffffff22; background: repeating-linear-gradient(112deg, transparent 0 39px, #ffffff08 40px 41px), #164c31; }
+.pfl-promo-player { background: repeating-linear-gradient(112deg, transparent 0 39px, #071b1409 40px 41px), #dfff59; color: #102617; }
+.pfl-promo-season { background: repeating-linear-gradient(112deg, transparent 0 39px, #ffffff08 40px 41px), #203349; }
+.pfl-promo-copy { position: relative; min-width: 0; max-width: 82%; }
+.pfl-promo-label { display: block; font: 800 9px/1.2 monospace; letter-spacing: .12em; margin-bottom: 7px; }
+.pfl-promo-spot h2 { margin: 0; font-size: clamp(20px, 2vw, 29px); font-weight: 950; line-height: .98; letter-spacing: -.06em; font-style: italic; }
+.pfl-promo-spot p { margin: 9px 0 0; font: 500 10px/1.4 monospace; font-variant-numeric: tabular-nums; }
+.pfl-promo-numeral { position: absolute; z-index: -1; right: 10px; top: -24px; font: italic 950 135px/1.2 sans-serif; opacity: .09; letter-spacing: -.1em; }
+.pfl-promo-link { position: relative; align-self: flex-end; flex-shrink: 0; max-width: 105px; font: 800 10px/1.3 monospace; color: inherit; text-decoration: underline; text-underline-offset: 4px; }
+.pfl-promo-reel:hover .pfl-promo-track, .pfl-promo-reel:focus-within .pfl-promo-track, .pfl-promo-reel[data-paused=true] .pfl-promo-track { animation-play-state: paused; }
+.pfl-promo-reel:focus-within .pfl-promo-track, .pfl-promo-reel[data-paused=true] .pfl-promo-track { width: 100%; animation: none; }
+.pfl-promo-reel:focus-within .pfl-promo-group, .pfl-promo-reel[data-paused=true] .pfl-promo-group { width: 100%; flex-wrap: wrap; padding: 0 12px 12px; }
+.pfl-promo-reel:focus-within .pfl-promo-spot, .pfl-promo-reel[data-paused=true] .pfl-promo-spot { flex: 1 1 320px; }
+.pfl-promo-reel:focus-within [aria-hidden=true].pfl-promo-group, .pfl-promo-reel[data-paused=true] [aria-hidden=true].pfl-promo-group { display: none; }
+.pfl-promo-reel a:focus-visible, .pfl-promo-reel button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.pfl-promo-spot { min-width: 0; }
+.sixth-man-scouting { margin-top: 28px; padding: 24px 0; border-top: 2px solid var(--green); scroll-margin-top: 24px; }
+@keyframes pfl-promo-scroll { to { transform: translateX(-50%); } }
+@media (max-width: 760px) { .pfl-header .pfl-brand > span { display: none; } .pfl-promo-desk { padding-inline: 14px; } }
+@media (prefers-reduced-motion: reduce) {
+  .pfl-promo-track { width: 100%; animation: none; }
+  .pfl-promo-group { width: 100%; flex-wrap: wrap; padding: 0 12px 12px; }
+  .pfl-promo-spot { flex: 1 1 320px; }
+  .pfl-promo-group[aria-hidden=true] { display: none; }
+}
+
+.header-actions .contract-full { width: max-content; max-width: calc(100vw - 32px); white-space: nowrap; overflow-x: auto; user-select: all; pointer-events: auto; }
+.header-actions .contract-copy, .header-actions .x-social { height: 36px; border: 1px solid #d9dfda; border-radius: 9px; background: #fff; color: #152019; }
+.header-actions .contract-copy { width: auto; gap: 8px; padding: 0 11px; flex-wrap: nowrap; white-space: nowrap; }
+.header-actions .contract-short { display: inline-block; white-space: nowrap; font: 600 10px/1 var(--font-geist-mono), monospace; }
+.header-actions .contract-label { color: #657168; font: 750 9px/1 var(--font-geist-mono), monospace; letter-spacing: .12em; }
+.header-actions .x-social { width: 36px; }
+.header-actions .x-social svg { width: 16px; height: 16px; }
+@media (max-width: 600px) { .header-actions .contract-full { position: fixed; left: 16px; right: 16px; top: 72px; width: auto; max-width: none; white-space: nowrap; } }

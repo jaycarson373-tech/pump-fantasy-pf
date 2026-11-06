@@ -49,7 +49,7 @@ async function recordAward(season: Season, day: 1 | 2, previous: ScoreSnapshot, 
     if (!season.mint_address || !season.locked_at) throw new Error("Creator-fee season is missing its mint or cutoff.");
     const cutoff = new Date(Date.parse(season.locked_at) + day * DAY_MS).toISOString();
     await withTransaction(async (query) => {
-      const receipts = await query<{ signature: string; daily_lamports: string }>("select signature,daily_lamports from pf_creator_fee_receipts where mint_address=$1 and award_id is null and collected_at <= $2 for update", [season.mint_address, cutoff]);
+      const receipts = await query<{ signature: string; daily_lamports: string }>("select signature,daily_lamports from pf_creator_fee_receipts where competition_format='legacy' and mint_address=$1 and award_id is null and collected_at <= $2 for update", [season.mint_address, cutoff]);
       const prize = receipts.reduce((sum, receipt) => sum + BigInt(receipt.daily_lamports), 0n);
       const awards = await query<{ id: string }>("insert into pf_daily_awards(season_id,day_number,winner_wallet,score_usd,prize_lamports,status) values($1,$2,$3,$4,$5,$6) on conflict(season_id,day_number) do nothing returning id", [season.id,day,result.wallet,result.score,prize.toString(),prize > 0n ? "pending_payment" : "no_creator_fees"]);
       if (awards[0] && receipts.length) await query("update pf_creator_fee_receipts set award_id=$1 where signature=any($2::text[]) and award_id is null", [awards[0].id, receipts.map((receipt) => receipt.signature)]);

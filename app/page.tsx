@@ -1,26 +1,4 @@
-import "./disposable-stack-polyfill";
-import type { Metadata } from "next";
-import { FantasyApp } from "./fantasy-app";
-export const dynamic = "force-dynamic";
-
-export const metadata: Metadata = {
-  title: "Pump Fantasy League | Draft the Top 50",
-  description: "One hour to draft five traders. Hold 500,000 PFL, submit your squad, then compete across 48 hours of PnL.",
-  robots: { index: false, follow: false },
-  openGraph: {
-    title: "Pump Fantasy League",
-    description: "One hour to draft five traders. Hold 500,000 PFL, submit your squad, then compete across 48 hours of PnL.",
-    images: [{ url: "/brand/pfl-social.png", width: 1200, height: 630 }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Pump Fantasy League",
-    description: "One hour to draft five traders. Hold 500,000 PFL, submit your squad, then compete across 48 hours of PnL.",
-  },
-};
-
-export default function Home() {
-  // The client reads the authoritative season state through the same Railway
-  // API proxy as submissions. An already-open page unlocks on the next poll.
-  return <FantasyApp />;
-}
+import './disposable-stack-polyfill';
+import {LeagueApp} from './league-app';
+export const metadata={title:'Pump Fantasy League | Draft the trenches',description:'Draft seven traders from Pump.fun’s Top 100. Weekly fantasy competition, one captain, and PFL rewards.'};
+export default function Home(){return <LeagueApp/>;}

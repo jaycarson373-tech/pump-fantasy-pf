@@ -17,6 +17,7 @@ export async function POST(request: Request) {
     const expected = process.env.PF_DATA_INGEST_SECRET;
     const supplied = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
     if (!expected || !secretMatches(supplied, expected)) return NextResponse.json({ error: "Not authorized." }, { status: 401 });
+    if(process.env.PF_LEGACY_COMPETITION!=="true"){const {tickLeague}=await import("../../../../lib/server/league/service");return NextResponse.json(await tickLeague());}
     return NextResponse.json(await tickSeason());
   } catch (error) {
     return routeError(error);

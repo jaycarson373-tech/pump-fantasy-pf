@@ -1,85 +1,23 @@
-# Pump Fantasy
+# Pump Fantasy League — Starting Seven
 
-Pump Fantasy is a five-pick fantasy contest based on Pump.fun's one-month PnL leaderboard. Each season snapshots the top 50, split into five fixed rank bands. Eligible holders choose one trader from each band during a one-hour draft. Picks are saved per wallet and can be edited until the server-side lock. The scoring period then runs 48 hours with one-day score settlements. Confirmed creator fees split 30% into daily rewards, 50% into the overall 48-hour season winner pool, and 20% into championship bonus reserves.
+Existing Next.js / Solana application upgraded to a weekly fantasy league. This branch contains the implementation and frontend; external data, production activation and funded payouts are not certified by a successful build.
 
-The public root route shows the relaunch page while a season is being prepared or scheduled, then switches to the draft application when the season opens (including visitors already waiting on the page). The site is noindex. Squad submission stays disabled until the backend reports an open draft, the saved 50-player season roster is available, and the connected wallet passes the signed-message plus 500,000 FANTASY balance check.
+## Current format
 
-The candidate roster is stored in PostgreSQL and seeded from the existing 50-player archive. The worker and pre-draft requests attempt a refresh at most once every 24 hours, including failed attempts; the timestamp remains the original observation date when Pump.fun is unavailable. Successful refreshes are kept for the next draft and never change an open season. Scoring checkpoints still require fresh PnL: cached roster values cannot determine winners when the scoring feed is unavailable.
+100 verified traders, four rank tiers (10/20/30/40), seven picks (1/2/2/2), one captain with a 1.5× multiplier including losses. Drafting opens Saturday 00:00 UTC and locks Monday 00:00 UTC. Seven daily intervals make a weekly round. The inaugural calendar defaults to four weeks; later calendars are configurable.
 
-## What is implemented
+**Hold at least 500,000 PFL** to enter and remain eligible. Exactly 500,000 qualifies. The user's November 6 correction supersedes the previous 250,000 threshold. Historical 30-day PnL ranks the draft field only; actual competition-interval PnL determines points.
 
-- Wallet Standard connection and one-time signed-message authentication; no transaction is needed to sign in.
-- Server-side SPL Token and Token-2022 balance checks; the default minimum is 500,000 whole FANTASY.
-- Persistent one-entry-per-wallet storage in Railway Postgres, with server-side rank-band and deadline validation.
-- A fixed Pump.fun top-50 roster per season and fresh 1M PnL score snapshots at the scoring start and daily boundaries.
-- Automatic daily winner calculation, tied-score resolution by wallet address, payment-status records, and season rollover to the latest saved top 50.
-- Optional automatic SOL payouts are disabled by default. When explicitly enabled, a protected Railway worker signs transfers from the dedicated payout wallet; awards are shown as paid only after the exact transfer finalizes onchain.
-- A Railway server clock retries due season work every five minutes and runs immediately on app startup. Score windows missed by more than 15 minutes are marked `awaiting_data` rather than fabricating a winner.
+Creator-fee allocation: 30% daily / 50% season / 20% champion. Accounting uses integer units and confirmed receipts. PFL conversion and payout execution remain gated pending reviewed integrations and authorization.
 
-Pump.fun's public leaderboard endpoint is an external dependency. If it omits a selected trader or fails around a settlement boundary, that day's payout is held for review instead of ranking incomplete data. Do not advertise a prize as funded until the prize amount is configured and the prize wallet has the funds.
+## Frontend
 
-## Railway production setup
+Home `/`, Draft `/draft`, My Team `/my-team`, Leaderboard `/leaderboard`, Rewards `/rewards`, Rules `/rules`, Champion `/champion`. `/budget-draft` points to the new draft UI. The hero and draft share saved picks and captain. The football-style shield is also the transparent SVG favicon. Dexscreener uses the configured PFL mint; without one it opens Solana discovery, not an invented token.
 
-The Railway project contains the `pump-fantasy-pf` web service and a Postgres service. `DATABASE_URL` on the web service references Railway Postgres. `npm start` runs the idempotent SQL migrator before starting Next.js, so the schema is ready even when Railway uses its service-level start command instead of the repository deploy configuration. A failed migration prevents startup. The `SOLANA_RPC_URL`, `PF_SESSION_SECRET`, and `PF_DATA_INGEST_SECRET` are server-side variables. Keep them private.
+## Development
 
-On Vercel, the production-only `PF_API_PROXY=1` setting enables a `beforeFiles` rewrite that proxies every `/api/*` request to this Railway service; Railway does not set that flag, so the backend serves API routes locally. Keep `NEXT_PUBLIC_SITE_URL` set to the canonical public domain (`https://www.pumpfunfantasy.xyz`) so originless wallet challenges bind to the website users should visit. The origin checker allows that canonical origin and this repo's `pump-fantasy-pf.vercel.app` project domain by default. Set `PUMP_FANTASY_ALLOWED_ORIGINS` on Railway to add any other exact browser origins; wallet challenge messages use the validated page origin, not Railway's internal request host.
+Use Node 24. `npm install`, `npm run dev`, `npm test`, `npm run lint`, `npx tsc --noEmit`, `npm run build`.
 
-The first season row is `season-1` with status `draft`. After the FANTASY token is live, set `FANTASY_MINT_ADDRESS` to the verified mint. Health and preflight verify that the mint is initialized on Solana through the configured RPC; a nonempty address alone is not enough. For this relaunch, use `PF_REWARD_MODE=creator-fees`; no fixed daily SOL prize is needed. Set the new dedicated creator wallet public address in both `PF_CREATOR_WALLET_ADDRESS` and `PF_PRIZE_WALLET_ADDRESS`, and configure the matching 64-byte Solana keypair JSON in the server-only `PF_PAYOUT_SIGNER_KEYPAIR_JSON` secret. Turnkey is not required. The keypair is validated against the configured prize address before signing; signing never broadcasts. Never place the keypair in Git, browser variables, or logs. `PF_AUTO_PAYOUT_MAX_AWARD_LAMPORTS` defaults to `1000000000` (1 SOL), and `PF_AUTO_PAYOUT_MAX_SEASON_LAMPORTS` defaults to `2000000000` (2 SOL); explicit overrides must be positive bounded integers. Blank or malformed overrides block payouts. Awards remain limited to their confirmed fee allocation. Set `PF_CREATOR_WALLET_DEDICATED=true`, `PF_FEE_COLLECTION_ENABLED=true`, `PF_AUTO_PAYOUT_ENABLED=true`, and `PF_PAYOUT_NETWORK=mainnet-beta`. Fund at least 0.005 SOL separately for claims and transfers. The creator must match the token's onchain Pump creator, and the token must be SOL-quoted. Shared-fee configurations currently fail closed.
+`npm start` applies migrations before serving. Do not point a local test at production accidentally. The additive migration is `db/migrations/202611060004_starting_seven.sql`. Prior competition tables and records remain intact. Legacy execution requires the explicit `PF_LEGACY_COMPETITION=true` switch and is not the new default.
 
-Pinned current official Pump and PumpSwap instructions claim both creator vaults through Solana Kit. Signed claim bytes are persisted before submission; unknown transactions are held for reconciliation. Only finalized withdrawals from those vaults are credited, with a unique transaction receipt preventing double counting. The worker runs every five minutes. 30% of each receipt enters the daily pool and 50% enters the season pool, each rounded down to whole lamports. The remaining 20% plus rounding remainders enters the championship bonus reserve. The daily prize freezes at each 24-hour cutoff, with later receipts carrying into the next day. With no eligible entry, the daily allocation carries forward. Missing scoring data holds settlement. Gas costs are funded separately.
-
-Each winner transfer must exactly match its assigned daily or season share of confirmed fee receipts. The payout balance check preserves every unpaid allocation and the full championship reserve. The 48-hour season winner uses opening-to-closing PnL change, with the existing wallet-address tie rule; the 50% pool freezes at the season close. Missing scoring data holds its allocation for review; no eligible entries carries the pool forward. Championship bonus payouts remain reserved pending separately published rules. Daily and season awards share the same per-award and combined per-season SOL caps. The migration preserves historical 65/35 receipts and applies 30/50/20 only to new receipts. Fixed-prize mode remains available for older deployments with its original explicit payout caps.
-
-Before opening, call the protected read-only preflight. In creator-fee mode it checks configured backend settings and public addresses, database/migrations, the prepared empty draft season and the saved top-50 field. It permits opening before the token is minted or payouts are enabled. Wallet sign-in/submission still verifies the live mint and 500,000-token holdings; fee collection and payouts independently retain their creator, network, signer, funding and cap checks. Fixed-prize seasons still require funded reward readiness before opening. In creator-fee mode, award amounts are bounded by confirmed daily/season fee allocations instead of a fixed prize. It does not start a season or send a transaction.
-
-You can also run the public and protected checks together from a trusted machine. Set `NEXT_PUBLIC_SITE_URL` to the canonical site and `PF_DATA_INGEST_SECRET` in the shell first. The script never prints the secret, prize wallet, or player list, and it never starts a season or sends a transaction. It exits nonzero unless every launch gate passes.
-
-```bash
-npm run check:live
-```
-
-```bash
-curl "$NEXT_PUBLIC_SITE_URL/api/admin/season/preflight" \
-  -H "Authorization: Bearer $PF_DATA_INGEST_SECRET"
-```
-
-To open Season 1, call the protected start endpoint once preflight returns `ready: true`. A creator-fee draft can open before token launch, but no wallet can submit until its 500,000-token holdings are verified. The 60-minute deadline starts immediately, even if token launch is still pending. It copies the latest saved 1–50 field into an immutable season roster and opens a one-hour draft by default. The server sets the deadline to exactly 60 minutes after the operator starts the season. The next 48 hours are split into two daily scoring windows. Later seasons open automatically when the preceding season ends.
-
-From this checkout, run `sh scripts/open-draft.sh` with the Railway CLI authenticated. The script injects the existing production admin secret without displaying it and opens the real holder-only draft only when preflight passes. The homepage countdown follows the server deadline and survives reloads.
-
-For an unfunded wallet-flow check before token launch, run `sh scripts/open-draft.sh test-open`, then `sh scripts/open-draft.sh test-close` after testing. The test uses a separate season and permits any wallet that signs in. The test uses the same saved candidate field as real drafts. Test drafts never collect fees, score awards, pay prizes, or roll over. Closing restores the prepared real season and its 500,000-token requirement; test entries remain in the separate test season. Do not leave the temporary test active as the real contest.
-
-```bash
-curl -X POST "$NEXT_PUBLIC_SITE_URL/api/admin/season/start" \
-  -H "Authorization: Bearer $PF_DATA_INGEST_SECRET"
-```
-
-Daily SOL awards are sent only when automatic payout and fee collection are enabled and the dedicated signer is configured. Keep all signer keys in Railway secrets. Apply all migrations, including `202611060001_season_fee_rewards.sql`, before enabling collection. No mainnet claim or winner transfer is performed by the readiness check or by merely deploying the site.
-
-## Local development
-
-Requires Node.js 24 and a PostgreSQL database. Set `DATABASE_URL`, `PF_SESSION_SECRET`, `SOLANA_RPC_URL`, `FANTASY_MINT_ADDRESS`, `PF_ACTIVE_SEASON_ID`, and `PF_DATA_INGEST_SECRET` in a local environment. Apply the schema with `npm run db:migrate`, then run `npm run dev`.
-
-```bash
-npm run lint
-npm run build
-```
-
-`npm run test:fees` verifies migration preservation, fee accounting and real season-worker settlement against a **new, empty local PostgreSQL database** whose name starts with `pf_fee_test`. Supply its `DATABASE_URL`; do not inject production secrets. It disables collection/payouts, uses stored local score fixtures and sends no transactions. It refuses a database that already contains the app schema.
-
-For a complete **local, no-prize** wallet/entry rehearsal, create a new empty PostgreSQL
-`pf_wallet_test_<run>` database on localhost, then run
-`PF_WALLET_TEST_DATABASE_URL=<local-url> node --conditions=react-server scripts/dev-wallet-test.mjs`
-from a checkout without `.env` files. Use Node 24. The script generates disposable session/admin
-secrets in memory, migrates that empty database, seeds the saved 50-player field, opens the
-existing isolated test-draft mode and serves `http://127.0.0.1:3187`. It fixes the exact local
-origin configuration and selects the devnet wallet chain. Production remains mainnet by default.
-No production environment variables are inherited by the server. It refuses to overwrite an
-existing test database. Stop with Ctrl-C; use a fresh database for another run.
-
-This exercises message authentication and saved picks, **not** token ownership, real prizes,
-scoring or transactions. The existing no-prize test season waives balances; it never relaxes
-real-season holder checks. For production holder acceptance, use a separate real devnet mint
-and test setup; changing the wallet chain alone does not make server balance checks devnet.
-`NEXT_PUBLIC_WALLET_NETWORK` accepts `mainnet` (default) or `devnet`; configure the matching
-browser RPC. Follow the kit's `wallet-e2e-devnet` skill for real Phantom observation.
+See [integration and release handoff](docs/STARTING_SEVEN.md) for required providers, environments, verification and incomplete services.
