@@ -1,0 +1,10 @@
+**Status:** in-progress
+**Owner:** codex--pf-new-ui-flows
+**Branch:** codex/new-ui-flows
+**Next:** Publish verified interaction-only port as draft PR; deployment and browser walkthrough remain pending.
+
+Actor: Codex. User requested prior UI flow extras on pfleague.fun, excluding design changes, and approved GitHub credential use for fetch/task-branch publication/draft PR. Base 9bf307b is the latest rebrand source. Reuse selectPlayer/next-band guidance from d17f83a and proximity snapping from 6ae96ab; exclude compact sizing, avatars, typography, palettes and old branding. Existing wallet CTA flow from 3c6123f is already present. This is a separate integration of committed donor code, not takeover of stale compact-draft-cards or single-wallet-backend claims (reported 14.6h/15h; prior owners retained). No new dependency. No deployment authority or deployment credential use. Browser control unavailable; HTTP live source responds. Relevant LARP scope: no copy, capability claims, financial logic, flags or API changes; no release-readiness claim.
+
+Actor: Codex. Verified Node24.22.1 baseline55tests; final wallet-entry4tests, repository ESLint, explicit tsc--noEmit, webpack production build and diff check all exit0. Production HTTP smoke /,/draft,/rules200 with new PFLcrest retained and five draft-band anchors on drafting pages. Diff confirms all rebrand CSS, layout, assets, copy and rules unchanged. Existing selectPlayer behavior reused; no independent visual/browser PASS because host unavailable. Draft PR will target codex/single-wallet-backend at9bf307b to isolate the port from main/rebrand divergence. CI draft guard skips verify; hosted ubuntu-latest runner prevents ready/merge under current zero-cost policy. No deployment, signing or backend changes.
+
+Starting Seven merge: the original five-band UI is retired under the owner's new format. Next-pick guidance is preserved in app/league-app.tsx: advance when a tier quota is filled, clear search, and scroll only if the tier controls are offscreen; reduced-motion respected. Shared hero selections are retained.

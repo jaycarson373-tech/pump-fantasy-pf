@@ -629,8 +629,8 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                   THE <em>TRENCHES.</em>
                 </h1>
                 <p className="hero-description">
-                  Draft seven traders. Name your captain. Their weekly PnL
-                  decides your score. Compete for $PFL.
+                  Build your seven from Pump.fun’s Top 100. Pick a captain and
+                  compete for $PFL on their trading performance.
                 </p>
                 <div className="hero-actions">
                   <Link className="primary-action" href="/draft">
@@ -702,7 +702,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                   [
                     "02",
                     "Monday: lineups lock",
-                    "Trading starts counting at 00:00 UTC. No transfers or substitutions after the lock.",
+                    "Scoring starts at 00:00 UTC. Your seven traders and captain are locked for the week.",
                   ],
                   [
                     "03",
@@ -1016,9 +1016,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                 </div>
               ) : (
                 <Empty title="No scores posted yet.">
-                  Rankings appear after submitted teams have verified
-                  competition scores. Past monthly PnL never counts as fantasy
-                  points.
+                  The standings open after the first day’s results are verified.
                 </Empty>
               )}
             </div>
@@ -1034,7 +1032,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
           <section className="league-section rewards-section">
             <div className="section-heading">
               <div>
-                <p className="eyebrow">THE PRIZE MONEY</p>
+                <p className="eyebrow">PLAY FOR $PFL</p>
                 <h2>
                   {page === "rewards"
                     ? "YOUR REWARDS."
@@ -1054,7 +1052,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                   "season",
                   "50",
                   "Season rewards",
-                  "Top 10 · 30 / 20 / 15 + seven × 5",
+                  "Top 10 finishers · full split in the rules",
                 ],
                 ["champion", "20", "Champion bonus", "Overall season champion"],
               ].map(([id, percent, title, description]) => (
@@ -1197,8 +1195,8 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
               <em>BEFORE YOU DRAFT.</em>
             </h1>
             <p className="rules-intro">
-              100 traders. Seven starters. Four tiers. One captain. A fresh
-              draft every week.
+              Seven picks. One captain. Know the scoring, the deadline and
+              what it takes to qualify.
             </p>
             <div className="rules-grid">
               {[
