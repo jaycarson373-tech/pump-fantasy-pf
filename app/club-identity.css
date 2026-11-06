@@ -175,3 +175,76 @@ body .rules-page details p{font-size:14px;margin:12px 0 0}
 body .rules-page .rules-return{display:inline-flex;margin-top:24px;padding:14px 20px;background:#12dc92;color:#082b21;border:0;border-radius:8px;text-decoration:none}
 body .rules-page .rules-return:before{display:none}
 @media(max-width:720px){body .draft-room .pf-brand strong{font-size:12px;max-width:120px;line-height:1.2}body .rules-overview{gap:7px}body .rules-overview>div{padding:16px 10px}body .rules-overview b{font-size:22px}body .rules-overview span{font-size:11px}}
+
+/* PFL sports identity: original crest, broadcast-style hero and clear draft sheets. */
+body .draft-room .pf-mark-image{background-image:url('/brand/pfl-crest.svg');width:44px;height:48px;flex-basis:44px}
+body .draft-room .pf-brand strong{max-width:142px;font-weight:850;line-height:1.1;font-size:16px;letter-spacing:-.035em}
+body .draft-room .pf-brand em{background:#101719;color:#fff;border-radius:3px}
+body .draft-room .league-live-strip{background:#fff;color:#172322;border-color:#e1e8e5;padding-block:14px}
+body .draft-room .league-live-strip span{color:#63756e}body .draft-room .league-live-strip>div+div{border-color:#dce5e0}
+body .draft-room .draft-hero{background:#101719;color:#fff;padding-top:34px;border-bottom:5px solid #12df93}
+body .draft-room .hero-copy-grid{grid-template-columns:1fr 1.08fr;gap:44px;padding:35px 0 40px}
+body .draft-room .draft-eyebrow{color:#a8c7b9}
+body .draft-room .draft-hero h1{font-size:clamp(62px,6.9vw,104px);text-transform:uppercase;line-height:.93;letter-spacing:-.07em;font-weight:900;color:#fff}
+body .draft-room .draft-hero h1 span{color:#12df93}
+body .draft-room .draft-hero .hero-copy-grid p{color:#b7cac2;max-width:440px;font-size:17px;line-height:1.7;margin-top:27px}
+body .draft-room .hero-ctas{align-items:center;gap:24px;flex-direction:row}
+body .draft-room .primary-cta{border-radius:4px;min-height:52px;font-size:13px;letter-spacing:.01em}
+body .draft-room .pfl-rules-link{color:#e1ece7;font-size:13px;font-weight:650;display:inline-flex;align-items:center;gap:15px;min-height:44px}
+body .draft-room .pfl-rules-link:hover{color:#12df93}
+body .draft-room .snapshot-stamp,body .draft-room .snapshot-stamp b{color:#8ba99b}
+body .draft-room .pumpfun-pill{background:#182c25;border-color:#315242;color:#a6e7c8}
+body .draft-room .league-board{background:#182523;border-color:#42594e;border-radius:5px;box-shadow:10px 10px 0 #080e0d;padding:24px}
+body .draft-room .league-board-top{color:#8fb5a5;font-size:9px}
+body .draft-room .league-board-top b{color:#b4c9ff}
+body .draft-room .pfl-board-heading{display:flex;align-items:center;gap:19px;margin:25px 0 5px;font-size:clamp(18px,2vw,28px);line-height:1.13;font-weight:850;letter-spacing:-.04em;color:#ecf7f1}
+body .draft-room .pfl-board-heading b{color:#12df93}
+body .draft-room .pfl-board-crest{width:60px;height:68px;background:url('/brand/pfl-crest.svg') center/contain no-repeat;flex:none}
+body .draft-room .league-board-cards{margin:28px 0 20px;gap:7px}
+body .draft-room .league-preview-card{border-radius:4px;transform:none;padding:10px 7px;background:#243b36;box-shadow:none}
+body .draft-room .league-preview-card:nth-child(2){transform:translateY(5px)}
+body .draft-room .league-preview-card:nth-child(3){transform:translateY(10px)}
+body .draft-room .league-preview-card:nth-child(4){transform:translateY(5px)}
+body .draft-room .league-preview-card:nth-child(5){transform:none}
+body .draft-room .league-preview-card:hover{transform:translateY(-5px)}
+body .draft-room .draft-ticker{border-color:#2d433a;color:#8aa99d}
+body .draft-room .draft-ticker i{background:#ed4355}
+body .draft-room .league-rule-summary{padding-block:25px;background:#f0f6f3}
+body .draft-room .draft-section{background:#fff;color:#16241e;border-color:#d9e6de}
+body .draft-room .draft-heading h2{color:#15241d;letter-spacing:-.065em}
+body .draft-room .draft-heading p{color:#63756c}
+body .draft-room .draft-section .section-label{color:#168554}
+body .draft-room .draft-progress{background:#f4f8f5;border-color:#cbded3}
+body .draft-room .draft-progress>span,body .draft-room .draft-progress>span b{color:#213b2e}
+body .draft-room .draft-progress i{background:#d9e7df}body .draft-room .draft-progress i.filled{background:#0ab777}
+body .draft-room .kol-browser{background:#f5f8f6;border-color:#d2e1d8;box-shadow:none}
+body .draft-room .kol-toolbar{background:#f5f8f6;border-color:#d2e1d8}
+body .draft-room .search-box{background:#fff;border-color:#bfcfc6;color:#365242}
+body .draft-room .search-box input{color:#17271e}body .draft-room .search-box input::placeholder{color:#70867a}
+body .draft-room .board-state{color:#51695b}
+body .draft-room .draft-rounds{background:#f5f8f6}
+body .draft-room .draft-round{background:#fff;border-color:#d3e0d8;border-radius:8px}
+body .draft-room .draft-round-head{background:#e7f5ed;border-color:#cee4d7}
+body .draft-room .draft-round:nth-child(2) .draft-round-head{background:#eaf0fc}
+body .draft-room .draft-round:nth-child(4) .draft-round-head{background:#fcedef}
+body .draft-room .draft-round-head b{color:#1a3526}
+body .draft-room .draft-round-head small{color:#57705f}
+body .draft-room .round-number{color:#fff;background:#138153}
+body .draft-room .round-pick{background:white;border-color:#c4d8cb;color:#33543f}
+body .draft-room .band-player{background:white;border-color:#e0e8e3;border-radius:4px;color:#15241d}
+body .draft-room .band-player:hover{background:#f0f9f3;border-color:#83b99b}
+body .draft-room .band-player.selected{background:#e2f8ec;border-color:#20b576;box-shadow:inset 3px 0 #20b576}
+body .draft-room .player-identity b{color:#182c21}
+body .draft-room .player-rank,body .draft-room .player-identity small,body .draft-room .band-player>strong small{color:#64796b}
+body .draft-room .band-player>strong{color:#176f47}
+body .draft-room .player-select-mark{color:#567b64;border-color:#bdd3c5}
+body .draft-room .band-player.selected .player-select-mark{background:#0aad6b;border-color:#0aad6b;color:white}
+body .draft-room .draft-board-footnote{background:#f5f8f6;border-color:#d2e1d8;color:#667d6f}
+body .draft-room .roster-panel{background:#15251e;border-color:#284936;border-top-color:#12df93;border-radius:8px;box-shadow:0 20px 45px #15251e16}
+body .draft-room .roster-slot{background:#1c3025;border-color:#345540}
+body .draft-room .roster-note,body .draft-room .season-clock{background:#20382a;border-color:#3c5d48}
+body .draft-room .search-empty{color:#63756c}
+body .draft-room .closing-cta>span{background-image:url('/brand/pfl-crest.svg')}
+body .rules-page>a:before{background-image:url('/brand/pfl-crest.svg')}
+@media(max-width:1100px){body .draft-room .hero-copy-grid{grid-template-columns:1fr}body .draft-room .league-board{max-width:710px}}
+@media(max-width:720px){body .draft-room .pf-mark-image{width:34px;height:40px;flex-basis:34px}body .draft-room .pf-brand strong{font-size:13px;max-width:112px}body .draft-room .draft-hero{padding-top:23px}body .draft-room .hero-copy-grid{padding:26px 0 28px;gap:32px}body .draft-room .draft-hero h1{font-size:clamp(58px,14.5vw,78px)}body .draft-room .draft-hero .hero-copy-grid p{font-size:14px;line-height:1.65;margin-top:22px}body .draft-room .hero-ctas{gap:17px;flex-wrap:wrap}body .draft-room .primary-cta{padding-inline:20px}body .draft-room .pfl-rules-link{font-size:12px}body .draft-room .league-board{padding:19px 12px;box-shadow:5px 5px 0 #080e0d}body .draft-room .pfl-board-heading{margin:17px 0 0;font-size:23px;gap:13px}body .draft-room .pfl-board-crest{width:45px;height:52px}body .draft-room .league-board-cards{gap:5px}body .draft-room .league-preview-card{padding:9px 5px}body .draft-room .draft-heading h2{font-size:38px}body .draft-room .league-live-strip{padding-block:12px}body .draft-room .league-live-strip strong{font-size:12px}}

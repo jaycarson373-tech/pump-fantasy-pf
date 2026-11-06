@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Pump Fantasy League",
     description: "One hour to draft five traders. Hold 500,000 PFL, submit your squad, then compete across 48 hours of PnL.",
-    images: [{ url: "/brand/fantasy-league-social.png", width: 1500, height: 500 }],
+    images: [{ url: "/brand/pfl-social.png", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",

@@ -33,17 +33,6 @@ type SeasonPhase = "unconfigured" | "inactive" | "scheduled" | "draft" | "live" 
 type SeasonState = { configured: boolean; seasonConfigured: boolean; phase: SeasonPhase; seasonId?: string; serverTime?: string; mintAddress?: string; minimumTokens?: string; schedule?: { opensAt: string | null; lockedAt: string | null; closesAt: string | null } | null };
 type BoardPlayer = { id: string; rank: number; wallet: string; display_name: string | null; profile_url: string | null; avatar_url: string | null; pnl_usd: number; contest_change_usd: number | null };
 
-function countdownLabel(target: string | null | undefined, now: number) {
-  if (!target || !now) return null;
-  const remaining = Math.max(0, Date.parse(target) - now);
-  if (!Number.isFinite(remaining)) return null;
-  const totalSeconds = Math.floor(remaining / 1000);
-  const days = Math.floor(totalSeconds / 86_400);
-  const hours = Math.floor((totalSeconds % 86_400) / 3_600);
-  const minutes = Math.floor((totalSeconds % 3_600) / 60);
-  const seconds = totalSeconds % 60;
-  return `${days ? `${days}d ` : ""}${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
-}
 const snapshotPlayers: BoardPlayer[] = (top50Snapshot.players as SnapshotTuple[]).map(([rank, wallet, displayName, pnl, avatar]) => ({
   id: `rank-${String(rank).padStart(2, "0")}`,
   rank,
@@ -414,9 +403,6 @@ export function FantasyApp() {
   const hasSavedSquad = savedPicks.length === 5;
   const hasUnsavedChanges = hasSavedSquad && currentPicks.some((pick) => !pick || !savedPicks.includes(pick));
   const phaseName = walletTest && season.phase === "draft" ? "TEST DRAFT OPEN" : season.phase === "draft" ? "DRAFT OPEN" : season.phase === "scheduled" ? "UP NEXT" : season.phase === "live" ? "SEASON LIVE" : season.phase === "complete" ? "SEASON COMPLETE" : season.phase === "misconfigured" ? "SCHEDULE ERROR" : "PRE-SEASON";
-  const timerTitle = season.phase === "draft" ? "DRAFT CLOSES IN" : season.phase === "live" ? "SEASON ENDS IN" : season.phase === "scheduled" ? "DRAFT OPENS IN" : null;
-  const timerTarget = season.phase === "draft" ? season.schedule?.lockedAt : season.phase === "live" ? season.schedule?.closesAt : season.phase === "scheduled" ? season.schedule?.opensAt : undefined;
-  const timerValue = countdownLabel(timerTarget, effectiveNow);
   const filteredPlayers = (band: number) => players
     .filter((player) => Math.floor((player.rank - 1) / 10) === band)
     .filter((player) => !search || `${player.display_name ?? ""} ${player.wallet}`.toLowerCase().includes(search.toLowerCase()));
@@ -429,7 +415,7 @@ export function FantasyApp() {
         <nav aria-label="Primary">
           <a className="active" href="#draft">Draft room</a>
           <a href="/rules">Rules</a>
-          <a href="#status">Season status</a>
+          <a href="#status">League results</a>
         </nav>
         <div className="header-right">
           <WalletControl onAuthChange={onAuthChange} verificationRef={walletVerification} />
@@ -437,7 +423,7 @@ export function FantasyApp() {
       </header>
 
       <section className="league-live-strip" aria-label="League schedule and eligibility">
-        <div><span className={`league-phase-dot ${draftOpen ? "open" : ""}`} /><span>{phaseName}</span><strong>{timerValue ?? "Not scheduled"}</strong></div>
+        <div><span className={`league-phase-dot ${draftOpen ? "open" : ""}`} /><span>LEAGUE STATUS</span><strong>{phaseName}</strong></div>
         <div><span>DRAFT WINDOW</span><strong>60 minutes</strong></div>
         <div><span>HOLDER ENTRY</span><strong>{walletTest ? "Wallet test" : "500,000 PFL"}</strong></div>
         <div><span>DAILY PRIZE POOL</span><strong>{walletTest ? "No prizes · test draft" : Number(feePools.availableDailyLamports) > 0 ? `${(Number(feePools.availableDailyLamports) / 1e9).toLocaleString()} SOL` : "30% of creator fees"}</strong></div>
@@ -446,16 +432,15 @@ export function FantasyApp() {
         <div className="draft-eyebrow"><span className="status-lamp" /> PUMP FANTASY LEAGUE <span className="eyebrow-divider">/</span> ONE-MONTH PNL <a className="pumpfun-pill" href="https://pump.fun/leaderboard?period=monthly" target="_blank" rel="noreferrer">1M LEADERBOARD</a></div>
         <div className="hero-copy-grid">
           <div>
-            <h1>Draft the leaderboard.<br /><span>Compete on PnL.</span></h1>
-              <p>Draft five traders from Pump.fun’s top 50. Set your lineup in 60 minutes. Compete on their combined PnL change over the next 48 hours.</p>
-            {timerValue && timerTitle ? <div className="homepage-countdown" aria-label="Draft countdown"><span>{timerTitle}</span><strong role="timer">{timerValue}</strong></div> : null}
+            <h1>Your picks.<br /><span>Their PnL.</span></h1>
+              <p>Fantasy sports for the trenches. Pick five traders from Pump.fun’s top 50, build your lineup and compete on their combined PnL change.</p>
             <div className="hero-ctas">
-              <a className="primary-cta" href="#draft">Pick your squad</a>
+              <a className="primary-cta" href="#draft">Build my lineup</a><a className="pfl-rules-link" href="/rules">Learn the format <span aria-hidden="true">↗</span></a>
             </div>
             <div className="snapshot-stamp"><span className="snapshot-live-dot" /> {leaderboardSource.toUpperCase()} <b>{snapshotAt ? new Date(snapshotAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "UPDATING"}</b></div>
           </div>
           <div className="league-board" aria-label="One trader from each leaderboard rank band">
-            <div className="league-board-top"><span>THE DRAFT BOARD</span><b>50 → 5</b></div>
+            <div className="league-board-top"><span>YOUR STARTING FIVE</span><b>THE PFL DRAFT</b></div><div className="pfl-board-heading"><span className="pfl-board-crest" aria-hidden="true" /><span>SCOUT THE FIELD.<br /><b>BUILD YOUR FIVE.</b></span></div>
             <div className="league-board-cards">
               {[0, 1, 2, 3, 4].map((band) => {
                 const player = players.find((p) => p.rank === selected[band]) ?? players[band * 10];
@@ -480,7 +465,7 @@ export function FantasyApp() {
       </section>
       <section className="draft-section" id="draft">
         <div className="draft-heading">
-          <div><span className="section-label">THE DRAFT ROOM</span><h2>Draft five traders.</h2><p>Pick one trader from each of the five rank bands in Pump.fun’s one-month top 50. Tap a pick again to remove it.</p></div>
+          <div><span className="section-label">THE DRAFT ROOM</span><h2>Build your starting five.</h2><p>One pick from each rank band. Choose your lineup below, then submit when the draft is open.</p></div>
           <div className="draft-progress"><span>ROSTER <b>{rosterSize} / 5</b></span><div>{[0, 1, 2, 3, 4].map((index) => <i className={selected[index] ? "filled" : ""} key={index} />)}</div></div>
         </div>
 
@@ -509,9 +494,9 @@ export function FantasyApp() {
           <aside className="roster-panel">
             <div className="roster-panel-head"><div><span>YOUR SQUAD</span><b>Five picks</b></div></div>
             <div className={`season-clock ${season.phase}`} aria-live="polite">
-              <span>{timerTitle ?? "LEAGUE STATUS"}</span>
-              <b>{timerValue ?? phaseName}</b>
-              <small>{season.phase === "draft" ? "Submit before the clock hits zero. Picks saved only on this device are not entered." : season.phase === "live" ? "Drafts are locked. The 48-hour scoring period is underway." : season.phase === "complete" ? "This season has ended. The next draft opens after the new field and funded prizes pass launch checks." : season.phase === "scheduled" ? "The draft opens at the scheduled start time." : season.phase === "misconfigured" ? "The season schedule needs an operator check." : "The one-hour timer starts when the operator opens the season. You can browse the field now."}</small>
+              <span>LEAGUE STATUS</span>
+              <b>{phaseName}</b>
+              <small>{season.phase === "draft" ? "Submit during the open draft window. Picks saved only on this device are not entered." : season.phase === "live" ? "Drafts are locked. The 48-hour scoring period is underway." : season.phase === "complete" ? "This season has ended. The next draft opens after the new field and funded prizes pass launch checks." : season.phase === "scheduled" ? "The draft opens at the scheduled start time." : season.phase === "misconfigured" ? "The season schedule needs an operator check." : "Browse the field and build your lineup. Submission opens with the next draft."}</small>
             </div>
             <div className="roster-slots">
               {[0, 1, 2, 3, 4].map((band) => {
@@ -549,23 +534,23 @@ export function FantasyApp() {
       </section>
 
       <section className="how-section" id="format">
-        <div className="how-heading"><span className="section-label">THE FORMAT</span><h2>The league rules.</h2><p>Simple roster building, transparent scoring, and results that can be checked.</p></div>
+        <div className="how-heading"><span className="section-label">THE FORMAT</span><h2>Know the game.</h2><p>Five picks. Equal slots. Your lineup scores the change, not the trader’s past profit.</p></div>
         <div className="how-grid">
-          <article><span>01</span><i className="how-icon">01</i><h3>Build the field</h3><p>At season launch, the one-month Pump.fun top 50 is frozen into five bands of ten. That field stays fixed for all 48 hours.</p></article>
-          <article><span>02</span><i className="how-icon">02</i><h3>Pick your five</h3><p>Hold 500,000 PFL, connect and sign in, then pick one trader per band. Submit within 60 minutes. Changes only count after you resubmit.</p></article>
-          <article><span>03</span><i className="how-icon">03</i><h3>Score the move</h3><p>Each pick scores its change in one-month PnL between the round’s opening and closing snapshots. Sum your five.</p></article>
-          <article><span>04</span><i className="how-icon">04</i><h3>Pay the winner</h3><p>The top squad at each daily snapshot is recorded. A SOL award is shown as paid only after the onchain transfer is verified.</p></article>
+          <article><span>01</span><i className="how-icon">01</i><h3>Scout the top 50</h3><p>At season launch, the one-month Pump.fun top 50 is frozen into five bands of ten. That field stays fixed for all 48 hours.</p></article>
+          <article><span>02</span><i className="how-icon">02</i><h3>Fill every slot</h3><p>Hold 500,000 PFL, connect and sign in, then pick one trader per band. Submit within 60 minutes. Changes only count after you resubmit.</p></article>
+          <article><span>03</span><i className="how-icon">03</i><h3>Track your lineup</h3><p>Each pick scores its change in one-month PnL between the round’s opening and closing snapshots. Sum your five.</p></article>
+          <article><span>04</span><i className="how-icon">04</i><h3>Check the results</h3><p>The top squad at each daily snapshot is recorded. A SOL award is shown as paid only after the onchain transfer is verified.</p></article>
         </div>
         <div className="docs-note"><div><span>SCORING RULE</span><h3>Measure the move.</h3></div><p>For each trader, take closing 1M PnL minus opening 1M PnL. Add the five results. The highest total wins. Day 1 compares the scoring start with hour 24; Day 2 compares hour 24 with hour 48. Negative changes count. Equal scores are ordered by wallet address. Missing PnL data holds settlement for review.</p></div>
       </section>
 
-      <section className="closing-cta"><span>PF</span><div><p>PUMP FANTASY LEAGUE</p><h2>Pick five.<br />Follow the PnL.</h2><a href="#draft">Build your squad</a></div></section>
+      <section className="closing-cta"><span>PF</span><div><p>PUMP FANTASY LEAGUE</p><h2>Your lineup.<br />Your league.</h2><a href="#draft">Build your squad</a></div></section>
 
       <footer>
         <a className="pf-brand" href="#top"><span className="pf-mark-image" role="img" aria-label="Pump Fantasy League logo" /><strong>Pump Fantasy League</strong><em>$PFL</em></a>
-        <p>A fantasy draft for the pump.fun culture.</p>
+        <p>Fantasy sports for the trenches.</p>
         <div><a href="#draft">Draft room</a>
-          <a href="/rules">Rules</a><a href="#status">Season status</a></div>
+          <a href="/rules">Rules</a><a href="#status">League results</a></div>
         <small>Independent project; not affiliated with pump.fun. Trader rankings and one-month PnL come from Pump.fun and can change. A submitted squad is scored against the round’s opening snapshot. Connect a wallet holding $PFL to enter during an open draft window. Crypto assets are risky; this is not financial advice.</small>
       </footer>
     </main>

@@ -19,17 +19,17 @@ export const metadata: Metadata = {
   title: "Pump Fantasy League | Draft your five",
   description:
     "Hold 500,000 PFL. Draft five traders in one hour. Compete across 48 hours of Pump.fun PnL.",
-  icons: { icon: "/brand/pump-fantasy-shield-32-v2.png", shortcut: "/brand/pump-fantasy-shield-32-v2.png", apple: "/apple-icon.png" },
+  icons: { icon: "/brand/pfl-crest.svg", shortcut: "/brand/pfl-crest.svg", apple: "/apple-icon.png" },
   openGraph: {
     title: "Pump Fantasy League",
     description: "Draft one trader from each rank band. Build your five and follow the PnL race.",
-    images: [{ url: "/brand/fantasy-league-social.png", width: 1500, height: 500 }],
+    images: [{ url: "/brand/pfl-social.png", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Pump Fantasy League",
     description: "Draft one trader from each rank band. Build your five and follow the PnL race.",
-    images: ["/brand/fantasy-league-social.png"],
+    images: ["/brand/pfl-social.png"],
   },
 };
 
