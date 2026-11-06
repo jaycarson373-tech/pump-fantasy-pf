@@ -2114,3 +2114,10 @@ dialog.inspect-overlay::backdrop {
 
 .pfl-footer { flex-wrap: wrap; }
 .pfl-footer > .footer-market-link { flex-basis: 100%; grid-column: 1 / -1; justify-content: flex-end; border-top: 1px solid #244332; padding-top: 16px; margin-top: 8px; min-height: 44px; }
+
+.opening-draft-clock { display: grid; grid-template-columns: 1fr auto; gap: 12px; margin-top: 24px; padding: 18px 0; border-top: 1px solid #42604c; border-bottom: 1px solid #42604c; color: #fff; }
+.opening-draft-clock span, .opening-draft-clock small { display: block; font-size: 9px; letter-spacing: 1.4px; color: #b9d6c1; }
+.opening-draft-clock strong { display: block; margin-top: 7px; font-size: 16px; }
+.opening-draft-clock b { font-family: var(--font-league), sans-serif; font-size: 32px; font-variant-numeric: tabular-nums; line-height: 1; color: #74e39a; }
+.opening-draft-clock p { grid-column: 1 / -1; margin: 0; font-size: 12px; color: #c6d9cb; line-height: 1.6; }
+.opening-draft-clock small { margin-top: 6px; }

@@ -6,6 +6,7 @@ import { getHolderBalance, verifyTokenMint } from "../solana";
 import {
   DAY,
   makeCalendar,
+  makeOpeningCalendar,
   validateRoster,
   draftOpen,
   scoreDay,
@@ -88,7 +89,8 @@ export async function createSeason(input: {
   id: string;
   title: string;
   number: number;
-  startsAt: string;
+  startsAt?: string;
+  openingDraftAt?: string;
   weeks?: number;
 }) {
   const mint = getBackendConfig().mint;
@@ -103,7 +105,9 @@ export async function createSeason(input: {
     input.number < 1
   )
     throw Error("Invalid season");
-  const calendar = makeCalendar(input.startsAt, input.weeks ?? 4);
+  const calendar = input.openingDraftAt
+    ? makeOpeningCalendar(input.openingDraftAt, input.weeks ?? 4)
+    : makeCalendar(input.startsAt ?? "", input.weeks ?? 4);
   if (Date.parse(calendar[0].opensAt) <= Date.now())
     throw Error("New seasons must be scheduled before drafting opens");
   return withTransaction(async (q) => {
@@ -121,7 +125,7 @@ export async function createSeason(input: {
         input.title,
         input.number,
         mint,
-        input.startsAt,
+        calendar[0].locksAt,
         calendar.at(-1)!.endsAt,
         calendar.length,
       ],

@@ -134,7 +134,17 @@ function Arrow() {
   );
 }
 function XIcon() {
-  return <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-6.8 7.8L23.2 22h-6.3L12 14.6 5.5 22H2.3l7.2-8.4L1 2h6.5l4.4 6.7L18.9 2ZM17.8 20h1.7L6.5 4H4.7l13.1 16Z" /></svg>;
+  return (
+    <svg
+      aria-hidden="true"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+    >
+      <path d="M18.9 2H22l-6.8 7.8L23.2 22h-6.3L12 14.6 5.5 22H2.3l7.2-8.4L1 2h6.5l4.4 6.7L18.9 2ZM17.8 20h1.7L6.5 4H4.7l13.1 16Z" />
+    </svg>
+  );
 }
 function Crown() {
   return (
@@ -522,7 +532,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
     ? `https://dexscreener.com/solana/${encodeURIComponent(data.tokenMint)}`
     : "https://dexscreener.com/solana";
   const phase = !round
-    ? "Pre-season"
+    ? "Opening draft"
     : !round.pool_hash && players.length === 0
       ? "Awaiting player pool"
       : clock.now < Date.parse(round.opens_at)
@@ -542,8 +552,10 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
   const remaining = target ? Math.max(0, Date.parse(target) - clock.now) : null;
   const countdown =
     remaining !== null && clock.now
-      ? `${Math.floor(remaining / 86400000)}d ${String(Math.floor(remaining / 3600000) % 24).padStart(2, "0")}h ${String(Math.floor(remaining / 60000) % 60).padStart(2, "0")}m`
-      : "Schedule pending";
+      ? remaining < 3600000
+        ? `${String(Math.floor(remaining / 60000)).padStart(2, "0")}:${String(Math.floor(remaining / 1000) % 60).padStart(2, "0")}`
+        : `${Math.floor(remaining / 86400000)}d ${String(Math.floor(remaining / 3600000) % 24).padStart(2, "0")}h ${String(Math.floor(remaining / 60000) % 60).padStart(2, "0")}m`
+      : "Opens at token launch";
   const visible = players
     .filter(
       (p) =>
@@ -576,8 +588,20 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
           ))}
         </nav>
         <div className="header-actions">
-          <a className="x-social" href="https://x.com/PFLeague_fun" target="_blank" rel="noopener noreferrer" aria-label="PFL on X" title="@PFLeague_fun"><XIcon /></a>
-          <WalletControl onAuthChange={authChange} verificationRef={verification} />
+          <a
+            className="x-social"
+            href="https://x.com/PFLeague_fun"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="PFL on X"
+            title="@PFLeague_fun"
+          >
+            <XIcon />
+          </a>
+          <WalletControl
+            onAuthChange={authChange}
+            verificationRef={verification}
+          />
         </div>
       </header>
       <div className="league-strip">
@@ -640,6 +664,30 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                     Draft rules <Arrow />
                   </Link>
                 </div>
+                {(!round || round.week === 1) && (
+                  <div className="opening-draft-clock">
+                    <div>
+                      <span>THE OPENING DRAFT</span>
+                      <strong>
+                        {!round
+                          ? "Opens at token launch"
+                          : editable
+                            ? "Lineups lock in"
+                            : phase}
+                      </strong>
+                    </div>
+                    <div>
+                      <b>{!round ? "45 MIN" : countdown}</b>
+                      <small>
+                        {!round ? "ENTRY WINDOW" : "SERVER TIME · UTC"}
+                      </small>
+                    </div>
+                    <p>
+                      Hold 500,000+ PFL. Submit your seven before the clock runs
+                      out.
+                    </p>
+                  </div>
+                )}
                 <div className="hero-numbers">
                   <div>
                     <b>100</b>
@@ -686,7 +734,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
               <div className="section-heading">
                 <div>
                   <p className="eyebrow">THE WEEKLY SCHEDULE</p>
-                  <h2>DRAFT WEEKEND. GAME WEEK.</h2>
+                  <h2>MAKE YOUR PICKS. THEN IT COUNTS.</h2>
                 </div>
                 <Link href="/rules">
                   Full rules <Arrow />
@@ -696,13 +744,13 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                 {[
                   [
                     "01",
-                    "Saturday: the draft opens",
-                    "The Top 100 are ranked and the four tiers are set. Pick your seven and name a captain.",
+                    "Token live. Draft open.",
+                    "The opening draft gives you 45 minutes from the announced launch. Hold 500,000 PFL, pick seven traders and name your captain.",
                   ],
                   [
                     "02",
-                    "Monday: lineups lock",
-                    "Scoring starts at 00:00 UTC. Your seven traders and captain are locked for the week.",
+                    "Clock out. Lineups locked.",
+                    "Submit or edit before the deadline. When the clock hits zero, your team locks and the seven-day competition begins.",
                   ],
                   [
                     "03",
@@ -917,7 +965,9 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                     {busy
                       ? "Saving lineup…"
                       : !editable
-                        ? "Draft not open"
+                        ? !round
+                          ? "Opens at token launch"
+                          : "Draft not open"
                         : picks.length !== 7
                           ? "Complete your seven"
                           : !captain
@@ -1195,8 +1245,8 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
               <em>BEFORE YOU DRAFT.</em>
             </h1>
             <p className="rules-intro">
-              Seven picks. One captain. Know the scoring, the deadline and
-              what it takes to qualify.
+              Seven picks. One captain. Know the scoring, the deadline and what
+              it takes to qualify.
             </p>
             <div className="rules-grid">
               {[
@@ -1208,7 +1258,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                 [
                   "02",
                   "The weekly calendar",
-                  "Rankings freeze Saturday at 00:00 UTC. Drafting closes Monday at 00:00 UTC. Seven daily intervals close at 00:00 UTC; the round ends the following Monday. The inaugural season has four weeks. Later season lengths are configured before drafting.",
+                  "The opening draft begins at the announced token-launch time and lasts 45 minutes. Scoring starts at draft lock and runs for seven 24-hour intervals. Later rounds in this season open drafting 48 hours before their weekly lock. The published UTC calendar controls every deadline. The inaugural season has four rounds; later seasons can use different calendars.",
                 ],
                 [
                   "03",
@@ -1328,8 +1378,19 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
         <Link href="/rules">Rules</Link>
         <Link href="/rewards">Rewards</Link>
         <Link href="/champion">Championship</Link>
-        <a href="https://x.com/PFLeague_fun" target="_blank" rel="noopener noreferrer"><XIcon /> @PFLeague_fun</a>
-        <a className="footer-market-link" href={dexUrl} target="_blank" rel="noreferrer">
+        <a
+          href="https://x.com/PFLeague_fun"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <XIcon /> @PFLeague_fun
+        </a>
+        <a
+          className="footer-market-link"
+          href={dexUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
           Dexscreener <Arrow />
         </a>
       </footer>

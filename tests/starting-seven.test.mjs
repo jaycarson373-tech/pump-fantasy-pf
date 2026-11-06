@@ -6,6 +6,7 @@ import {
   validateRoster,
   eligibleBalance,
   makeCalendar,
+  makeOpeningCalendar,
   draftOpen,
   scoreDay,
   rosterScore,
@@ -194,4 +195,24 @@ test("season champion respects all three tiebreak levels", () => {
       ["a", 4],
     ],
   );
+});
+
+test("opening draft lasts exactly 45 minutes and locks on the server boundary", () => {
+  const launch = "2026-11-06T20:17:30.000Z";
+  const rounds = makeOpeningCalendar(launch);
+  assert.equal(rounds.length, 4);
+  assert.equal(rounds[0].opensAt, launch);
+  assert.equal(rounds[0].locksAt, "2026-11-06T21:02:30.000Z");
+  assert.equal(rounds[0].endsAt, "2026-11-13T21:02:30.000Z");
+  assert.equal(rounds[1].locksAt, rounds[0].endsAt);
+  assert.equal(
+    Date.parse(rounds[1].locksAt) - Date.parse(rounds[1].opensAt),
+    2 * 86400000,
+  );
+  const r = { opens_at: launch, locks_at: rounds[0].locksAt, status: "open" };
+  assert.equal(draftOpen(r, Date.parse(launch) - 1), false);
+  assert.equal(draftOpen(r, Date.parse(launch)), true);
+  assert.equal(draftOpen(r, Date.parse(r.locks_at) - 1), true);
+  assert.equal(draftOpen(r, Date.parse(r.locks_at)), false);
+  assert.throws(() => makeOpeningCalendar("bad"));
 });

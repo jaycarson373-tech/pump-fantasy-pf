@@ -148,6 +148,26 @@ export function makeCalendar(firstMonday: string, weeks = 4) {
     endsAt: new Date(+start + (i + 1) * 7 * DAY).toISOString(),
   }));
 }
+/** Operator-scheduled launch round; never starts from a browser clock. */
+export function makeOpeningCalendar(launchAt: string, weeks = 4) {
+  const launch = Date.parse(launchAt);
+  if (
+    !Number.isFinite(launch) ||
+    !Number.isInteger(weeks) ||
+    weeks < 1 ||
+    weeks > 52
+  )
+    throw Error("Choose a valid launch timestamp and 1–52 weeks");
+  const firstLock = launch + 45 * 60_000;
+  return Array.from({ length: weeks }, (_, i) => ({
+    week: i + 1,
+    opensAt: new Date(
+      i === 0 ? launch : firstLock + (i * 7 - 2) * DAY,
+    ).toISOString(),
+    locksAt: new Date(firstLock + i * 7 * DAY).toISOString(),
+    endsAt: new Date(firstLock + (i + 1) * 7 * DAY).toISOString(),
+  }));
+}
 /** Equal PnL shares the average occupied rank. No wallet-order scoring advantage. */
 export function scoreDay(players: Trader[], pnl: Record<string, string>) {
   validatePool(players);
