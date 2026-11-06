@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
+import { LeaguePromos, TokenIdentity } from "./league-promos";
+import { promoSeasonClock } from "../lib/promo-clock";
 import {
   useCallback,
   useEffect,
@@ -598,13 +600,14 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
           >
             <XIcon />
           </a>
+          <TokenIdentity />
           <WalletControl
             onAuthChange={authChange}
             verificationRef={verification}
           />
         </div>
       </header>
-      <p className="pfl-token-address">PFL CA: <a href="https://solscan.io/token/PFLnhH2Rn2kd2maipS8ueJVCojHsrnraPLn3HAQoB8W" target="_blank" rel="noreferrer"><code>PFLnhH2Rn2kd2maipS8ueJVCojHsrnraPLn3HAQoB8W</code></a></p>
+      <LeaguePromos phase={phase} countdown={countdown} seasonClock={promoSeasonClock(data.rounds ?? [], clock.now)} />
       <div className="league-strip">
         <span>
           <i />
@@ -1320,6 +1323,11 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
             <Link className="primary-action" href="/draft">
               Enter the draft room <Arrow />
             </Link>
+            <article id="sixth-man" className="sixth-man-scouting">
+              <p className="eyebrow">SEASON 2 SCOUTING REPORT</p>
+              <h2>6th Man: Create a Player</h2>
+              <p>Stop watching. Get drafted. Link your Pump.fun player and burn 500,000 PFL once to register for future seasons. The community-player feature is planned for Season 2. This season keeps Starting Seven.</p>
+            </article>
           </section>
         )}
         {page === "champion" && (
