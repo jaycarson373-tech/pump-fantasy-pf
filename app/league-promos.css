@@ -34,7 +34,6 @@
 }
 
 .header-actions .contract-full { width: max-content; max-width: calc(100vw - 32px); white-space: nowrap; overflow-x: auto; user-select: all; pointer-events: auto; }
-.contract-explorer { color: inherit; font-size: 13px; padding: 10px 2px; }
 .header-actions .contract-copy, .header-actions .x-social { height: 36px; border: 1px solid #d9dfda; border-radius: 9px; background: #fff; color: #152019; }
 .header-actions .contract-copy { width: auto; gap: 8px; padding: 0 11px; flex-wrap: nowrap; white-space: nowrap; }
 .header-actions .contract-short { display: inline-block; white-space: nowrap; font: 600 10px/1 var(--font-geist-mono), monospace; }

@@ -649,7 +649,6 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
               </span>
             </button>
           )}
-          {publicMint && <a className="contract-explorer" href={`https://solscan.io/token/${publicMint}`} target="_blank" rel="noopener noreferrer" aria-label="View PFL token on Solscan">↗</a>}
           <a
             className="x-social"
             href="https://x.com/PFLeague_fun"
