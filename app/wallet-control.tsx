@@ -244,7 +244,6 @@ export function WalletControl({
           : status === "pending" || status === "reconnecting"
             ? "Finding wallets"
             : "Connect wallet"}
-        <span className="chevron">⌄</span>
       </button>
       {open && (
         <>
