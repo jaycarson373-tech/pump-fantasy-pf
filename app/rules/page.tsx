@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function Rules() {
   return <main className="rules-page">
     <Link href="/">Pump Fantasy League <span> / Rules</span></Link>
-    <p className="rules-kicker">SEASON 1 FORMAT · $PFL</p>
+    <p className="rules-kicker">LEAGUE RULES · $PFL</p>
     <h1>Five picks.<br />One league.</h1>
     <p className="rules-lead">Build your lineup from Pump.fun’s top 50 traders. Your squad competes on their combined PnL change.</p>
     <div className="rules-overview" aria-label="Season format">
