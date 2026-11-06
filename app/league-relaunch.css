@@ -1,6 +1,6 @@
 /* Relaunch identity: a clean sporting league, with the draft as the product. */
 .draft-room { --green: #14f195; --green-ink: #062c20; }
-.draft-room .pf-mark-image { background-image: url('/brand/fantasy-league-mark.svg'); }
+.draft-room .pf-mark-image { background-image: url('/brand/pump-fantasy-shield-v2.png'); }
 .draft-room .topbar { position: sticky; top: 0; border-top: 4px solid #14f195; height: 80px; }
 .league-live-strip { display: grid; grid-template-columns: 1.25fr 1fr 1fr 1fr; background: #0d1b14; padding: 17px clamp(20px,4.7vw,74px); gap: 25px; color: #edfef5; border-bottom: 1px solid #284333; }
 .league-live-strip > div { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 10px; }
@@ -38,7 +38,7 @@
 .draft-room .roster-slot b { font-size: 13px; }
 .draft-room .roster-slot small { font-size: 10px; }
 .draft-room .no-signature { font-size: 10px; line-height: 1.6; }
-.draft-room .closing-cta > span { display: block; width: clamp(110px,16vw,210px); height: clamp(110px,16vw,210px); font-size: 0; background: center/contain no-repeat url('/brand/fantasy-league-mark.svg'); }
+.draft-room .closing-cta > span { display: block; width: clamp(110px,16vw,210px); height: clamp(110px,16vw,210px); font-size: 0; background: center/contain no-repeat url('/brand/pump-fantasy-shield-v2.png'); }
 @media (max-width: 1100px) {
  .draft-room .hero-copy-grid { grid-template-columns: 1fr; }
  .draft-room .draft-board-art { max-width: 650px; }
