@@ -28,6 +28,7 @@ type Claim = { entitlement_id:string; signature:string; transaction_base64:strin
   wallet:string; season_id:string; reward_mint:string; entitlement_amount:string };
 function cap(name:string) {
   const value=process.env[name];
+  if(value==='unlimited')return value;
   return value && /^[1-9]\d*$/.test(value) && BigInt(value)<=U64_MAX ? BigInt(value) : null;
 }
 function runOpen() {
@@ -36,7 +37,7 @@ function runOpen() {
 }
 function fundingBlockers() {
   const blockers:string[]=[];
-  if(!cap('PF_AUTO_PAYOUT_MAX_AWARD_RAW')||!cap('PF_AUTO_PAYOUT_MAX_SEASON_RAW'))blockers.push('Configure explicit positive PUMP payout caps.');
+  if(!cap('PF_AUTO_PAYOUT_MAX_AWARD_RAW')||!cap('PF_AUTO_PAYOUT_MAX_SEASON_RAW'))blockers.push('Configure explicit positive PUMP payout caps or unlimited.');
   const source=process.env.PF_PRIZE_WALLET_ADDRESS;
   if(!validWallet(source)||source!==process.env.PF_CREATOR_WALLET_ADDRESS)blockers.push('Use the matching creator and prize wallet.');
   if(!Object.hasOwn(process.env,'PF_PAYOUT_SIGNER_KEYPAIR_JSON'))blockers.push('Configure the approved payout signer.');
@@ -103,9 +104,10 @@ async function reconcile(c:Claim) {
 }
 async function checkCaps(e:Entitlement) {
   const amount=BigInt(e.amount_raw),awardCap=cap('PF_AUTO_PAYOUT_MAX_AWARD_RAW'),seasonCap=cap('PF_AUTO_PAYOUT_MAX_SEASON_RAW');
-  if(!awardCap||!seasonCap||amount<=0n||amount>awardCap)throw Error('Claim exceeds its configured award cap. Review payout limits.');
+  if(!awardCap||!seasonCap||amount<=0n||amount>U64_MAX)throw Error('Invalid claim amount or payout cap. Review payout limits.');
+  if(awardCap!=='unlimited'&&amount>awardCap)throw Error('Claim exceeds its configured award cap. Review payout limits.');
   const [reserved]=await queryRows<{raw:string}>(`select coalesce(sum(c.amount_raw),0)::text raw from pfl_claims c join pfl_entitlements e on e.id=c.entitlement_id where e.season_id=$1`,[e.season_id]);
-  if(BigInt(reserved.raw)+amount>seasonCap)throw Error('Claim exceeds its configured season cap. Review existing claim reservations.');
+  if(seasonCap!=='unlimited'&&BigInt(reserved.raw)+amount>seasonCap)throw Error('Claim exceeds its configured season cap. Review existing claim reservations.');
   const [funding]=await queryRows<{allocated:string;entitled:string}>(`select
    coalesce((select sum(case $2 when 'daily' then a.daily_raw when 'season' then a.season_raw else a.champion_raw end)
     from pfl_fee_allocations a join pf_creator_fee_receipts r on r.signature=a.receipt_signature
