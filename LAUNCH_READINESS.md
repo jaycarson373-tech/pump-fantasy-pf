@@ -32,3 +32,9 @@ Run `npm run check:live` against the canonical URL. This check is read-only and 
 ## Green palette refresh — November 5, 2026
 
 Presentation-only update on latest main: Pump-green primary actions, forest-green draft panels and mint surfaces. Blue remains on a secondary preview card and small data details. Existing layout, eligibility, fee allocation, wallet flow and activation controls are preserved. Desktop 1440px and phone 390px checked without horizontal overflow. No financial execution was performed.
+
+## Logo, rules and allocation presentation — November 5, 2026
+
+Owner explicitly limited this pass to frontend; collaborator owns backend. Supplied glossy crowned shield replaces the header/footer mark and transparent favicons. Rules now shares the green league visual system. Season 1 appears as a compact hero badge; later season lengths/formats may vary and must be published before entries open.
+
+The announced fee allocation is 30% daily payouts, 50% each season's leaderboard, 20% championship bonus. This pass does NOT change the existing 65/35 receipt accounting, payout code, database, scheduler, or activation flags. Public copy identifies the new allocation as awaiting payout activation/event rules; historical transaction history remains untouched. Collaborator must implement the new split with versioned receipts (preserving history), dedicated season/championship pools, defined leaderboard distribution and championship rules, and verified settlement. Do not derive new pool balances by splitting old reserves in the frontend. Subsequent season timing must follow backend schedules; update the small Season 1 badge with the published season identity when the next season is configured.

@@ -2,7 +2,7 @@
 .draft-room{--green:#14f195;--green-ink:#0b4c30;--green-soft:#e4fbee;--paper:#f6faf7;background:var(--paper);color:#14271e}
 .draft-room .topbar{height:78px;border-top:0;background:#fffdfb;border-bottom:1px solid #dee5f0}
 .draft-room .topbar nav{height:78px}.draft-room .topbar nav a{height:78px}
-.draft-room .pf-brand em{background:#e4fbee;color:#087b46}.draft-room .pf-mark-image{background-image:url('/brand/league-emblem.svg')}
+.draft-room .pf-brand em{background:#e4fbee;color:#087b46}.draft-room .pf-mark-image{background-image:url('/brand/pump-fantasy-shield.png')}
 .draft-room .league-live-strip{background:#102c20;color:#e5fff0;border-color:#2b4a39;padding-block:16px}.draft-room .league-live-strip span{color:#a5c9b5}.draft-room .league-live-strip>div+div{border-color:#345440}.draft-room .league-phase-dot.open{background:#72d6bf;box-shadow:none}
 .draft-room .draft-hero{background:radial-gradient(ellipse at 90% 20%,#d9f9e6 0,transparent 53%),#f6faf7;padding-top:65px;padding-bottom:0}
 .draft-room .hero-copy-grid{grid-template-columns:1fr 1fr;gap:50px;align-items:center;min-height:390px}
@@ -19,7 +19,7 @@
 .league-preview-card:hover,.league-preview-card:focus-visible{transform:translateY(-18px);border-color:#a1f8c5;box-shadow:0 15px 20px #0003;outline-offset:5px}.league-preview-card small{font:8px var(--font-geist-mono),monospace;color:#b3d8c2}.league-preview-card .league-avatar{width:100%;aspect-ratio:1;border-radius:7px;background:#4d8d67;overflow:hidden;display:grid;place-items:center;font-size:25px;color:white}.league-avatar img{width:100%;height:100%;object-fit:cover}.league-preview-card b{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.league-preview-card em{font-style:normal;font:8px var(--font-geist-mono),monospace;border-top:1px solid #6698794d;padding-top:9px;color:#c7f4d9}.league-board-bottom{font-size:8px;border-top:1px solid #39684c;padding-top:17px}.league-board-bottom span:last-child{color:#b8d4fa}
 .draft-room .draft-ticker{border-color:#dcebe1;background:transparent;color:#69809d;padding-block:24px;margin-top:35px;font-size:9px}.draft-room .league-rule-summary{background:#fff;border-color:#dce8df}.draft-room .league-rule-summary>div>b{color:#087b46;background:#e4fbee}
 .draft-room .band-player:hover{background:#edfbf2}.draft-room .band-player.selected{background:#e3f9ec;border-color:#69ce93}.draft-room .band-player.selected .player-select-mark{color:#fff;background:#087b46;border-color:#087b46}.draft-room .draft-round-head{background:#eff8f2}.draft-room .round-number{color:#087b46}.draft-room .round-pick{background:#e4fbee;color:#227044}.draft-room .draft-progress .filled{background:#087b46}.draft-room .roster-panel{border-top-color:#087b46}.draft-room .roster-panel-head em{background:#e6f9ed;color:#34684b}.draft-room .submit-squad:not(:disabled){background:#087b46;color:white}
-.draft-room .pnl-positive{color:#167767}.draft-room .squad-save-state.saved{background:#eaf5ef;color:#205f43;border-color:#9dc9b0}.draft-room .season-clock{background:#102c20}.draft-room .how-section{background:#eaf5ee}.draft-room .closing-cta{background:#102c20}.draft-room .closing-cta>span{background-image:url('/brand/league-emblem.svg')}
+.draft-room .pnl-positive{color:#167767}.draft-room .squad-save-state.saved{background:#eaf5ef;color:#205f43;border-color:#9dc9b0}.draft-room .season-clock{background:#102c20}.draft-room .how-section{background:#eaf5ee}.draft-room .closing-cta{background:#102c20}.draft-room .closing-cta>span{background-image:url('/brand/pump-fantasy-shield.png')}
 .draft-room .fee-flow{background:#eef9f2;border-color:#cde5d6}.draft-room .reward-split article{border-color:#c9e5d3}.draft-room .reward-split b{color:#087b46}
 .draft-room .pf-brand,.draft-room button,.draft-room a{touch-action:manipulation}.draft-room :focus-visible{outline:2px solid #087b46;outline-offset:4px}
 .rules-page{max-width:820px;margin:0 auto;padding:50px 24px 100px;color:#22304c}.rules-page>a{font-size:13px;color:#087b46}.rules-page h1{font-size:clamp(40px,6vw,64px);letter-spacing:-.06em;margin:65px 0 20px}.rules-page .rules-lead{font-size:19px;color:#65738b;line-height:1.7}.rules-page section{padding:30px 0;border-bottom:1px solid #dbe3ef}.rules-page h2{font-size:22px;letter-spacing:-.03em}.rules-page p,.rules-page li{font-size:15px;line-height:1.8;color:#576780}.rules-page a{text-decoration:underline;text-underline-offset:4px}
@@ -80,3 +80,48 @@
 .league-preview-card:nth-child(2) small,.league-preview-card:nth-child(2) em{color:#c6dffc}
 .draft-room .closing-cta>span{opacity:.08}
 .draft-room .season-pathway>.section-label{color:#83e8ad}
+
+/* Shared shield identity, compact allocations and the integrated league rulebook. */
+.draft-room .pf-mark-image{width:42px;height:46px;flex-basis:42px}
+.season-tag{display:inline-flex;padding:6px 9px;border:1px solid #bce6cd;border-radius:5px;background:#e8f8ee;color:#27734a;font:650 9px/1.2 var(--font-geist-mono),monospace;letter-spacing:.08em;text-transform:uppercase}
+.draft-hero .season-tag{margin-bottom:18px}
+.draft-room .fee-flow>.reward-split{grid-template-columns:repeat(3,minmax(0,1fr))}
+.draft-room .reward-split article{min-width:0}
+.draft-room .reward-split strong{font-size:16px}
+.draft-room .fee-flow p.allocation-note{font-size:11px;color:#526b5b}
+.rules-draft-link{display:flex;align-items:center;gap:22px;padding:12px 16px;border:1px solid #b8e5cb;border-radius:8px;background:#e5f9ed;color:#155634;font-size:12px;font-weight:650}
+.league-rules-wrap{max-width:1160px;margin:auto;padding:64px 32px 32px}
+.league-rules-hero{padding-bottom:42px;border-bottom:1px solid #d5e5da}
+.league-rules-hero h1{font-size:clamp(42px,5.4vw,72px);letter-spacing:-.065em;line-height:1.04;margin:22px 0;color:#142e20;font-weight:650}
+.league-rules-hero h1 span{color:#087b46}
+.league-rules-hero>p{font-size:16px;line-height:1.7;color:#617568;max-width:530px}
+.rules-quick-facts{display:grid;grid-template-columns:repeat(3,1fr);max-width:680px;margin-top:32px;gap:24px}
+.rules-quick-facts>div{display:grid;gap:8px;border-left:2px solid #14f195;padding-left:16px}
+.rules-quick-facts strong{font-size:23px;letter-spacing:-.04em;color:#153e26}
+.rules-quick-facts span{font-size:11px;color:#63786b}
+.league-rules-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:60px;margin-top:40px;align-items:start}
+.rules-contents{position:sticky;top:110px;display:grid;gap:8px}
+.rules-contents>span{font:600 9px var(--font-geist-mono),monospace;letter-spacing:.12em;color:#6a8073;margin:0 0 12px 12px}
+.rules-contents a{padding:12px;border-radius:6px;font-size:12px;color:#536e5e;transition:background .15s,color .15s}
+.rules-contents a:hover{background:#e1f4e8;color:#087b46}
+.rules-chapters{display:grid;gap:16px}
+.rules-chapters section{position:relative;background:#fff;border:1px solid #dce9e1;border-radius:13px;padding:30px;scroll-margin-top:100px}
+.rules-chapter-number{display:grid;place-items:center;width:30px;height:30px;background:#e3f8ec;color:#087b46;border-radius:7px;font:650 10px var(--font-geist-mono),monospace;margin-bottom:18px}
+.rules-chapters h2{font-size:25px;line-height:1.2;letter-spacing:-.04em;margin:0 0 16px;color:#173525}
+.rules-chapters p{font-size:14px;line-height:1.8;color:#5b6f61;margin:12px 0 0}
+.rules-chapters p strong{color:#2c513a;font-weight:650}
+.rules-bands{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:22px 0}
+.rules-bands span{padding:12px 4px;text-align:center;border:1px solid #cce9d7;background:#f1fbf5;color:#237044;border-radius:7px;font:650 11px var(--font-geist-mono),monospace}
+.rules-formula{padding:20px 12px;background:#102c20;color:#effff5;border-radius:8px;margin:22px 0;font:500 12px/1.8 var(--font-geist-mono),monospace;text-align:center}
+.rules-formula span{color:#14f195;margin:0 8px}
+.rules-pools{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:22px 0}
+.rules-pools>div{padding:20px 12px;border-radius:9px;background:#ecf9f1;display:grid;gap:9px}
+.rules-pools strong{font-size:34px;letter-spacing:-.06em;color:#087b46}
+.rules-pools span{font-size:11px;font-weight:600;color:#376549}
+.rules-chapters p.rules-small-note{font-size:11px;line-height:1.65;color:#708075}
+.rules-inline-link{display:inline-flex;align-items:center;gap:18px;min-height:44px;margin-top:14px;color:#087b46;font-size:13px;font-weight:650}
+.rules-finish{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-top:42px;padding:30px;border:1px solid #c7e5d2;border-radius:12px;background:#e8f7ed}
+.rules-finish h2{margin:10px 0 0;font-size:26px;letter-spacing:-.04em}
+.rules-fineprint{color:#718077;font-size:10px;line-height:1.8;margin:22px 0}
+@media(max-width:800px){.league-rules-wrap{padding:36px 20px 24px}.league-rules-layout{grid-template-columns:1fr;gap:24px}.rules-contents{position:static;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.rules-contents>span{grid-column:1/-1}.rules-contents a{background:#edf6f0}.rules-chapters section{padding:24px}.rules-finish{align-items:flex-start;flex-direction:column}.rules-shell .topbar{grid-template-columns:1fr auto}.rules-shell .topbar nav{display:flex;grid-column:1/-1;grid-row:2;height:44px;gap:0;justify-content:space-between;width:100%}.rules-shell .topbar nav a{height:44px;font-size:11px}.rules-shell .topbar{gap:0 10px;padding-top:12px}.rules-chapters section{scroll-margin-top:145px}.rules-draft-link{font-size:11px;gap:8px;padding:10px}.draft-room .fee-flow>.reward-split{grid-template-columns:1fr}.draft-room .pf-mark-image{width:34px;height:38px;flex-basis:34px}}
+@media(max-width:420px){.rules-quick-facts{gap:12px}.rules-quick-facts strong{font-size:20px}.rules-quick-facts>div{padding-left:10px}.rules-quick-facts span{font-size:10px;line-height:1.5}.rules-chapters section{padding:22px 18px}.rules-pools{gap:6px}.rules-pools>div{padding:16px 9px}.rules-pools strong{font-size:30px}.rules-pools span{font-size:10px;line-height:1.5}.rules-formula{font-size:10px}.rules-formula span{margin:0 3px}.league-rules-hero>p{font-size:14px}}

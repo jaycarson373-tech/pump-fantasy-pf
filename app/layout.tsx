@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   title: "PumpFun Fantasy League | Draft your five",
   description:
     "Hold 500,000 FANTASY. Draft five traders in one hour. Compete across 48 hours of Pump.fun PnL.",
-  icons: { icon: "/brand/fantasy-league-mark.svg", apple: "/brand/fantasy-league-mark-180.png" },
+  icons: { icon: "/brand/pump-fantasy-shield-32.png", apple: "/apple-icon.png" },
   openGraph: {
     title: "PumpFun Fantasy League",
     description: "Draft one trader from each rank band. Build your five and follow the PnL race.",
