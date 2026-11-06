@@ -2,7 +2,8 @@ import "server-only";
 import { getBackendConfig } from "./config";
 import { getActiveSeasonId, queryRows } from "./database";
 import { validWallet } from "./http";
-import { fetchPumpLeaderboard, type FantasyPlayer } from "./pumpfun";
+import type { FantasyPlayer } from "./pumpfun";
+import { getDraftRoster } from "./roster-cache";
 import { getNativeSolBalance, verifyTokenMint } from "./solana";
 import type { SeasonSchedule } from "./season-window";
 import { creatorFeeConfigurationBlockers } from "./creator-fees";
@@ -40,8 +41,8 @@ export async function getSeasonLaunchReadiness(): Promise<SeasonLaunchReadiness>
   const blockers: string[] = [];
   if (!config.ready) blockers.push("Backend, RPC, session secret, and live FANTASY mint must be configured.");
   try {
-    const migrationRows = await queryRows<{ applied: boolean }>("select count(*)=2 as applied from pf_schema_migrations where name in ('202610140002_creator_fee_pools.sql','202611060001_season_fee_rewards.sql')");
-    if (!migrationRows[0]?.applied) blockers.push("Apply the creator-fee and season-reward migrations before opening a season.");
+    const migrationRows = await queryRows<{ applied: boolean }>("select count(*)=3 as applied from pf_schema_migrations where name in ('202610140002_creator_fee_pools.sql','202611060001_season_fee_rewards.sql','202611060002_saved_draft_roster.sql')");
+    if (!migrationRows[0]?.applied) blockers.push("Apply the creator-fee, season-reward and roster-cache migrations before opening a season.");
   } catch {
     blockers.push("Could not verify the creator-fee-pools migration in the database.");
   }
@@ -99,14 +100,14 @@ export async function getSeasonLaunchReadiness(): Promise<SeasonLaunchReadiness>
   let players: FantasyPlayer[];
   let observedAt: string;
   try {
-    const board = await fetchPumpLeaderboard(50, { fresh: true });
+    const board = await getDraftRoster();
     players = board.players;
     observedAt = board.snapshotAt;
   } catch {
-    return { ...blocked(["Could not fetch the current Pump.fun leaderboard."]), season, prizeWallet, dailyPrizeLamports: prizeText, requiredBalanceLamports: requiredBalance.toString(), currentBalanceLamports: currentBalance.toString() };
+    return { ...blocked(["Could not load the saved draft roster. Restore its 50-player snapshot before opening."]), season, prizeWallet, dailyPrizeLamports: prizeText, requiredBalanceLamports: requiredBalance.toString(), currentBalanceLamports: currentBalance.toString() };
   }
   if (players.length !== 50 || players.some((player, index) => player.rank !== index + 1 || !validWallet(player.wallet) || !Number.isFinite(player.pnl_usd)) || new Set(players.map((player) => player.wallet)).size !== 50) {
-    blockers.push("Pump.fun must return a complete, unique, consecutive 1–50 leaderboard before opening entries.");
+    blockers.push("The saved roster must contain 50 unique wallets ranked 1–50 before opening entries.");
     return { ...blocked(blockers), season, prizeWallet, dailyPrizeLamports: prizeText, requiredBalanceLamports: requiredBalance.toString(), currentBalanceLamports: currentBalance.toString() };
   }
 

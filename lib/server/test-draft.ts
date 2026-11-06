@@ -1,29 +1,16 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { getActiveSeasonId, withTransaction } from "./database";
-import { fetchPumpLeaderboard, type FantasyPlayer } from "./pumpfun";
+import { getDraftRoster } from "./roster-cache";
 import { saveRosterSnapshot } from "./players";
 import { isWalletTestSeason, seasonWindowFromOpen } from "./season-window";
-import archive from "../../data/pumpfun-one-month-top50.json";
-
-async function testRoster() {
-  try { return await fetchPumpLeaderboard(50, { fresh: true }); }
-  catch {
-    // This historical field is permitted only in the explicitly unfunded test.
-    const players: FantasyPlayer[] = archive.players.map(([rank, wallet, name, pnl, avatar]) => ({
-      id: `rank-${rank}`, rank: Number(rank), wallet: String(wallet), display_name: String(name),
-      pnl_usd: Number(pnl), avatar_url: String(avatar), profile_url: `https://pump.fun/profile/${wallet}`,
-    }));
-    return { players, snapshotAt: archive.snapshotAt };
-  }
-}
 
 /** Caller holds the season-start advisory lock; no reward work runs for test IDs. */
 export async function openTestDraft() {
   const previous = await getActiveSeasonId();
   if (!previous) throw new Error("Configure a real season before opening a test draft.");
   if (isWalletTestSeason(previous)) throw new Error("A test draft already exists. Close it before opening another.");
-  const board = await testRoster();
+  const board = await getDraftRoster();
   const id = `wallet-test-${randomUUID()}`;
   const window = seasonWindowFromOpen(Date.now());
   await withTransaction(async query => {

@@ -50,7 +50,7 @@ async function migrateFromLegacy() {
   assert.equal(existing.rows[0].present,null,'Use a new database; this test does not erase existing data.');
   await db.query('create table pf_schema_migrations(name text primary key,applied_at timestamptz default now())');
   const names=(await readdir('db/migrations')).filter(name=>name.endsWith('.sql')).sort();
-  for (const name of names.filter(name=>name!=='202611060001_season_fee_rewards.sql')) {
+  for (const name of names.filter(name=>name<'202611060001_season_fee_rewards.sql')) {
     await db.query(await readFile(`db/migrations/${name}`,'utf8'));
     await db.query('insert into pf_schema_migrations(name) values($1)',[name]);
   }
@@ -110,7 +110,14 @@ async function workerCheck() {
   await receipt('worker-fees',s.id);
   await db.query("update pf_seasons set opens_at=closes_at-interval '49 hours',locked_at=closes_at-interval '48 hours' where id=$1",[s.id]);
   await db.query("update pf_app_config set value=$1 where key='active_season_id'",[s.id]);
-  const tick=await tickSeason();
+  const realFetch=globalThis.fetch;
+  globalThis.fetch=async url=>{
+    assert.equal(new URL(url).pathname,'/pnl-leaderboard','Only the draft cache may request an external snapshot in this fixture');
+    return new Response('Unavailable',{status:403});
+  };
+  let tick;
+  try { tick=await tickSeason(); }
+  finally { globalThis.fetch=realFetch; }
   assert.equal(tick.value.payout.action,'payout-disabled');
   const awards=(await db.query('select award_kind,day_number,prize_lamports from pf_daily_awards where season_id=$1',[s.id])).rows;
   assert.equal(awards.length,3,'The real worker records two daily awards plus the season award');

@@ -2,7 +2,9 @@
 
 Pump Fantasy is a five-pick fantasy contest based on Pump.fun's one-month PnL leaderboard. Each season snapshots the top 50, split into five fixed rank bands. Eligible holders choose one trader from each band during a one-hour draft. Picks are saved per wallet and can be edited until the server-side lock. The scoring period then runs 48 hours with one-day score settlements. Confirmed creator fees split 30% into daily rewards, 50% into the overall 48-hour season winner pool, and 20% into championship bonus reserves.
 
-The public root route shows the relaunch page while a season is being prepared or scheduled, then switches to the draft application when the season opens (including visitors already waiting on the page). The site is noindex. Squad submission stays disabled until the backend reports an open draft, the live 50-player roster is available, and the connected wallet passes the signed-message plus 500,000 FANTASY balance check.
+The public root route shows the relaunch page while a season is being prepared or scheduled, then switches to the draft application when the season opens (including visitors already waiting on the page). The site is noindex. Squad submission stays disabled until the backend reports an open draft, the saved 50-player season roster is available, and the connected wallet passes the signed-message plus 500,000 FANTASY balance check.
+
+The candidate roster is stored in PostgreSQL and seeded from the existing 50-player archive. The worker and pre-draft requests attempt a refresh at most once every 24 hours, including failed attempts; the timestamp remains the original observation date when Pump.fun is unavailable. Successful refreshes are kept for the next draft and never change an open season. Scoring checkpoints still require fresh PnL: cached roster values cannot determine winners when the scoring feed is unavailable.
 
 ## What is implemented
 
@@ -10,7 +12,7 @@ The public root route shows the relaunch page while a season is being prepared o
 - Server-side SPL Token and Token-2022 balance checks; the default minimum is 500,000 whole FANTASY.
 - Persistent one-entry-per-wallet storage in Railway Postgres, with server-side rank-band and deadline validation.
 - A fixed Pump.fun top-50 roster per season and fresh 1M PnL score snapshots at the scoring start and daily boundaries.
-- Automatic daily winner calculation, tied-score resolution by wallet address, payment-status records, and season rollover to a fresh top 50.
+- Automatic daily winner calculation, tied-score resolution by wallet address, payment-status records, and season rollover to the latest saved top 50.
 - Optional automatic SOL payouts are disabled by default. When explicitly enabled, a protected Railway worker signs transfers from the dedicated payout wallet; awards are shown as paid only after the exact transfer finalizes onchain.
 - A Railway server clock retries due season work every five minutes and runs immediately on app startup. Score windows missed by more than 15 minutes are marked `awaiting_data` rather than fabricating a winner.
 
@@ -41,11 +43,11 @@ curl "$NEXT_PUBLIC_SITE_URL/api/admin/season/preflight" \
   -H "Authorization: Bearer $PF_DATA_INGEST_SECRET"
 ```
 
-To open Season 1, call the protected start endpoint once after the token is live and preflight returns `ready: true`. It snapshots Pump.fun's current 1–50 field and opens a one-hour draft by default. The server sets the deadline to exactly 60 minutes after the operator starts the season. The next 48 hours are split into two daily scoring windows. Later seasons open automatically when the preceding season ends.
+To open Season 1, call the protected start endpoint once after the token is live and preflight returns `ready: true`. It copies the latest saved 1–50 field into an immutable season roster and opens a one-hour draft by default. The server sets the deadline to exactly 60 minutes after the operator starts the season. The next 48 hours are split into two daily scoring windows. Later seasons open automatically when the preceding season ends.
 
 From this checkout, run `sh scripts/open-draft.sh` with the Railway CLI authenticated. The script injects the existing production admin secret without displaying it and opens the real holder-only draft only when preflight passes. The homepage countdown follows the server deadline and survives reloads.
 
-For an unfunded wallet-flow check before token launch, run `sh scripts/open-draft.sh test-open`, then `sh scripts/open-draft.sh test-close` after testing. The test uses a separate season and permits any wallet that signs in. If the live leaderboard is unavailable, this explicitly labeled test uses the archived field. Test drafts never collect fees, score awards, pay prizes, or roll over. Closing restores the prepared real season and its 500,000-token requirement; test entries remain in the separate test season. Do not leave the temporary test active as the real contest.
+For an unfunded wallet-flow check before token launch, run `sh scripts/open-draft.sh test-open`, then `sh scripts/open-draft.sh test-close` after testing. The test uses a separate season and permits any wallet that signs in. The test uses the same saved candidate field as real drafts. Test drafts never collect fees, score awards, pay prizes, or roll over. Closing restores the prepared real season and its 500,000-token requirement; test entries remain in the separate test season. Do not leave the temporary test active as the real contest.
 
 ```bash
 curl -X POST "$NEXT_PUBLIC_SITE_URL/api/admin/season/start" \

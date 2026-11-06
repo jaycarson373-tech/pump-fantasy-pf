@@ -1,0 +1,76 @@
+// Actual PostgreSQL/cache modules; only the external Pump HTTP response is mocked.
+import assert from 'node:assert/strict';
+import { registerHooks } from 'node:module';
+const url=new URL(process.env.DATABASE_URL);
+assert.ok(['127.0.0.1','localhost'].includes(url.hostname) && url.pathname.startsWith('/pf_roster_test'),'Use a disposable local pf_roster_test database.');
+const serverSource=new URL('../lib/server/',import.meta.url).href;
+const appSource=new URL('../app/',import.meta.url).href;
+registerHooks({resolve(specifier,context,next){
+  if(specifier==='next/server') return next(`${specifier}.js`,context);
+  const localSource=context.parentURL?.startsWith(serverSource) || context.parentURL?.startsWith(appSource);
+  return next(localSource && specifier.startsWith('.') && !/\.[a-z]+$/.test(specifier)?`${specifier}.ts`:specifier,context);
+}});
+const {getDraftRoster,archivedRoster}=await import('../lib/server/roster-cache.ts');
+const {queryRows,closeDatabasePool}=await import('../lib/server/database.ts');
+const {saveRosterSnapshot}=await import('../lib/server/players.ts');
+const {fetchPumpLeaderboard}=await import('../lib/server/pumpfun.ts');
+const {GET:playersResponse}=await import('../app/api/players/route.ts');
+const {openTestDraft,closeTestDraft}=await import('../lib/server/test-draft.ts');
+const {tickSeason}=await import('../lib/server/season-results.ts');
+let calls=0;
+const realFetch=globalThis.fetch;
+globalThis.fetch=async url=>{
+  assert.equal(new URL(url).origin,'https://frontend-api-v3.pump.fun');
+  calls++;
+  return new Response('Cloudflare challenge',{status:403});
+};
+try {
+  assert.equal((await queryRows('select count(*)::int as n from pf_roster_cache'))[0].n,0,'Use an empty cache fixture.');
+  const first=await getDraftRoster();
+  assert.equal(first.players.length,50);
+  assert.equal(Date.parse(first.snapshotAt),Date.parse(archivedRoster().snapshotAt),'403 must not relabel historical data as fresh');
+  await Promise.all(Array.from({length:12},()=>getDraftRoster()));
+  assert.equal(calls,1,'Failure is throttled across concurrent requests by the database');
+  await closeDatabasePool();
+  assert.equal((await getDraftRoster()).snapshotAt,first.snapshotAt);
+  assert.equal(calls,1,'Process/pool restart must not reset the daily throttle');
+  await queryRows("insert into pf_seasons(id,title,status) values('cache-fixed-field','Roster fixture','draft')");
+  await saveRosterSnapshot('cache-fixed-field',first.players,new Date(first.snapshotAt));
+  await queryRows("update pf_seasons set status='open' where id='cache-fixed-field'");
+  await queryRows("update pf_app_config set value='cache-fixed-field' where key='active_season_id'");
+  const original=(await queryRows("select wallet from pf_players where season_id='cache-fixed-field' order by rank")).map(p=>p.wallet);
+  await queryRows("update pf_roster_cache set last_refresh_attempt_at=now()-interval '25 hours' where id=1");
+  const observed=Date.now();
+  const entries=first.players.map((p,index)=>({rank:index+1,walletAddress:first.players[(index+1)%50].wallet,pnlUsd:p.pnl_usd+1,username:p.display_name,lastRefreshedAtMs:observed}));
+  globalThis.fetch=async()=>{calls++;return Response.json({entries});};
+  await Promise.all(Array.from({length:12},()=>getDraftRoster()));
+  const refreshed=await getDraftRoster();
+  assert.equal(calls,2,'One successful refresh after the daily interval');
+  assert.equal(refreshed.snapshotAt,new Date(observed).toISOString());
+  assert.equal(refreshed.players[0].wallet,first.players[1].wallet);
+  assert.deepEqual((await queryRows("select wallet from pf_players where season_id='cache-fixed-field' order by rank")).map(p=>p.wallet),original,'Refreshing candidates cannot alter an open season');
+  const published=await (await playersResponse()).json();
+  assert.equal(published.seasonId,'cache-fixed-field');
+  assert.deepEqual(published.players.map(p=>p.wallet),original,'Public API serves the frozen field, not refreshed candidates');
+  assert.ok(published.players.every(p=>p.id.startsWith('cache-fixed-field-rank-')));
+  await queryRows("update pf_roster_cache set last_refresh_attempt_at=now()-interval '25 hours' where id=1");
+  globalThis.fetch=async()=>{calls++;return Response.json({entries:entries.map(p=>({...p,walletAddress:entries[0].walletAddress}))});};
+  assert.deepEqual((await getDraftRoster()).players,refreshed.players,'Malformed live roster cannot replace the saved field');
+  globalThis.fetch=async()=>new Response('Blocked',{status:403});
+  await assert.rejects(fetchPumpLeaderboard(100,{fresh:true}),/HTTP 403/,'Scoring must still fail instead of consuming the draft cache');
+  await queryRows("update pf_seasons set opens_at=now()-interval '1 hour',locked_at=now()-interval '1 second',closes_at=now()+interval '48 hours' where id='cache-fixed-field'");
+  await assert.rejects(tickSeason(),/HTTP 403/,'The actual worker must reject unavailable scoring even with a saved roster');
+  assert.equal((await queryRows("select count(*)::int as n from pf_score_snapshots where season_id='cache-fixed-field'"))[0].n,0);
+  assert.equal((await queryRows("select count(*)::int as n from pf_daily_awards where season_id='cache-fixed-field'"))[0].n,0);
+  await queryRows("update pf_app_config set value='season-1' where key='active_season_id'");
+  const opened=await openTestDraft();
+  assert.equal(Date.parse(opened.lockedAt)-Date.parse(opened.opensAt),3_600_000);
+  const testField=await (await playersResponse()).json();
+  assert.equal(testField.seasonId,opened.seasonId);
+  assert.deepEqual(testField.players.map(p=>p.wallet),refreshed.players.map(p=>p.wallet));
+  assert.equal((await closeTestDraft()).seasonId,'season-1');
+  process.stdout.write('PASS: saved50 available through403, original timestamp retained, daily failure/success throttle, restart persistence, concurrent refresh once, active field unchanged, invalid feed rejected, scoring never uses archived values.\n');
+} finally {
+  globalThis.fetch=realFetch;
+  await closeDatabasePool();
+}

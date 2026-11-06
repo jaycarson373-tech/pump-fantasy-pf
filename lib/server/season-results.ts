@@ -11,6 +11,7 @@ import { calculateDailyWinner } from "./daily-scoring";
 import { recoverBoundaryAward, type AwardBoundary } from "./boundary-award";
 import { processNextAutomaticPayout } from "./automatic-payout";
 import { settleSeasonAward } from "./season-award";
+import { getDraftRoster } from "./roster-cache";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_GRACE_MS = 15 * 60 * 1000;
@@ -97,6 +98,7 @@ async function captureBoundary(season: Season, boundary: 0 | 1 | 2) {
 
 export async function tickSeason() {
   return withAdvisoryLock("pump-fantasy-season-tick", async () => {
+    await getDraftRoster();
     const season = await activeSeason();
     if (!season || isWalletTestSeason(season.id) || season.status !== "open" || !season.locked_at || !season.closes_at) return { ok: true, action: "idle", seasonId: season?.id ?? null };
     // Collection is finalized and journaled before daily results settle.
@@ -138,7 +140,7 @@ export async function tickSeason() {
       const balance = await getNativeSolBalance(prizeWallet);
       if (balance < nextPrize * 2n + 20_000n) return { ok: true, action: "awaiting-prize-funding", seasonId: season.id, requiredBalanceLamports: (nextPrize * 2n + 20_000n).toString() };
     }
-    const board = await fetchPumpLeaderboard(50, { fresh: true });
+    const board = await getDraftRoster();
     if (board.players.length !== 50 || board.players.some((player, index) => player.rank !== index + 1 || !validWallet(player.wallet) || !Number.isFinite(player.pnl_usd)) || new Set(board.players.map((player) => player.wallet)).size !== 50) {
       return { ok: true, action: "awaiting-leaderboard", seasonId: season.id };
     }
