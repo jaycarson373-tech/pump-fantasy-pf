@@ -12,6 +12,7 @@ function verifySecret(supplied: string, expected: string) {
 }
 
 export async function POST(request: Request) {
+  if(process.env.PF_LEGACY_COMPETITION!=="true")return NextResponse.json({error:"This competition format is retired. Use the Starting Seven league."},{status:410});
   try {
     if (!sameOrigin(request)) return NextResponse.json({ error: "Cross-origin request rejected." }, { status: 403 });
     const secret = process.env.PF_DATA_INGEST_SECRET;

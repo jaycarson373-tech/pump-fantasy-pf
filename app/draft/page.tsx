@@ -1,14 +1,3 @@
-import type { Metadata } from "next";
-import { FantasyApp } from "../fantasy-app";
-
-export const dynamic = "force-dynamic";
-
-export const metadata: Metadata = {
-  title: "Draft Room | Pump Fantasy League",
-  description: "Build and submit your five-trader Pump.fun fantasy squad.",
-  robots: { index: false, follow: false },
-};
-
-export default function DraftRoomPage() {
-  return <FantasyApp />;
-}
+import {LeagueApp} from '../league-app';
+export const metadata={title:'Draft your starting seven | Pump Fantasy League'};
+export default function Page(){return <LeagueApp page="draft"/>;}

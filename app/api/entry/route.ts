@@ -29,6 +29,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  if(process.env.PF_LEGACY_COMPETITION!=="true")return NextResponse.json({error:"This competition format is retired. Use the Starting Seven league."},{status:410});
   try {
     if (!sameOrigin(request)) return NextResponse.json({ error: "Cross-origin request rejected." }, { status: 403 });
     const config = getBackendConfig();

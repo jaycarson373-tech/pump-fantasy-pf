@@ -1,4 +1,5 @@
 import "server-only";
+import { eligibleBalance } from "../league/engine";
 import { getActiveSeasonId, queryRows } from "./database";
 import { canUseWalletTestEntry, type SeasonSchedule } from "./season-window";
 import { getBackendConfig } from "./config";
@@ -92,6 +93,7 @@ export async function getNativeSolBalance(wallet: string) {
 
 /** Eligibility is tied to a server-owned season, never to client claims. */
 export async function getEntryBalance(wallet: string, seasonId?: string) {
+  if (process.env.PF_LEGACY_COMPETITION !== "true") { const balance = await getHolderBalance(wallet); return {...balance, minimumTokens: "500000", eligible: eligibleBalance(balance.rawBalance, balance.decimals)}; }
   const id = seasonId ?? await getActiveSeasonId();
   if (id) {
     const rows = await queryRows<SeasonSchedule>("select status, opens_at, locked_at, closes_at from pf_seasons where id=$1", [id]);
