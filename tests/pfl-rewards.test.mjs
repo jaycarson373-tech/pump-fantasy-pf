@@ -117,8 +117,8 @@ test('league worker collects, allocates and reconciles claims under its existing
  process.env.PF_LEAGUE_WORKER_ENABLED='true';
  const result=await tickLeague();
  assert.equal(result.action,'processed');
- assert.deepEqual(state.order,['lock','collect','allocate','claims','unlock']);
- assert.equal(state.claimSeason.reward_mint,PUMP);assert.equal(state.claimSeason.status,'complete');
+ assert.deepEqual(state.order,['lock','claims','collect','allocate','unlock']);
+ assert.equal(state.claimSeason.reward_mint,PUMP);assert.equal(state.claimSeason.status,'active');
 });
 test('legacy entitlements retain their verified conversion budget and pending status',async()=>{
  setup(sql=>{
@@ -129,4 +129,15 @@ test('legacy entitlements retain their verified conversion budget and pending st
  await createEntitlements({seasonId:'legacy',roundId:'legacy-round',pool:'daily',period:'legacy-round:1',rows:[{wallet:'legacy-winner',points2:10}],budgetRaw:100n});
  const inserted=state.queries.find(([sql])=>sql.startsWith('insert into pfl_entitlements'));assert.match(inserted[0],/'pending'/);
  assert.equal(state.queries.some(([sql])=>sql.startsWith('update pfl_entitlements')),false);
+});
+
+test('claim reconciliation precedes a failing fee allocation',async()=>{
+ setup(sql=>{
+  if(sql.startsWith('select * from pfl_seasons'))return [season];
+  if(sql.includes('select r.signature'))throw Error('allocation unavailable');
+  return [];
+ });
+ process.env.PF_LEAGUE_WORKER_ENABLED='true';
+ await assert.rejects(tickLeague(),/allocation unavailable/);
+ assert.deepEqual(state.order,['lock','claims','collect','unlock']);
 });

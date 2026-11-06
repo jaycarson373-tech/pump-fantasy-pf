@@ -135,7 +135,7 @@ async function signAndPersistClaim(mint:string,creator:string,asset:RewardAsset,
 
 async function collectionHasGas(mint:string,creator:string,simulatedBalance?:number){
   // SOL liabilities remain protected even when the new receipt is in PUMP units.
-  const treasury=await getFeeTreasury(mint,"SOL"),protectedBalance=treasury.gross-treasury.paid+COLLECTION_GAS_LAMPORTS;
+  const treasury=await getFeeTreasury(mint,"SOL"),protectedBalance=treasury.gross-treasury.paid+treasury.leagueSolReserved+COLLECTION_GAS_LAMPORTS;
   const balance=simulatedBalance??(await rpc<{value:number}>("getBalance",[creator,{commitment:"confirmed"}])).value;
   if(!Number.isSafeInteger(balance)||balance<0)throw new Error("Invalid SOL gas balance; verify the RPC response.");
   return BigInt(balance)>=protectedBalance;

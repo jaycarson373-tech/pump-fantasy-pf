@@ -354,6 +354,7 @@ export async function tickLeague() {
     if (!season) return { action: "idle" };
     if (season.mint !== getBackendConfig().mint)
       throw Error("Configured mint does not match the season");
+    await processLeagueClaims(season);
     await collectCreatorFees();
     await allocateReceipts(season);
     const rounds = await currentRounds(season.id);
@@ -440,7 +441,6 @@ export async function tickLeague() {
     ]);
     const updatedSeason = { ...season, status: pending.length ? "active" : "complete" };
     await prepareRewards(updatedSeason);
-    await processLeagueClaims(updatedSeason);
     await queryRows(
       "insert into pfl_jobs(id,status,last_error) values('league-worker','completed',null) on conflict(id) do update set status='completed',last_error=null,updated_at=now()",
     );

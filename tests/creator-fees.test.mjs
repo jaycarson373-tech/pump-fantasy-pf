@@ -10,7 +10,7 @@ import schemas from '../lib/server/protocol/creator-fees.json' with {type:'json'
 const modules={
  './database':`export const queryRows=(...args)=>globalThis.__pfCollection.query(...args);export const withTransaction=fn=>fn(queryRows);`,
  './config':`export const getBackendConfig=()=>globalThis.__pfCollection.config;`,
- './fee-treasury':`export const getFeeTreasury=(...args)=>{globalThis.__pfCollection.treasuryCalls.push(args);return {gross:1000000n,paid:0n};};`,
+ './fee-treasury':`export const getFeeTreasury=(...args)=>{globalThis.__pfCollection.treasuryCalls.push(args);return {gross:1000000n,paid:0n,leagueSolReserved:globalThis.__pfCollection.leagueSolReserved??0n};};`,
  './payout-signer':`export const payoutSigner=()=>{throw Error('Unexpected signer access in offline test');};export const signPayout=payoutSigner;`,
  './solana':`export const verifyMainnetRpc=async()=>{};`,
 };
@@ -52,11 +52,11 @@ test('onchain preflight rejects mismatched quote, mint program/decimals and fee 
 });
 
 test('PUMP collection protects existing SOL liabilities and uses no reward tokens for gas',async()=>{
- const state=setup();
+ const state=setup();state.leagueSolReserved=3000000n;
  state.respond=({method,params})=>{
   if(method==='getAccountInfo')return {value:params[0]===a.curve?account(PUMP,curve):account(TOKEN,quote)};
   if(method==='getMultipleAccounts')return {value:[token(a.solVault,100000),null,token(a.curve,1000),null,token(creator,500000)]};
-  if(method==='getBalance')return {value:3000000};
+  if(method==='getBalance')return {value:6000000};
   throw Error('Unexpected RPC '+method);
  };
  assert.equal(await collectCreatorFees(),'collection-needs-gas');
