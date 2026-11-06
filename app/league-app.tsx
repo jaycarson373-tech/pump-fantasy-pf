@@ -534,7 +534,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
   const phase = !round
     ? "Opening draft"
     : !round.pool_hash && players.length === 0
-      ? "Awaiting player pool"
+      ? "Draft field not published"
       : clock.now < Date.parse(round.opens_at)
         ? "Draft scheduled"
         : editable
@@ -618,10 +618,10 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
         <span>{countdown}</span>
       </div>
       <main>
-        {data.scoringDelayed && (
+        {data.scoringDelayed && ["leaderboard", "team"].includes(page) && (
           <div className="league-connection" role="status">
-            Scoring is waiting for verified interval data. Published scores show
-            completed intervals only.
+            Latest scores cover completed scoring days. The next update appears
+            after verification.
           </div>
         )}
         {!!data.rounds?.length && (
@@ -1073,7 +1073,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
             <p className="section-note">
               {data.scoringDays?.length
                 ? `${data.scoringDays.length} completed daily intervals · latest close ${new Date(data.scoringDays.at(-1)!.ends_at).toUTCString()}`
-                : "Waiting for the first verified competition interval."}{" "}
+                : "Seven daily scores. One weekly result."}{" "}
               <Link href="/rules">How scoring works</Link>
             </p>
           </section>
@@ -1089,11 +1089,9 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                     : "DAILY PRIZES. SEASON TITLE."}
                 </h2>
               </div>
-              <span className="status-pill">
-                {data.rewards?.payoutsActive
-                  ? "Settlement enabled"
-                  : "Settlement pending activation"}
-              </span>
+              {page === "rewards" && <span className="status-pill">
+                {data.rewards?.payoutsActive ? "Claims open" : "Claims not open"}
+              </span>}
             </div>
             <div className="reward-pools">
               {[
@@ -1156,7 +1154,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                     <b>
                       {data.rewards?.payoutsActive
                         ? "See entitlements"
-                        : "Not activated"}
+                        : "Claims not open"}
                     </b>
                   </div>
                 </div>
@@ -1288,12 +1286,12 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                 [
                   "08",
                   "Verified performance",
-                  "Thirty-day net PnL ranks the draft field only. Exact competition intervals determine points. Deposits, withdrawals and transfers are excluded, trades deduplicated, and accounting methods consistent. Incomplete PnL or historical holder coverage holds settlement; it never creates a zero or a fabricated score.",
+                  "The previous 30 days of net PnL determine each trader’s draft tier. Only trading during the competition earns points. Deposits, withdrawals and transfers do not count. Results are finalized after performance and holder eligibility are verified.",
                 ],
                 [
                   "09",
                   "Reward settlement",
-                  "Rewards are denominated in PFL. SOL fees need a confirmed conversion before tokens can fund prizes. Pending, verified, available and claimed are distinct states. Claims activate only after treasury authorization, reviewed settlement infrastructure, operational checks and legal review.",
+                  "Prize pools use PFL purchased with confirmed creator fees. Track earned rewards, claim availability and completed payouts in Rewards. A prize is available to claim only after results and funding are confirmed.",
                 ],
               ].map(([n, t, d]) => (
                 <article key={n}>
@@ -1341,9 +1339,9 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
             </Link>
           </section>
         )}
-        {data.status === "unavailable" && (
+        {data.status === "unavailable" && ["draft", "team", "leaderboard", "rewards"].includes(page) && (
           <div className="league-connection" role="status">
-            <span>{data.message}</span>
+            <span>Couldn’t load league data. Try again.</span>
             <button onClick={() => void refresh()} disabled={refreshing}>
               {refreshing ? "Retrying…" : "Try again"}
             </button>
