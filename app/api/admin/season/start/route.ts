@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       if (action === "test-open") return NextResponse.json(await openTestDraft());
       if (action === "test-close") return NextResponse.json(await closeTestDraft());
       const readiness = await getSeasonLaunchReadiness();
-      if (!readiness.ready || !readiness.season || !readiness.dailyPrizeLamports || !readiness.observedAt) {
+      if (!readiness.ready || !readiness.season || !readiness.dailyPrizeRaw || !readiness.observedAt) {
         return NextResponse.json({ error: "Season launch preflight failed.", blockers: readiness.blockers }, { status: 503 });
       }
       const seasonId = readiness.season.id;
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       const closesAt = new Date(window.closesAt);
       const draftMinutes = 60;
       await saveRosterSnapshot(seasonId, boardPlayers, new Date(readiness.observedAt));
-      const updated = await queryRows<{ id: string }>("update pf_seasons set status = 'open', opens_at = $2, locked_at = $3, closes_at = $4, daily_prize_lamports = $5, mint_address=$6, prize_mode=$7 where id = $1 and status = 'draft' returning id", [seasonId, opensAt.toISOString(), lockedAt.toISOString(), closesAt.toISOString(), readiness.dailyPrizeLamports, getBackendConfig().mint, process.env.PF_REWARD_MODE === "creator-fees" ? "creator-fees" : "fixed"]);
+      const updated = await queryRows<{ id: string }>("update pf_seasons set status = 'open', opens_at = $2, locked_at = $3, closes_at = $4, daily_prize_raw = $5, mint_address=$6, prize_mode=$7 where id = $1 and status = 'draft' returning id", [seasonId, opensAt.toISOString(), lockedAt.toISOString(), closesAt.toISOString(), readiness.dailyPrizeRaw, getBackendConfig().mint, process.env.PF_REWARD_MODE === "creator-fees" ? "creator-fees" : "fixed"]);
       if (updated.length !== 1) return NextResponse.json({ error: "Season state changed before launch; refresh the season status and try again." }, { status: 409 });
 
       return NextResponse.json({

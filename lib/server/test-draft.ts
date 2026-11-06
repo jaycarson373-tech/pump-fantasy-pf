@@ -16,7 +16,7 @@ export async function openTestDraft() {
   await withTransaction(async query => {
     const seasons = await query<{ status: string }>("select status from pf_seasons where id=$1 for update", [previous]);
     if (seasons[0]?.status !== "draft") throw new Error("A test draft requires the real season to be closed in draft status.");
-    await query("insert into pf_seasons(id,title,status,opens_at,locked_at,closes_at,daily_prize_lamports,prize_mode) values($1,'Wallet test','open',$2,$3,$4,0,'fixed')", [id,window.opensAt,window.lockedAt,window.closesAt]);
+    await query("insert into pf_seasons(id,title,status,opens_at,locked_at,closes_at,daily_prize_raw,prize_mode) values($1,'Wallet test','open',$2,$3,$4,0,'fixed')", [id,window.opensAt,window.lockedAt,window.closesAt]);
     await saveRosterSnapshot(id,board.players,new Date(board.snapshotAt),query);
     await query("insert into pf_app_config(key,value) values('wallet_test_previous_season_id',$1) on conflict(key) do update set value=excluded.value",[previous]);
     await query("update pf_app_config set value=$1,updated_at=now() where key='active_season_id'",[id]);

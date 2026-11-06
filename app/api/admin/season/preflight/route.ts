@@ -27,7 +27,7 @@ export async function GET(request: Request) {
       blockers: readiness.blockers,
       seasonId: readiness.season?.id ?? null,
       seasonStatus: readiness.season?.status ?? null,
-      dailyPrizeLamports: readiness.dailyPrizeLamports,
+      dailyPrizeRaw: readiness.dailyPrizeRaw,
       prizeWallet: readiness.prizeWallet,
       requiredBalanceLamports: readiness.requiredBalanceLamports,
       currentBalanceLamports: readiness.currentBalanceLamports,
