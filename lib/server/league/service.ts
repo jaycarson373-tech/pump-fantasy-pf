@@ -176,7 +176,7 @@ export async function submitRoster(
     ]);
     if (season.status === "paused" || season.mint !== getBackendConfig().mint)
       throw Error("Season is unavailable");
-    if (season.format === TEST_FORMAT) validateTestRoster(round.pool, picks, captain);
+    if (season.format === TEST_FORMAT || round.methodology === "Operator-selected saved catalog; ranking qualification not attested") validateTestRoster(round.pool, picks, captain);
     else validateRoster(round.pool ?? [], picks, captain);
     const rows = await q<Roster>(
       "insert into pfl_rosters(round_id,wallet,picks,captain,balance_raw) values($1,$2,$3::jsonb,$4,$5) on conflict(round_id,wallet) do update set picks=excluded.picks,captain=excluded.captain,balance_raw=excluded.balance_raw,updated_at=now() returning *",
