@@ -3,7 +3,7 @@ export type RewardAsset = 'SOL' | 'PUMP';
 const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const ASSETS = {
   SOL: { kind: 'native', mint: 'So11111111111111111111111111111111111111112', tokenProgram: TOKEN_PROGRAM, decimals: 9, symbol: 'SOL' },
-  PUMP: { kind: 'token', mint: 'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn', tokenProgram: TOKEN_PROGRAM, decimals: 6, symbol: '$PUMP' },
+  PUMP: { kind: 'token', mint: 'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn', tokenProgram: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb', decimals: 6, symbol: '$PUMP' },
 } as const;
 
 export function rewardAsset(value: unknown): RewardAsset {

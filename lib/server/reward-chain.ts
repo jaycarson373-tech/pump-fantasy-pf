@@ -1,6 +1,7 @@
 import 'server-only';
 import { assetDetails, type RewardAsset } from '../reward-asset';
 import { rpc, getNativeSolBalance, verifyMainnetRpc, verifyNativeSolTransfer } from './solana';
+import { assertQuoteMint } from './creator-protocol.mjs';
 import { matchesTokenPayment, rewardTokenAccount, type TokenPaymentReceipt } from './token-payment';
 
 type ParsedTokenAccount = { owner: string; data: { parsed?: { info?: {
@@ -13,10 +14,8 @@ export async function verifyRewardAsset(asset: RewardAsset) {
   await verifyMainnetRpc();
   const details = assetDetails(asset);
   if (details.kind === 'native') return;
-  const result = await rpc<{ value: ParsedTokenAccount | null }>('getAccountInfo', [details.mint, { encoding: 'jsonParsed', commitment: 'finalized' }]);
-  const info = result.value?.data.parsed?.info;
-  if (result.value?.owner !== details.tokenProgram || !info?.isInitialized || info.decimals !== details.decimals)
-    throw new Error('Reward mint identity differs from the configured asset. Verify the mint, token program and decimals before retrying.');
+  const result = await rpc<{ value: { owner: string; data: [string, string] } | null }>('getAccountInfo', [details.mint, { encoding: 'base64', commitment: 'finalized' }]);
+  assertQuoteMint(result.value, details.decimals);
 }
 
 export async function getRewardBalance(wallet: string, asset: RewardAsset): Promise<bigint> {

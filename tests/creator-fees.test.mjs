@@ -1,8 +1,10 @@
 import test from 'node:test';
+import mintFixture from './fixtures/pump-mint-mainnet.json' with {type:'json'};
+import {assetDetails} from '../lib/reward-asset.ts';
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
 import {address,getAddressEncoder} from '@solana/kit';
-import {quoteCollectionAddresses,PUMP_MINT,PUMP,TOKEN,WSOL} from '../lib/server/creator-protocol.mjs';
+import {quoteCollectionAddresses,PUMP_MINT,PUMP,WSOL} from '../lib/server/creator-protocol.mjs';
 import schemas from '../lib/server/protocol/creator-fees.json' with {type:'json'};
 
 // Only external network/database/signer boundaries are substituted. Production
@@ -25,7 +27,8 @@ const {collectCreatorFees,creatorFeeConfigurationBlockers}=await import('../lib/
 const creator='9xQeWvG816bUx9EPfEZTh2dpX1boA9E3B9Lm7bJiGx3F',mint=WSOL;
 const a=await quoteCollectionAddresses(creator,mint,PUMP_MINT);
 const curve=Buffer.alloc(133);Buffer.from(schemas[0].curve_discriminator).copy(curve);Buffer.from(getAddressEncoder().encode(address(creator))).copy(curve,49);Buffer.from(getAddressEncoder().encode(address(PUMP_MINT))).copy(curve,83);
-const quote=Buffer.alloc(82);quote[44]=6;quote[45]=1;
+const TOKEN=assetDetails('PUMP').tokenProgram;
+const quote=Buffer.from(mintFixture.data[0],'base64');
 const account=(owner,data)=>({owner,data:[data.toString('base64'),'base64']});
 const token=(owner,amount)=>({owner:TOKEN,data:{parsed:{info:{mint:PUMP_MINT,owner,state:'initialized',tokenAmount:{amount:String(amount),decimals:6}}}}});
 const balance=(accountIndex,owner,amount)=>({accountIndex,owner,programId:TOKEN,mint:PUMP_MINT,uiTokenAmount:{amount:String(amount),decimals:6}});

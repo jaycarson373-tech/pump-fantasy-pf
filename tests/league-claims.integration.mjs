@@ -24,10 +24,12 @@ const {privateKey,publicKey}=generateKeyPairSync('ed25519');
 const material=JSON.stringify([...privateKey.export({format:'der',type:'pkcs8'}).subarray(-32),...publicKey.export({format:'der',type:'spki'}).subarray(-32)]);
 const signer=await readPayoutSigner(material);
 const source=signer.address,winner=getAddressDecoder().decode(generateKeyPairSync('ed25519').publicKey.export({format:'der',type:'spki'}).subarray(-32));
-const PUMP='pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn',TOKEN='TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const PUMP='pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn',TOKEN='TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+const mintFixture=JSON.parse(await readFile(new URL('./fixtures/pump-mint-mainnet.json',import.meta.url),'utf8'));
 const name=`pf_fee_test_claims_${process.pid}`;
 const admin=new pg.Client({connectionString:'postgresql://wgmifr@localhost:55442/postgres'});
 let db;
+const absentSignatures=new Set();
 let signCount=0,sendCount=0,finalized=false,failed=false,badDelta=false,badWire=false,height=100;
 const envKeys=['DATABASE_URL','PF_AUTO_PAYOUT_ENABLED','PF_LEAGUE_WORKER_ENABLED','PF_PAYOUT_NETWORK','PF_REWARD_ASSET','PF_AUTO_PAYOUT_MAX_AWARD_RAW','PF_AUTO_PAYOUT_MAX_SEASON_RAW','PF_AUTO_PAYOUT_RUN_UNTIL','PF_PAYOUT_SIGNER_KEYPAIR_JSON','PF_PRIZE_WALLET_ADDRESS','PF_CREATOR_WALLET_ADDRESS'];
 assert.equal(Object.hasOwn(process.env,'PF_PAYOUT_SIGNER_KEYPAIR_JSON'),false,'Run without real signer secrets.');
@@ -45,6 +47,7 @@ async function receipt(c){
 globalThis.claimFixture={native:10000000n,tokens:1000000n,sign:async(unsigned,wallet)=>{assert.equal(wallet,source);signCount++;return signPayoutTransaction(unsigned,signer);},rpc:async(method,params)=>{
  switch(method){
  case 'getAccountInfo':{
+  if(params[0]===PUMP)return {value:mintFixture};
   const info=params[0]===PUMP?{decimals:6,isInitialized:true}:{mint:PUMP,owner:source,state:'initialized',tokenAmount:{amount:String(globalThis.claimFixture.tokens),decimals:6}};
   return {value:{owner:TOKEN,data:{parsed:{info}}}};
  }
@@ -52,7 +55,7 @@ globalThis.claimFixture={native:10000000n,tokens:1000000n,sign:async(unsigned,wa
  case 'getFeeForMessage':return {value:5000};
  case 'getMinimumBalanceForRentExemption':return 2039280;
  case 'simulateTransaction':return {value:{err:null}};
- case 'getSignatureStatuses':return {value:[finalized?{confirmationStatus:'finalized',err:failed?{InstructionError:[1,'fixture']}:null}:null]};
+ case 'getSignatureStatuses':return {value:[absentSignatures.has(params[0][0])?null:finalized?{confirmationStatus:'finalized',err:failed?{InstructionError:[1,'fixture']}:null}:null]};
  case 'getBlockHeight':return height;
  case 'getTransaction':{
   const c=await current();
@@ -103,6 +106,7 @@ try{
  process.env.PF_AUTO_PAYOUT_ENABLED='false';finalized=true;badWire=true;
  await assert.rejects(processLeagueClaims(season),/Finalized bytes/);assert.equal((await current()).status,'unknown');
  badWire=false;badDelta=true;await assert.rejects(processLeagueClaims(season),/receipt does not match/);assert.equal((await current()).status,'unknown');
+ await db.query("update pfl_entitlements set status='forfeited' where id=$1",[id]);
  badDelta=false;assert.equal((await processLeagueClaims(season)).action,'claim-confirmed');
  assert.equal((await db.query('select status from pfl_entitlements where id=$1',[id])).rows[0].status,'claimed');assert.equal(signCount,1);
  assert.equal((await claimEntitlement(id,winner)).action,'claim-confirmed');assert.equal(sendCount,2);
@@ -113,6 +117,19 @@ try{
  await db.query("insert into pfl_seasons(id,title,number,mint,starts_at,ends_at,weeks,reward_mint) values('legacy','Legacy',1000,$1,now(),now()+interval '28 days',4,null)",[winner]);
  const legacy=(await db.query("insert into pfl_entitlements(season_id,wallet,pool,period,amount_raw,status) values('legacy',$1,'daily','legacy',1,'available') returning id",[winner])).rows[0].id;
  assert.equal((await claimEntitlement(legacy,winner)).action,'claims-disabled');assert.equal(signCount,2);
+ // An old expired unknown payment must not starve later finalized receipts.
+ process.env.PF_AUTO_PAYOUT_MAX_SEASON_RAW='100000';
+ finalized=false;failed=false;height=100;
+ const uncertain=await entitlement('uncertain','1000');
+ await claimEntitlement(uncertain,winner);
+ const oldWire=await current();absentSignatures.add(oldWire.signature);
+ height=201;assert.equal((await processLeagueClaims(season)).action,'claim-unknown');
+ height=100;const later=await entitlement('later','1000');
+ await claimEntitlement(later,winner);
+ finalized=true;
+ assert.equal((await processLeagueClaims(season)).action,'claim-confirmed');
+ assert.equal((await db.query('select status from pfl_claims where entitlement_id=$1',[later])).rows[0].status,'confirmed');
+ assert.equal((await db.query('select status from pfl_claims where entitlement_id=$1',[uncertain])).rows[0].status,'unknown');
  process.stdout.write('PASS: real PG claims bind owner/assets, preserve receipt funding, enforce caps, persist before send, replay one wire, unknown/expired recovery, finalized exact bytes + actual PUMP delta, OFF reconciliation, atomic entitlement claim and signed-failure reservations.\n');
 }finally{
  await closeDatabasePool();if(db)await db.end();

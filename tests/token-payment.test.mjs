@@ -9,7 +9,7 @@ const { tokenPaymentInstructions, matchesTokenPayment } = await import('../lib/s
 const source = '11111111111111111111111111111111';
 const winner = 'So11111111111111111111111111111111111111112';
 const mint = 'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn';
-const token = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const token = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
 
 test('PUMP payout creates recipient ATA and transfers exact six-decimal raw units', async () => {
   const instructions = await tokenPaymentInstructions(source, winner, '1000001', 'PUMP');

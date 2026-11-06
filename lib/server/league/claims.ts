@@ -16,7 +16,8 @@ import type { Season } from './service';
 const PUMP = assetDetails('PUMP').mint;
 const FEE_LIMIT = 25_000n;
 const ATA_RENT_LIMIT = 2_500_000n;
-const TOKEN_ACCOUNT_SIZE = 165;
+// Token-2022 account + type byte + ImmutableOwner TLV + TransferHookAccount TLV.
+const TOKEN_ACCOUNT_SIZE = 175;
 const U64_MAX = (1n << 64n) - 1n;
 const MEMO_PROGRAM = address('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
 const LOCK = 'pfl-starting-seven-worker';
@@ -73,7 +74,7 @@ async function finalize(c:Claim) {
   await withTransaction(async q=>{
     const changed=await q<{entitlement_id:string}>("update pfl_claims set status='confirmed',confirmed_slot=$2 where entitlement_id=$1 and status in ('prepared','unknown') returning entitlement_id",[c.entitlement_id,verified.slot]);
     if(!changed.length)return;
-    const entitlement=await q<{id:string}>("update pfl_entitlements set status='claimed' where id=$1 and status='available' returning id",[c.entitlement_id]);
+    const entitlement=await q<{id:string}>("update pfl_entitlements set status='claimed' where id=$1 and status in ('available','forfeited') returning id",[c.entitlement_id]);
     if(entitlement.length!==1)throw Error('Confirmed claim entitlement state changed. Reconcile the ledger.');
   });
   return 'claim-confirmed';
@@ -182,8 +183,10 @@ export async function processLeagueClaims(season:Season):Promise<{action:string}
   const [pending]=await queryRows<Claim>(`${CLAIM_SELECT} where c.status in ('prepared','unknown') and c.mint=$1 and e.reward_mint=$1
     and c.signature is not null and c.transaction_base64 is not null and c.blockhash is not null
     and c.last_valid_block_height>0 and c.prepared_at is not null and c.source_wallet is not null
-    and c.amount_raw=e.amount_raw order by c.created_at,c.entitlement_id limit 1`,[PUMP]);
-  return {action:pending?await reconcile(pending):'no-pending-claims'};
+    and c.amount_raw=e.amount_raw order by c.last_checked_at nulls first,c.created_at,c.entitlement_id limit 1`,[PUMP]);
+  if (!pending) return {action:'no-pending-claims'};
+  await queryRows('update pfl_claims set last_checked_at=clock_timestamp() where entitlement_id=$1',[pending.entitlement_id]);
+  return {action:await reconcile(pending)};
 }
 export async function claimEntitlement(id:string,wallet:string):Promise<{action:string}> {
   if(!UUID.test(id)||!validWallet(wallet))throw Error('Invalid claim request. Select a valid entitlement.');

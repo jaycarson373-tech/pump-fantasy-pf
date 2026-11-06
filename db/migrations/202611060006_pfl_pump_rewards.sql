@@ -104,3 +104,6 @@ declare allocation pfl_fee_allocations; expected_mint text; limit_raw bigint; be
  if TG_OP='UPDATE' and old.status='verified' then raise exception 'Confirmed conversion is immutable'; end if;
  return new;
 end $$;
+
+-- Fair recovery: old unknown claims retain their wire without starving newer receipts.
+alter table pfl_claims add column last_checked_at timestamptz;
