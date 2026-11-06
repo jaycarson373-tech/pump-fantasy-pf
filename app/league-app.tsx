@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
+import { LeaguePromos } from "./league-promos";
+import { promoSeasonClock } from "../lib/promo-clock";
 import {
   useCallback,
   useEffect,
@@ -322,6 +324,14 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
     [refreshing, setRefreshing] = useState(false),
     [clock, setClock] = useState({ now: 0, offset: 0 });
   const [requestedRound, setRequestedRound] = useState("");
+  const [copyStatus, setCopyStatus] = useState("");
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+    },
+    [],
+  );
   const traderDialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     if (inspect) traderDialog.current?.showModal();
@@ -530,8 +540,24 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
       setBusy(false);
     }
   }
-  const dexUrl = data.tokenMint
-    ? `https://dexscreener.com/solana/${encodeURIComponent(data.tokenMint)}`
+  const configuredMint =
+    data.tokenMint || process.env.NEXT_PUBLIC_FANTASY_CA || "";
+  const publicMint = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(configuredMint.trim())
+    ? configuredMint.trim()
+    : "";
+  async function copyContract() {
+    if (!publicMint) return;
+    try {
+      await navigator.clipboard.writeText(publicMint);
+      setCopyStatus("Copied");
+    } catch {
+      setCopyStatus("Copy manually");
+    }
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => setCopyStatus(""), 2200);
+  }
+  const dexUrl = publicMint
+    ? `https://dexscreener.com/solana/${encodeURIComponent(publicMint)}`
     : "https://dexscreener.com/solana";
   const phase = !round
     ? "Opening draft"
@@ -590,6 +616,36 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
           ))}
         </nav>
         <div className="header-actions">
+          {publicMint && (
+            <button
+              className="contract-copy"
+              type="button"
+              onClick={() => void copyContract()}
+              aria-label={`Copy PFL contract address ${publicMint}`}
+            >
+              <span className="contract-short">
+                {copyStatus ||
+                  `${publicMint.slice(0, 4)}…${publicMint.slice(-4)}`}
+              </span>
+              <svg
+                aria-hidden="true"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+              >
+                <rect x="8" y="8" width="12" height="12" rx="2" />
+                <path d="M16 8V4H4v12h4" />
+              </svg>
+              <span className="contract-full">{publicMint}</span>
+              <span className="sr-only" role="status">
+                {copyStatus}
+              </span>
+            </button>
+          )}
+          {publicMint && <a className="contract-explorer" href={`https://solscan.io/token/${publicMint}`} target="_blank" rel="noopener noreferrer" aria-label="View PFL token on Solscan">↗</a>}
           <a
             className="x-social"
             href="https://x.com/PFLeague_fun"
@@ -606,7 +662,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
           />
         </div>
       </header>
-      <p className="pfl-token-address">PFL CA: <a href="https://solscan.io/token/PFLnhH2Rn2kd2maipS8ueJVCojHsrnraPLn3HAQoB8W" target="_blank" rel="noreferrer"><code>PFLnhH2Rn2kd2maipS8ueJVCojHsrnraPLn3HAQoB8W</code></a></p>
+      <LeaguePromos phase={phase} countdown={countdown} seasonClock={promoSeasonClock(data.rounds ?? [], clock.now)} />
       <div className="league-strip">
         <span>
           <i />
@@ -618,7 +674,9 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
             : "WEEKLY DRAFTS"}
         </span>
         <span>HOLD 500,000+ $PFL</span>
-        <span>{countdown}</span>
+        <Link className="strip-draft-link" href="/draft">
+          Draft your top 7 <Arrow />
+        </Link>
       </div>
       <main>
         {data.scoringDelayed && ["leaderboard", "team"].includes(page) && (
@@ -1322,6 +1380,11 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
             <Link className="primary-action" href="/draft">
               Enter the draft room <Arrow />
             </Link>
+            <article id="sixth-man" className="sixth-man-scouting">
+              <p className="eyebrow">SEASON 2 SCOUTING REPORT</p>
+              <h2>6th Man: Create a Player</h2>
+              <p>Stop watching. Get drafted. Link your Pump.fun player and burn 500,000 PFL once to register for future seasons. The community-player feature is planned for Season 2. This season keeps Starting Seven.</p>
+            </article>
           </section>
         )}
         {page === "champion" && (
