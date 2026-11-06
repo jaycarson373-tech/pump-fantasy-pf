@@ -555,7 +555,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
       ? remaining < 3600000
         ? `${String(Math.floor(remaining / 60000)).padStart(2, "0")}:${String(Math.floor(remaining / 1000) % 60).padStart(2, "0")}`
         : `${Math.floor(remaining / 86400000)}d ${String(Math.floor(remaining / 3600000) % 24).padStart(2, "0")}h ${String(Math.floor(remaining / 60000) % 60).padStart(2, "0")}m`
-      : "Opens at token launch";
+      : "45-minute opening draft";
   const visible = players
     .filter(
       (p) =>
@@ -670,7 +670,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                       <span>THE OPENING DRAFT</span>
                       <strong>
                         {!round
-                          ? "Opens at token launch"
+                          ? "Build your Week 1 lineup"
                           : editable
                             ? "Lineups lock in"
                             : phase}
@@ -744,8 +744,8 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                 {[
                   [
                     "01",
-                    "Token live. Draft open.",
-                    "The opening draft gives you 45 minutes from the announced launch. Hold 500,000 PFL, pick seven traders and name your captain.",
+                    "The opening draft",
+                    "You have 45 minutes to submit your first lineup. Hold 500,000 PFL, pick seven traders and name your captain.",
                   ],
                   [
                     "02",
@@ -755,7 +755,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                   [
                     "03",
                     "Seven days. Every point counts.",
-                    "Daily scores build your weekly total. Your weekly finish earns points toward the season title.",
+                    "Daily scores build your weekly total. Draft your next team during the final 24 hours; it takes over when the next week begins.",
                   ],
                 ].map(([n, t, d]) => (
                   <article key={n}>
@@ -911,18 +911,27 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                     title={
                       players.length
                         ? "No traders match your search"
-                        : "The field is being prepared."
+                        : "Draft board"
                     }
                   >
                     {players.length
                       ? "Try a different name or wallet."
-                      : "The draft opens with a verified, frozen Top 100. Player profiles and performance will appear here."}
+                      : "Your Top 100 player pool appears here."}
+                    {!players.length && (
+                      <button
+                        className="clear-lineup"
+                        onClick={() => void refresh()}
+                        disabled={refreshing}
+                      >
+                        {refreshing ? "Refreshing…" : "Refresh players"}
+                      </button>
+                    )}
                   </Empty>
                 )}
                 <div className="source-line">
                   {players.length
                     ? `${players.length} verified traders · snapshot ${new Date(round!.pool_observed_at!).toLocaleString()}`
-                    : "No historical list is used as a live draft pool."}
+                    : ""}
                   <button onClick={() => void refresh()} disabled={refreshing}>
                     {refreshing ? "Refreshing…" : "Refresh field"}
                   </button>
@@ -966,7 +975,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                       ? "Saving lineup…"
                       : !editable
                         ? !round
-                          ? "Opens at token launch"
+                          ? "Build your Week 1 lineup"
                           : "Draft not open"
                         : picks.length !== 7
                           ? "Complete your seven"
@@ -1089,9 +1098,13 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                     : "DAILY PRIZES. SEASON TITLE."}
                 </h2>
               </div>
-              {page === "rewards" && <span className="status-pill">
-                {data.rewards?.payoutsActive ? "Claims open" : "Claims not open"}
-              </span>}
+              {page === "rewards" && (
+                <span className="status-pill">
+                  {data.rewards?.payoutsActive
+                    ? "Claims open"
+                    : "Claims not open"}
+                </span>
+              )}
             </div>
             <div className="reward-pools">
               {[
@@ -1256,7 +1269,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                 [
                   "02",
                   "The weekly calendar",
-                  "The opening draft begins at the announced token-launch time and lasts 45 minutes. Scoring starts at draft lock and runs for seven 24-hour intervals. Later rounds in this season open drafting 48 hours before their weekly lock. The published UTC calendar controls every deadline. The inaugural season has four rounds; later seasons can use different calendars.",
+                  "The opening draft lasts 45 minutes. Scoring starts at draft lock and runs for seven 24-hour intervals. Later rounds in this season open drafting in the final 24 hours of the previous week. The published UTC calendar controls every deadline. The inaugural season has four rounds; later seasons can use different calendars.",
                 ],
                 [
                   "03",
@@ -1338,14 +1351,6 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
               View season standings <Arrow />
             </Link>
           </section>
-        )}
-        {data.status === "unavailable" && ["draft", "team", "leaderboard", "rewards"].includes(page) && (
-          <div className="league-connection" role="status">
-            <span>Couldn’t load league data. Try again.</span>
-            <button onClick={() => void refresh()} disabled={refreshing}>
-              {refreshing ? "Retrying…" : "Try again"}
-            </button>
-          </div>
         )}
       </main>
       {page === "home" && (

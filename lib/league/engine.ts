@@ -162,7 +162,7 @@ export function makeOpeningCalendar(launchAt: string, weeks = 4) {
   return Array.from({ length: weeks }, (_, i) => ({
     week: i + 1,
     opensAt: new Date(
-      i === 0 ? launch : firstLock + (i * 7 - 2) * DAY,
+      i === 0 ? launch : firstLock + (i * 7 - 1) * DAY,
     ).toISOString(),
     locksAt: new Date(firstLock + i * 7 * DAY).toISOString(),
     endsAt: new Date(firstLock + (i + 1) * 7 * DAY).toISOString(),

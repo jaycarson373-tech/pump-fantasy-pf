@@ -207,7 +207,11 @@ test("opening draft lasts exactly 45 minutes and locks on the server boundary", 
   assert.equal(rounds[1].locksAt, rounds[0].endsAt);
   assert.equal(
     Date.parse(rounds[1].locksAt) - Date.parse(rounds[1].opensAt),
-    2 * 86400000,
+    86400000,
+  );
+  assert.equal(
+    Date.parse(rounds[2].opensAt),
+    Date.parse(rounds[1].endsAt) - 86400000,
   );
   const r = { opens_at: launch, locks_at: rounds[0].locksAt, status: "open" };
   assert.equal(draftOpen(r, Date.parse(launch) - 1), false);
