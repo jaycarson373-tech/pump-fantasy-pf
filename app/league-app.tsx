@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
+import { LeagueActivity } from "./league-activity";
 import { LeaguePromos } from "./league-promos";
 import { promoSeasonClock } from "../lib/promo-clock";
 import {
@@ -58,6 +59,7 @@ type SeasonRow = {
   rank: number;
 };
 type RewardData = {
+  asset?: string;
   fees: { received: string; daily: string; season: string; champion: string };
   pools: { pool: string; raw: string }[];
   conversions: {
@@ -546,6 +548,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
       });
       const result = await res.json();
       if (!res.ok) throw Error(result.error ?? "Could not save lineup");
+      window.dispatchEvent(new Event("pfl:entry-submitted"));
       setNotice("Lineup saved. You can edit it until draft lock.");
       await refresh();
     } catch (error) {
@@ -556,6 +559,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
       setBusy(false);
     }
   }
+  const rewardData = data.rewards?.asset === "PUMP" ? data.rewards : null;
   const configuredMint = "PFLnhH2Rn2kd2maipS8ueJVCojHsrnraPLn3HAQoB8W";
   const publicMint = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(configuredMint.trim())
     ? configuredMint.trim()
@@ -681,6 +685,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
           Draft your top 7 <Arrow />
         </Link>
       </div>
+      <LeagueActivity showStats={["home", "draft", "leaderboard", "rewards"].includes(page)} />
       <main>
         {data.scoringDelayed && ["leaderboard", "team"].includes(page) && (
           <div className="league-connection" role="status">
@@ -718,7 +723,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                 </h1>
                 <p className="hero-description">
                   Build your seven from Pump.fun’s Top 100. Pick a captain and
-                  compete for $PFL on their trading performance.
+                  compete for $PUMP on their trading performance.
                 </p>
                 <div className="hero-actions">
                   <Link className="primary-action" href="/draft">
@@ -852,7 +857,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                 </h1>
                 <p>
                   Pick seven traders from Pump.fun’s Top 100. Build your lineup
-                  and compete for $PFL.
+                  and compete for $PUMP.
                 </p>
               </div>
               <div className="lock-clock">
@@ -1159,7 +1164,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
           <section className="league-section rewards-section">
             <div className="section-heading">
               <div>
-                <p className="eyebrow">PLAY FOR $PFL</p>
+                <p className="eyebrow">PLAY FOR $PUMP</p>
                 <h2>
                   {page === "rewards"
                     ? "YOUR REWARDS."
@@ -1168,7 +1173,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
               </div>
               {page === "rewards" && (
                 <span className="status-pill">
-                  {data.rewards?.payoutsActive
+                  {rewardData?.payoutsActive
                     ? "Claims open"
                     : "Claims not open"}
                 </span>
@@ -1196,15 +1201,15 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                   </b>
                   <p>{description}</p>
                   <footer>
-                    <span>VERIFIED $PFL</span>
+                    <span>VERIFIED $PUMP</span>
                     <strong>
-                      {data.rewards?.tokenDecimals !== null &&
-                      data.rewards?.tokenDecimals !== undefined
+                      {rewardData?.tokenDecimals !== null &&
+                      rewardData?.tokenDecimals !== undefined
                         ? Number(
-                            data.rewards.pools.find((p) => p.pool === id)
+                            rewardData.pools.find((p) => p.pool === id)
                               ?.raw ?? "0",
                           ) /
-                          10 ** data.rewards.tokenDecimals
+                          10 ** rewardData.tokenDecimals
                         : "—"}
                     </strong>
                   </footer>
@@ -1217,15 +1222,15 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                   <div>
                     <span>CONFIRMED CREATOR FEES</span>
                     <b>
-                      {data.rewards
-                        ? `${Number(data.rewards.fees.received) / 1e9} SOL`
+                      {rewardData
+                        ? `${Number(rewardData.fees.received) / 1e9} SOL`
                         : "—"}
                     </b>
                   </div>
                   <div>
                     <span>CONFIRMED CONVERSIONS</span>
                     <b>
-                      {data.rewards?.conversions.filter(
+                      {rewardData?.conversions.filter(
                         (c) => c.status === "verified",
                       ).length ?? "—"}
                     </b>
@@ -1233,16 +1238,16 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                   <div>
                     <span>YOUR CLAIMABLE REWARDS</span>
                     <b>
-                      {data.rewards?.payoutsActive
+                      {rewardData?.payoutsActive
                         ? "See entitlements"
                         : "Claims not open"}
                     </b>
                   </div>
                 </div>
                 <h3>Personal rewards</h3>
-                {data.rewards?.personal.length ? (
+                {rewardData?.personal.length ? (
                   <div className="ledger-list">
-                    {data.rewards.personal.map((r) => (
+                    {rewardData.personal.map((r) => (
                       <div key={r.id}>
                         <span>{r.pool}</span>
                         <span>{r.amount_raw} base units</span>
@@ -1273,11 +1278,11 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                   </Empty>
                 )}
                 <h3>Verified conversions & payouts</h3>
-                {data.rewards &&
-                data.rewards.conversions.length + data.rewards.history.length >
+                {rewardData &&
+                rewardData.conversions.length + rewardData.history.length >
                   0 ? (
                   <div className="ledger-list">
-                    {data.rewards.conversions.map((c) => (
+                    {rewardData.conversions.map((c) => (
                       <div key={c.signature}>
                         <span>{c.pool} conversion</span>
                         <b>{c.status}</b>
@@ -1290,7 +1295,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                         </a>
                       </div>
                     ))}
-                    {data.rewards.history.map((h) => (
+                    {rewardData.history.map((h) => (
                       <div key={h.signature}>
                         <span>
                           {short(h.wallet)} · {h.pool}
@@ -1308,7 +1313,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                   </div>
                 ) : (
                   <p className="quiet-message">
-                    No confirmed PFL purchases or distributions recorded.
+                    No confirmed PUMP purchases or distributions recorded.
                   </p>
                 )}
               </>
@@ -1372,7 +1377,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                 [
                   "09",
                   "Reward settlement",
-                  "Prize pools use PFL purchased with confirmed creator fees. Track earned rewards, claim availability and completed payouts in Rewards. A prize is available to claim only after results and funding are confirmed.",
+                  "Prize pools use PUMP purchased with confirmed creator fees. Track earned rewards, claim availability and completed payouts in Rewards. A prize is available to claim only after results and funding are confirmed.",
                 ],
               ].map(([n, t, d]) => (
                 <article key={n}>

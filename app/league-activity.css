@@ -1,0 +1,123 @@
+.league-live-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid #dce4de;
+  background: #fff;
+  padding: 0 max(24px, calc((100vw - 1320px) / 2));
+}
+.league-live-stats > div {
+  padding: 18px 24px;
+  border-right: 1px solid #e8ece9;
+}
+.league-live-stats > div:last-child {
+  border: 0;
+}
+.league-live-stats span {
+  display: block;
+  color: #53635a;
+  font-size: 11px;
+  font-weight: 650;
+}
+.league-live-stats strong {
+  display: block;
+  margin: 5px 0 2px;
+  font:
+    700 28px/1.1 var(--font-league),
+    sans-serif;
+  color: #123521;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.league-live-stats small {
+  color: #718077;
+  font-size: 10px;
+}
+.draft-notification-region {
+  position: fixed;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  left: 20px;
+  z-index: 45;
+  width: min(350px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.draft-notification {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 15px 12px 15px 15px;
+  border: 1px solid #c9dbcd;
+  border-radius: 10px;
+  background: #fff;
+  color: #142e1e;
+  box-shadow: 0 8px 28px #10271924;
+  pointer-events: auto;
+  animation: entry-notice-in 0.2s ease-out;
+}
+.draft-notification strong {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.draft-notification p {
+  margin: 3px 0 0;
+  color: #64716a;
+  font-size: 11px;
+}
+.entry-check {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #e3f4e8;
+  color: #15843b;
+}
+.draft-notification button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: #637267;
+  cursor: pointer;
+  width: 32px;
+  min-height: 36px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+@keyframes entry-notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (max-width: 600px) {
+  .league-live-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0 12px;
+  }
+  .league-live-stats > div {
+    padding: 13px 12px;
+  }
+  .league-live-stats > div:nth-child(2) {
+    border-right: 0;
+  }
+  .league-live-stats > div:nth-child(-n + 2) {
+    border-bottom: 1px solid #e8ece9;
+  }
+  .league-live-stats strong {
+    font-size: 25px;
+  }
+  .draft-notification-region {
+    left: 16px;
+    bottom: max(14px, env(safe-area-inset-bottom));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .draft-notification {
+    animation: none;
+  }
+}
