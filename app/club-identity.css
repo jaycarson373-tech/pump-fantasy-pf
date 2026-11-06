@@ -28,3 +28,111 @@ body .draft-room .submit-lineup,body .draft-room .award-pay-button{background:#3
 body .draft-room :is(a,button,input):focus-visible{outline:2px solid #527ae9;outline-offset:4px}
 body .rules-page{background:#f7f9fd;color:#18243c}body .rules-page section{border-color:#e0e7f3}
 @media(max-width:700px){body .draft-room .draft-hero{padding-top:32px}body .draft-room .hero-copy-grid{gap:25px}body .draft-room .draft-hero h1{letter-spacing:-.055em}body .draft-room .league-board{border-radius:14px}}
+
+/* Complete club treatment: scoped to presentation, independent of wallet/season state. */
+body .draft-room{--ink:#18243c;--muted:#63718a;--line:#dce4f0;--line-dark:#cbd6e7}
+body .draft-room .topbar{border-top:3px solid #4164e5;height:78px}
+body .draft-room .topbar nav a.active{border-color:#4164e5}
+body .draft-room .draft-hero{padding-top:38px}
+body .draft-room .draft-hero:before{display:none}
+body .draft-room .hero-copy-grid{gap:48px;padding:30px 0 40px;grid-template-columns:1.05fr 1fr;min-height:380px}
+body .draft-room .draft-hero h1{font-size:clamp(44px,5.2vw,78px);line-height:1.03;letter-spacing:-.065em}
+body .draft-room .hero-ctas{justify-content:flex-start}
+body .draft-room .primary-cta{min-height:52px;padding-inline:28px;background:#345cdb;color:white}
+body .draft-room .primary-cta:hover{background:#2449bf;border-color:#2449bf;box-shadow:0 8px 22px #345cdb28}
+body .draft-room .snapshot-stamp,body .draft-room .snapshot-stamp b{color:#637391}
+body .draft-room .snapshot-live-dot,body .draft-room .status-lamp{background:#496ce8;box-shadow:0 0 0 4px #496ce814}
+body .draft-room .homepage-countdown{color:#274cbd}
+body .draft-room .league-board{padding:28px;min-height:340px;border-radius:18px;border:1px solid #36528a;background:#14233e;display:flex;flex-direction:column;justify-content:space-between}
+body .draft-room .league-board-cards{margin:38px 0 30px;gap:9px}
+body .draft-room .league-preview-card{padding:12px 8px;border-top:3px solid #6a8fe0}
+body .draft-room .league-preview-card:nth-child(3){border-top-color:#f1c65b}
+body .draft-room .league-preview-card em{border-color:#ffffff26;color:#c8d7ef}
+body .draft-room .league-board-bottom{border-color:#ffffff20}
+body .draft-room .draft-ticker{margin-top:0;border-color:#d8e1f0;color:#657ba2;padding-block:20px}
+body .draft-room .draft-ticker i{background:#6583c8}
+body .draft-room .league-rule-summary{color:#253755;padding-block:23px;border-color:#dce4f1}
+body .draft-room .league-rule-summary>div>b{background:#edf2ff;color:#345cdb;border-radius:8px;padding:10px;font-size:17px}
+body .draft-room .league-rule-summary small{color:#697890}
+body .draft-room .draft-section{background:#111d34;border-color:#293c5c;color:#eff4ff;padding-top:64px}
+body .draft-room .draft-heading h2{color:#f5f7ff}
+body .draft-room .draft-heading p{color:#a9bad7}
+body .draft-room .section-label{color:#3f61c5}
+body .draft-room .draft-section .section-label{color:#a7bfff}
+body .draft-room .draft-progress{background:#1b2b47;border-color:#3a4d6e}
+body .draft-room .draft-progress i{background:#3a4c6a}
+body .draft-room .draft-progress i.filled{background:#7397ff}
+body .draft-room .kol-browser,body .draft-room .roster-panel{background:#192841;border-color:#354764;box-shadow:none;border-radius:14px}
+body .draft-room .roster-panel{border-top:3px solid #e6bd62}
+body .draft-room .kol-toolbar,body .draft-room .draft-board-footnote{background:#192841;border-color:#354764;color:#bdcbe1}
+body .draft-room .search-box{background:#101c30;border-color:#41516c}
+body .draft-room .search-box input{color:#f1f5ff}
+body .draft-room .search-box input::placeholder{color:#9eafc9}
+body .draft-room .board-state{color:#bbcce7}
+body .draft-room .board-state i{background:#7397ff;box-shadow:none}
+body .draft-room .draft-rounds{background:#111d34}
+body .draft-room .draft-round{background:#192841;border-color:#354764}
+body .draft-room .draft-round-head{background:#213352;border-color:#3c4e6b}
+body .draft-room .round-number{color:#d9e5ff;background:#36578f}
+body .draft-room .draft-round-head b{color:#eff4ff}
+body .draft-room .draft-round-head small,body .draft-room .player-rank,body .draft-room .player-identity small,body .draft-room .band-player>strong small{color:#a3b4d0}
+body .draft-room .round-pick{background:#2b4269;border-color:#4d6387;color:#c7d8f7}
+body .draft-room .band-player{background:#1e2f4b;border-color:#344864;color:#f4f7ff}
+body .draft-room .band-player:hover{background:#2a4063;border-color:#728fc7}
+body .draft-room .band-player.selected{background:#2e4772;border-color:#86a5ff;box-shadow:inset 3px 0 #86a5ff}
+body .draft-room .player-identity b{color:#f4f7ff}
+body .draft-room .band-player>strong{color:#bbd2ff}
+body .draft-room .player-avatar{background-color:#3b5178;color:#fff}
+body .draft-room .player-select-mark{border-color:#6880a5;color:#d3e1fa}
+body .draft-room .band-player.selected .player-select-mark{background:#89a8ff;border-color:#89a8ff;color:#142343}
+body .draft-room .roster-panel-head{border-color:#354764}
+body .draft-room .roster-panel-head>div>span{color:#a8bbd9}
+body .draft-room .roster-panel-head em{background:#30466a;color:#d6e5ff}
+body .draft-room .roster-slot{background:#1b2c48;border-color:#354764}
+body .draft-room .roster-slot b{color:#f1f5ff}
+body .draft-room .roster-slot small{color:#b1c3df}
+body .draft-room .roster-slot>i:not(.kol-avatar){color:#bccbe3;border-color:#52688b}
+body .draft-room .roster-note,body .draft-room .season-clock{background:#233655;border-color:#405674}
+body .draft-room .roster-note p,body .draft-room .clear-draft-button,body .draft-room .no-signature,body .draft-room .season-clock>small{color:#bbcae1}
+body .draft-room .season-clock>span{color:#b9cbed}
+body .draft-room .season-clock>b{color:#fff}
+body .draft-room .clear-draft-button{border-color:#516588}
+body .draft-room .clear-draft-button:hover:not(:disabled){border-color:#91afff;color:#c3d4ff}
+body .draft-room .lock-button{background:#4164e5;color:white}
+body .draft-room .lock-button:disabled{background:#354869;color:#bdcbe2}
+body .draft-room .search-empty{color:#b9c9e4}
+body .draft-room .leaderboard-section-light{background:#f7f9fd}
+body .draft-room .status-cards article,body .draft-room .live-standings,body .draft-room .daily-awards{background:white;border-color:#dce4f1}
+body .draft-room .status-pill.active{color:#3455b7;background:#edf2ff;border-color:#c3d3fa}
+body .draft-room .reward-split article{background:#f3f6ff;border-color:#d4def2;border-top:3px solid #6381dd}
+body .draft-room .reward-split article:last-child{background:#fffaf0;border-color:#e9d8b1;border-top-color:#d5b15d}
+body .draft-room .reward-split article b{color:#345cdb}
+body .draft-room .reward-split article:last-child b{color:#927120}
+body .draft-room .reward-split small{color:#637391}
+body .draft-room .fee-flow>div b{background:#f4f7fd;border-color:#dce4f1;color:#253755}
+body .draft-room .fee-flow>div i{color:#4966aa}
+body .draft-room .season-pathway{background:#192841;color:#f2f6ff;border-color:#354764}
+body .draft-room .season-pathway .section-label{color:#a4bfff}
+body .draft-room .season-pathway p,body .draft-room .season-pathway small{color:#bbcae1}
+body .draft-room .season-pathway ol,body .draft-room .season-pathway li{border-color:#425573}
+body .draft-room .season-pathway li b{background:transparent;color:#edc66c}
+body .draft-room .season-pathway li strong{color:#f2f6ff}
+body .draft-room .how-section{background:#fff}
+body .draft-room .how-icon{background:#edf2ff;color:#345cdb}
+body .draft-room .docs-note{background:#f2f5fc;border-color:#d7e0f0}
+body .draft-room .docs-note p{color:#536681}
+body .draft-room .closing-cta{background:#345cdb;min-height:340px;color:#fff}
+body .draft-room .closing-cta h2{color:white}
+body .draft-room .closing-cta p{color:#d1ddff}
+body .draft-room .closing-cta>span{opacity:1;filter:drop-shadow(0 16px 18px #071e5d40)}
+body .draft-room .closing-cta a{background:white;color:#2747a6}
+body .draft-room footer{background:#101b2f}
+body .draft-room footer p,body .draft-room footer small{color:#a0b0cb}
+body .rules-page{max-width:1040px;padding:30px 28px 90px}
+body .rules-page>a{display:flex;align-items:center;gap:12px;min-height:56px;border-bottom:1px solid #dce4f1;text-decoration:none;color:#2d4faa;font-weight:700}
+body .rules-page>a:before{content:"";width:34px;height:40px;background:url('/brand/pump-fantasy-shield-v2.png') center/contain no-repeat}
+body .rules-page h1{margin-top:48px;line-height:1.04;color:#18243c}
+body .rules-page section{background:white;border:1px solid #dce4f1;border-radius:12px;margin-top:16px;padding:26px 30px;box-shadow:0 4px 15px #19284104}
+body .rules-page h2{color:#345cdb}
+@media(max-width:1100px){body .draft-room .hero-copy-grid{grid-template-columns:1fr;gap:30px}body .draft-room .league-board{width:100%;max-width:700px}body .draft-room .draft-hero h1{max-width:750px}}
+@media(max-width:720px){body .draft-room .topbar{height:68px}body .draft-room .league-live-strip{padding-block:14px;gap:12px}body .draft-room .draft-hero{padding-top:28px}body .draft-room .hero-copy-grid{padding:24px 0;gap:28px;min-height:0}body .draft-room .draft-hero h1{font-size:clamp(42px,11vw,65px);letter-spacing:-.06em}body .draft-room .draft-hero .hero-copy-grid p{margin-top:20px;line-height:1.65}body .draft-room .hero-ctas{margin-top:20px}body .draft-room .league-board{min-height:0;padding:20px 13px}body .draft-room .league-board-cards{gap:5px;margin:29px 0 23px}body .draft-room .league-preview-card{padding:9px 5px}body .draft-room .draft-ticker{font-size:8px;padding-block:16px}body .draft-room .league-rule-summary{gap:17px}body .draft-room .draft-section{padding-top:44px}body .draft-room .closing-cta{min-height:310px}body .rules-page{padding:20px 18px 70px}body .rules-page section{padding:22px}body .rules-page h1{font-size:44px}}
