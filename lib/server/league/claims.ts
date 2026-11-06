@@ -95,7 +95,7 @@ async function reconcile(c:Claim) {
     await queryRows("update pfl_claims set status='unknown' where entitlement_id=$1 and status='prepared'",[c.entitlement_id]);
     return 'claim-unknown';
   }
-  if(!runOpen())return 'claim-awaiting-approved-run';
+  if(process.env.PF_AUTO_PAYOUT_ENABLED!=='true'||!runOpen())return 'claim-awaiting-approved-run';
   // Only the immutable original wire may be rebroadcast; never sign during recovery.
   const signature=await rpc<string>('sendTransaction',[c.transaction_base64,{encoding:'base64',skipPreflight:false,preflightCommitment:'confirmed',maxRetries:0}]);
   if(signature!==c.signature)throw Error('RPC claim signature mismatch. Reconcile the persisted transaction.');

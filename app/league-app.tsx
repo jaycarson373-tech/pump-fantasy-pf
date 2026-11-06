@@ -587,7 +587,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
     }
   }
   const rewardSymbol = data.rewards?.asset === "PFL" ? "$PFL" : "$PUMP";
-  const configuredMint = "PFLnhH2Rn2kd2maipS8ueJVCojHsrnraPLn3HAQoB8W";
+  const configuredMint = "PFLPATS4a6H7Y3jjnQhT4RwSP7DT65YkC366eATTX75";
   const publicMint = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(configuredMint.trim())
     ? configuredMint.trim()
     : "";

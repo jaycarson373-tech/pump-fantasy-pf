@@ -1,4 +1,5 @@
 import "server-only";
+import { TEST_FORMAT, validateTestRoster } from "./test-round";
 import { collectCreatorFees } from "../creator-fees";
 import { assetDetails, rewardAsset } from "../../reward-asset";
 import { verifyRewardAsset } from "../reward-chain";
@@ -44,6 +45,7 @@ export type Round = {
   last_error: string | null;
 };
 export type Season = {
+  format?: string;
   id: string;
   title: string;
   number: number;
@@ -174,7 +176,8 @@ export async function submitRoster(
     ]);
     if (season.status === "paused" || season.mint !== getBackendConfig().mint)
       throw Error("Season is unavailable");
-    validateRoster(round.pool ?? [], picks, captain);
+    if (season.format === TEST_FORMAT || round.methodology === "Operator-selected saved catalog; ranking qualification not attested") validateTestRoster(round.pool, picks, captain);
+    else validateRoster(round.pool ?? [], picks, captain);
     const rows = await q<Roster>(
       "insert into pfl_rosters(round_id,wallet,picks,captain,balance_raw) values($1,$2,$3::jsonb,$4,$5) on conflict(round_id,wallet) do update set picks=excluded.picks,captain=excluded.captain,balance_raw=excluded.balance_raw,updated_at=now() returning *",
       [roundId, wallet, JSON.stringify(picks), captain, balance.rawBalance],
@@ -352,6 +355,7 @@ export async function tickLeague() {
   return withAdvisoryLock("pfl-starting-seven-worker", async () => {
     const season = await currentSeason();
     if (!season) return { action: "idle" };
+    if (season.format === TEST_FORMAT) return { action: "test-round-no-effects" };
     if (season.mint !== getBackendConfig().mint)
       throw Error("Configured mint does not match the season");
     await processLeagueClaims(season);

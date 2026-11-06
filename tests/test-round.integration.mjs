@@ -1,0 +1,51 @@
+import assert from 'node:assert/strict';
+import {registerHooks} from 'node:module';
+import {existsSync} from 'node:fs';
+registerHooks({resolve(s,c,next){
+  if(s==='next/server')return next('next/server.js',c);
+  if(s.startsWith('.')&&!/\.[a-z]+$/.test(s)&&existsSync(new URL(s+'.ts',c.parentURL)))return next(s+'.ts',c);
+  return next(s,c);
+}});
+const {openTestRound,validateTestRoster}=await import('../lib/server/league/test-round.ts');
+const {submitRoster,tickLeague}=await import('../lib/server/league/service.ts');
+const {queryRows,closeDatabasePool}=await import('../lib/server/database.ts');
+const {claimReadiness}=await import('../lib/server/league/claims.ts');
+const fetchActual=globalThis.fetch;
+globalThis.fetch=async (...args)=>{
+  await new Promise(resolve=>setTimeout(resolve,1000));
+  return fetchActual(...args);
+};
+try {
+  await queryRows("update pfl_rounds set status='open' where id=$1",['test-local-w1']);
+  const [before]=await queryRows('select * from pfl_rounds where id=$1',['test-local-w1']);
+  assert.equal(Date.parse(before.locks_at)-Date.parse(before.opens_at),45*60000);
+  assert.equal(before.pool.length,100);
+  assert.equal(before.pool[0].trades,null);
+  assert.deepEqual(await openTestRound('test-local'),{id:'test-local',reused:true});
+  const [after]=await queryRows('select * from pfl_rounds where id=$1',['test-local-w1']);
+  assert.equal(String(before.locks_at),String(after.locks_at));
+  await assert.rejects(()=>openTestRound('test-conflict'),/existing season/);
+  const picks=[0,10,11,30,31,60,61].map(i=>before.pool[i].id);
+  assert.throws(()=>validateTestRoster(before.pool.slice(1),picks,picks[0]));
+  await assert.rejects(()=>submitRoster(before.id,'11111111111111111111111111111111',picks,picks[0]),/500,000/);
+  const wallet=process.env.TEST_RECIPIENT;
+  assert.ok(wallet,'Provide the approved test recipient');
+  await submitRoster(before.id,wallet,picks,picks[0]);
+  await submitRoster(before.id,wallet,picks,picks[1]);
+  const [saved]=await queryRows('select * from pfl_rosters where round_id=$1 and wallet=$2',[before.id,wallet]);
+  assert.deepEqual(saved.picks,picks);
+  assert.equal(saved.captain,picks[1]);
+  await assert.rejects(()=>submitRoster(before.id,wallet,picks.slice(1),picks[0]),/seven unique/);
+  process.env.PF_LEAGUE_WORKER_ENABLED='true';
+  process.env.PF_FEE_COLLECTION_ENABLED='true';
+  process.env.PF_AUTO_PAYOUT_ENABLED='true';
+  const tick=await tickLeague();
+  assert.equal(tick.value.action,'test-round-no-effects');
+  const [season]=await queryRows('select * from pfl_seasons where id=$1',['test-local']);
+  assert.equal(claimReadiness(season).enabled,false);
+  const [counts]=await queryRows('select (select count(*) from pfl_entitlements)::int as awards,(select count(*) from pfl_days)::int as days');
+  assert.deepEqual(counts,{awards:0,days:0});
+  await queryRows("update pfl_rounds set status='locked' where id=$1",[before.id]);
+  await assert.rejects(()=>queryRows('update pfl_rosters set captain=$3 where round_id=$1 and wallet=$2',[before.id,wallet,picks[0]]),/Draft is locked/);
+  console.log('PASS: actual mainnet holder checks; database open/replay/overlap, entry save/edit, tier validation, locked refusal, zero scoring and payouts.');
+} finally {globalThis.fetch=fetchActual;await closeDatabasePool();}

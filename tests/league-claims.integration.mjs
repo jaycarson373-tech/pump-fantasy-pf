@@ -100,6 +100,9 @@ try{
  globalThis.claimFixture.native=10000000n;
  assert.equal((await claimEntitlement(id,winner)).action,'claim-submitted');assert.equal(signCount,1);assert.equal(sendCount,1);
  await claimEntitlement(id,winner);assert.equal(signCount,1,'replay never signs again');assert.equal(sendCount,2);
+ process.env.PF_AUTO_PAYOUT_ENABLED='false';
+ assert.equal((await processLeagueClaims(season)).action,'claim-awaiting-approved-run');assert.equal(sendCount,2,'OFF must not rebroadcast signed claims');
+ process.env.PF_AUTO_PAYOUT_ENABLED='true';
  process.env.PF_AUTO_PAYOUT_RUN_UNTIL='2000-01-01T00:00:00Z';
  assert.equal((await processLeagueClaims(season)).action,'claim-awaiting-approved-run');assert.equal(sendCount,2);
  height=201;assert.equal((await processLeagueClaims(season)).action,'claim-unknown');assert.equal((await current()).status,'unknown');assert.equal(signCount,1);
