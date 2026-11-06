@@ -537,7 +537,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
     }
   }
   const configuredMint =
-    data.tokenMint || process.env.NEXT_PUBLIC_FANTASY_CA || "";
+    "PFLnhH2Rn2kd2maipS8ueJVCojHsrnraPLn3HAQoB8W";
   const publicMint = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(configuredMint.trim())
     ? configuredMint.trim()
     : "";
