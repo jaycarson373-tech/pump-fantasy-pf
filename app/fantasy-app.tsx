@@ -366,7 +366,6 @@ export function FantasyApp() {
         </a>
         <nav aria-label="Primary">
           <a className="active" href="#draft">Draft room</a>
-          <a href="/budget-draft">Draft lab</a>
           <a href="/rules">Rules</a>
           <a href="#status">Season status</a>
         </nav>
@@ -391,7 +390,6 @@ export function FantasyApp() {
             {timerValue && timerTitle ? <div className="homepage-countdown" aria-label="Draft countdown"><span>{timerTitle}</span><strong role="timer">{timerValue}</strong></div> : null}
             <div className="hero-ctas">
               <a className="primary-cta" href="#draft">Pick your squad</a>
-              <a className="secondary-cta" href="/budget-draft">Try a budget draft ↗</a>
             </div>
             <div className="snapshot-stamp"><span className="snapshot-live-dot" /> {leaderboardSource.toUpperCase()} <b>{snapshotAt ? new Date(snapshotAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "UPDATING"}</b></div>
           </div>
@@ -505,7 +503,7 @@ export function FantasyApp() {
       <footer>
         <a className="pf-brand" href="#top"><span className="pf-mark-image" role="img" aria-label="Pump Fantasy logo" /><strong>PumpFun Fantasy</strong><em>LEAGUE</em></a>
         <p>A fantasy draft for the pump.fun culture.</p>
-        <div><a href="#draft">Draft room</a><a href="/budget-draft">Draft lab</a>
+        <div><a href="#draft">Draft room</a>
           <a href="/rules">Rules</a><a href="#status">Season status</a></div>
         <small>Independent project; not affiliated with pump.fun. Trader rankings and one-month PnL come from Pump.fun and can change. A submitted squad is scored against the round’s opening snapshot. Connect a wallet holding $FANTASY to enter during an open draft window. Crypto assets are risky; this is not financial advice.</small>
       </footer>

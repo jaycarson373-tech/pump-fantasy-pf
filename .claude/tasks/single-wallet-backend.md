@@ -1,7 +1,7 @@
 **Status:** in-progress
 **Owner:** codex--pump-fantasy-pf
 **Branch:** codex/single-wallet-backend
-**Next:** Await token launch and separate payout activation; operator opens real draft only after preflight passes. Saved roster deployed.
+**Next:** Deploy verified Draft Lab removal to Vercel after scoped credential approval; real draft remains closed.
 
 Actor: Codex. Session 32da0da0. User authorized single-wallet signing and agent-selected caps.
 Bounded change: reuse installed Solana Kit 7 signing and existing transaction proof/recovery, remove Turnkey. Shared solana-core/pump-fees loaders inspected: legacy web3.js types incompatible with this Kit transaction path; no new dependency needed.
@@ -38,3 +38,7 @@ Actor: Codex. Saved-roster production rollout complete under explicit scoped app
 
 
 Actor: Codex. Operator requested automatic Project26 LARP/optimization checks and approval before every frontend change. Repo AGENTS.md previously contained only generated Next guidance; now routes to canonical kit context/reuse workflow, requires relevant public-claim/evidence checks during affected work and full applicable checklist before launch/readiness claims, and requires explicit frontend approval for wording, layout, styling, visible behavior and displayed/hidden information. Exact user requests count as approval only for their stated scope. Backend/audit/deploy requests do not authorize frontend changes. Public evidence review cannot fabricate proof or enable features to improve a checker result. Existing reuse/public behavior checks were performed, but no complete LARP checklist or external checker score is claimed. Documentation-only change: tests/scripts/CI/package searched for markdown consumers (none found), diff check passed, no runtime or deployment change.
+
+Actor: Codex. Operator explicitly requested removal of confusing secondary Draft Lab, authorizing this frontend scope. Reuse main /draft route; remove lab-only UI/CSS/helpers/tests and links/rules section, preserve old /budget-draft URL as redirect. Unrelated AGENTS.md modifications and newly generated cross-tool context/config files were already present at turn start and remain outside this change. No new deployment credential operation approved yet.
+
+Actor: Codex. Draft Lab removal verified on Node24.22.1:46remaining unit tests pass (four retired lab-only tests removed with their unused helper), tsc --noEmit, repository ESLint, webpack production build and diff check exit0. Local production HTTP smoke: /budget-draft returns308 Location/draft; /, /draft and /rules return200 without lab links/copy. Deleted only lab UI/CSS/helper/test, replaced lab page with framework redirect, removed navigation/CTA/footer links and the practice-only rules section. Main drafting, auth, roster, rewards and API behavior unchanged. Relevant public-claim check: retired feature no longer advertised in rendered pages. Existing fallback-hook complexity warnings remain in untouched logic. Unrelated preexisting AGENTS/context/config changes excluded. No production deployment for this revision yet.
