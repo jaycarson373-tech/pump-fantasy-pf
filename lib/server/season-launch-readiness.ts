@@ -6,7 +6,6 @@ import type { FantasyPlayer } from "./pumpfun";
 import { getDraftRoster } from "./roster-cache";
 import { getNativeSolBalance, verifyTokenMint } from "./solana";
 import type { SeasonSchedule } from "./season-window";
-import { creatorFeeConfigurationBlockers } from "./creator-fees";
 import { getPayoutConfiguration } from "./automatic-payout";
 
 type Season = SeasonSchedule & { id: string; title: string; status: string };
@@ -38,31 +37,32 @@ const blocked = (blockers: string[]): SeasonLaunchReadiness => ({
 /** Read-only launch gate shared by the operator's preflight and start actions. */
 export async function getSeasonLaunchReadiness(): Promise<SeasonLaunchReadiness> {
   const config = getBackendConfig();
+  const feeMode = process.env.PF_REWARD_MODE === "creator-fees";
   const blockers: string[] = [];
-  if (!config.ready) blockers.push("Backend, RPC, session secret, and live FANTASY mint must be configured.");
+  if (!config.ready || !validWallet(config.mint || "")) blockers.push("Configure the backend, RPC, session secret and valid FANTASY mint address before opening the draft.");
   try {
     const migrationRows = await queryRows<{ applied: boolean }>("select count(*)=3 as applied from pf_schema_migrations where name in ('202610140002_creator_fee_pools.sql','202611060001_season_fee_rewards.sql','202611060002_saved_draft_roster.sql')");
     if (!migrationRows[0]?.applied) blockers.push("Apply the creator-fee, season-reward and roster-cache migrations before opening a season.");
   } catch {
     blockers.push("Could not verify the creator-fee-pools migration in the database.");
   }
-  if (config.ready && config.mint) {
+  // Creator-fee drafts may open before mint creation. Holder checks still verify
+  // the mint and balance on every submission; collection/payouts keep their gates.
+  if (!feeMode && config.ready && config.mint) {
     try {
       await verifyTokenMint(config.mint);
     } catch {
       blockers.push("The configured FANTASY mint is not initialized on Solana mainnet yet.");
     }
   }
-  const feeMode = process.env.PF_REWARD_MODE === "creator-fees";
   const prizeText = feeMode ? "0" : process.env.PF_DAILY_PRIZE_LAMPORTS || "";
   const prizeWallet = process.env.PF_PRIZE_WALLET_ADDRESS || "";
-  const payout = await getPayoutConfiguration();
+  const payout = feeMode ? null : await getPayoutConfiguration();
   if (!feeMode && (!/^\d+$/.test(prizeText) || BigInt(prizeText || "0") <= 0n)) blockers.push("Set PF_DAILY_PRIZE_LAMPORTS to the exact positive daily prize in lamports.");
   if (!validWallet(prizeWallet)) blockers.push("Set PF_PRIZE_WALLET_ADDRESS to the public wallet that will fund automatic winner payouts.");
-  blockers.push(...payout.blockers);
-  if (feeMode) blockers.push(...await creatorFeeConfigurationBlockers());
-  if (/^\d+$/.test(prizeText) && BigInt(prizeText || "0") > 0n && payout.perAwardCap && BigInt(prizeText) > payout.perAwardCap) blockers.push("PF_DAILY_PRIZE_LAMPORTS exceeds the configured per-award payout cap.");
-  if (/^\d+$/.test(prizeText) && BigInt(prizeText || "0") > 0n && payout.seasonCap && BigInt(prizeText) * 2n > payout.seasonCap) blockers.push("The two daily awards exceed the configured season payout cap.");
+  if (payout) blockers.push(...payout.blockers);
+  if (/^\d+$/.test(prizeText) && BigInt(prizeText || "0") > 0n && payout?.perAwardCap && BigInt(prizeText) > payout.perAwardCap) blockers.push("PF_DAILY_PRIZE_LAMPORTS exceeds the configured per-award payout cap.");
+  if (/^\d+$/.test(prizeText) && BigInt(prizeText || "0") > 0n && payout?.seasonCap && BigInt(prizeText) * 2n > payout.seasonCap) blockers.push("The two daily awards exceed the configured season payout cap.");
   if (blockers.length) return blocked(blockers);
 
   let season: Season | null = null;
@@ -85,16 +85,16 @@ export async function getSeasonLaunchReadiness(): Promise<SeasonLaunchReadiness>
   if (blockers.length) return { ...blocked(blockers), season };
 
   const dailyPrize = BigInt(prizeText);
-  const requiredBalance = feeMode ? 5_000_000n : dailyPrize * 2n + 20_000n;
-  let currentBalance: bigint;
+  const requiredBalance = feeMode ? 0n : dailyPrize * 2n + 20_000n;
+  let currentBalance: bigint | null = null;
   try {
-    currentBalance = await getNativeSolBalance(prizeWallet);
+    if (!feeMode) currentBalance = await getNativeSolBalance(prizeWallet);
   } catch {
     return { ...blocked(["Could not verify the prize wallet balance through the configured Solana RPC."]), season, prizeWallet, dailyPrizeLamports: prizeText, requiredBalanceLamports: requiredBalance.toString() };
   }
-  if (currentBalance < requiredBalance) {
-    blockers.push("Prize wallet needs the required SOL funding (creator-fee mode requires a separate 0.005 SOL gas buffer).");
-    return { ...blocked(blockers), season, prizeWallet, dailyPrizeLamports: prizeText, requiredBalanceLamports: requiredBalance.toString(), currentBalanceLamports: currentBalance.toString() };
+  if (currentBalance !== null && currentBalance < requiredBalance) {
+    blockers.push("Prize wallet needs the required SOL funding before opening a fixed-prize season.");
+    return { ...blocked(blockers), season, prizeWallet, dailyPrizeLamports: prizeText, requiredBalanceLamports: requiredBalance.toString(), currentBalanceLamports: currentBalance?.toString() ?? null };
   }
 
   let players: FantasyPlayer[];
@@ -104,11 +104,11 @@ export async function getSeasonLaunchReadiness(): Promise<SeasonLaunchReadiness>
     players = board.players;
     observedAt = board.snapshotAt;
   } catch {
-    return { ...blocked(["Could not load the saved draft roster. Restore its 50-player snapshot before opening."]), season, prizeWallet, dailyPrizeLamports: prizeText, requiredBalanceLamports: requiredBalance.toString(), currentBalanceLamports: currentBalance.toString() };
+    return { ...blocked(["Could not load the saved draft roster. Restore its 50-player snapshot before opening."]), season, prizeWallet, dailyPrizeLamports: prizeText, requiredBalanceLamports: requiredBalance.toString(), currentBalanceLamports: currentBalance?.toString() ?? null };
   }
   if (players.length !== 50 || players.some((player, index) => player.rank !== index + 1 || !validWallet(player.wallet) || !Number.isFinite(player.pnl_usd)) || new Set(players.map((player) => player.wallet)).size !== 50) {
     blockers.push("The saved roster must contain 50 unique wallets ranked 1–50 before opening entries.");
-    return { ...blocked(blockers), season, prizeWallet, dailyPrizeLamports: prizeText, requiredBalanceLamports: requiredBalance.toString(), currentBalanceLamports: currentBalance.toString() };
+    return { ...blocked(blockers), season, prizeWallet, dailyPrizeLamports: prizeText, requiredBalanceLamports: requiredBalance.toString(), currentBalanceLamports: currentBalance?.toString() ?? null };
   }
 
   return {
@@ -118,7 +118,7 @@ export async function getSeasonLaunchReadiness(): Promise<SeasonLaunchReadiness>
     prizeWallet,
     dailyPrizeLamports: prizeText,
     requiredBalanceLamports: requiredBalance.toString(),
-    currentBalanceLamports: currentBalance.toString(),
+    currentBalanceLamports: currentBalance?.toString() ?? null,
     players,
     observedAt,
   };

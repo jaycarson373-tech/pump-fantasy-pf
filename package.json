@@ -12,6 +12,7 @@
     "lint": "eslint . --ignore-pattern .next",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "test:fees": "node --conditions=react-server scripts/test-fee-ledger.mjs",
+    "test:pretoken": "node --conditions=react-server scripts/test-pretoken-draft.mjs",
     "test:roster": "node --conditions=react-server scripts/test-roster-cache.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "check:live": "node scripts/check-live-readiness.mjs"
