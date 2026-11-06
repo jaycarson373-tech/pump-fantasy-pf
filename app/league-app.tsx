@@ -133,6 +133,9 @@ function Arrow() {
     </svg>
   );
 }
+function XIcon() {
+  return <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-6.8 7.8L23.2 22h-6.3L12 14.6 5.5 22H2.3l7.2-8.4L1 2h6.5l4.4 6.7L18.9 2ZM17.8 20h1.7L6.5 4H4.7l13.1 16Z" /></svg>;
+}
 function Crown() {
   return (
     <svg
@@ -572,10 +575,10 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
             </Link>
           ))}
         </nav>
-        <WalletControl
-          onAuthChange={authChange}
-          verificationRef={verification}
-        />
+        <div className="header-actions">
+          <a className="x-social" href="https://x.com/PFLeague_fun" target="_blank" rel="noopener noreferrer" aria-label="PFL on X" title="@PFLeague_fun"><XIcon /></a>
+          <WalletControl onAuthChange={authChange} verificationRef={verification} />
+        </div>
       </header>
       <div className="league-strip">
         <span>
@@ -1328,6 +1331,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
         <Link href="/rules">Rules</Link>
         <Link href="/rewards">Rewards</Link>
         <Link href="/champion">Championship</Link>
+        <a href="https://x.com/PFLeague_fun" target="_blank" rel="noopener noreferrer"><XIcon /> @PFLeague_fun</a>
         <a href={dexUrl} target="_blank" rel="noreferrer">
           Dexscreener <Arrow />
         </a>

@@ -2106,3 +2106,8 @@ dialog.inspect-overlay::backdrop {
   .pfl-footer > a:not(.pfl-brand) { min-height: 44px; display: flex; align-items: center; }
   #draft-tier-navigation { scroll-margin-top: 24px; }
 }
+
+.header-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.x-social { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 8px; color: #10271a; transition: background .15s; }
+.x-social:hover { background: #e7f4ea; }
+@media (max-width: 400px) { .header-actions { gap: 5px; } .pfl-header { gap: 8px; padding-inline: 14px; } .pfl-header .pfl-brand { gap: 6px; } }
