@@ -1,0 +1,30 @@
+/* Pump Fantasy club identity: league navy, electric blue, championship gold. */
+body .draft-room{--green:#4468e8;--green-ink:#243a6b;--green-soft:#eaf0ff;--paper:#f7f9fd;background:#f7f9fd;color:#18243c}
+body .draft-room .topbar{background:#fff;border-bottom:1px solid #e2e7f1}
+body .draft-room .pf-brand em{background:#eaf0ff;color:#4965a7;letter-spacing:.12em}
+body .draft-room .league-live-strip{background:#172540;color:#f1f5ff;border-color:#2f4061;border-radius:0}
+body .draft-room .league-live-strip span{color:#a8b9d6}body .draft-room .league-live-strip>div+div{border-color:#334666}
+body .draft-room .draft-hero{background:#f7f9fd;padding-top:52px}
+body .draft-room .draft-hero h1{color:#18243c;letter-spacing:-.065em;font-weight:700}body .draft-room .draft-hero h1 span{color:#4468e8}
+body .draft-room .draft-hero .hero-copy-grid p{color:#6d7d97}body .draft-room .draft-eyebrow{color:#6e83a8;letter-spacing:.14em}
+body .draft-room .pumpfun-pill{background:#e9f6ef;color:#317851;border-color:#c9e8d7}
+body .draft-room .primary-cta{background:#345cdb;border-color:#345cdb;color:#fff;box-shadow:0 7px 20px #345cdb1a;border-radius:9px}
+body .draft-room .secondary-cta{background:#fff;border-color:#d5dfef;color:#4f6692;border-radius:9px}
+body .draft-room .league-board{background:#14233e;color:#eaf1ff;border-color:#304564;border-radius:16px;box-shadow:0 28px 55px -34px #14233e70}
+body .draft-room .league-board:before{background-image:linear-gradient(#8aa9dd13 1px,transparent 1px),linear-gradient(90deg,#8aa9dd13 1px,transparent 1px);background-size:38px 38px}
+body .draft-room .league-board-top,body .draft-room .league-board-bottom{color:#8fa8cb}body .draft-room .league-board-top b{color:#d8e5ff}
+body .draft-room .league-preview-card{background:#223856;border-color:#46648b;color:#eff5ff;border-radius:9px}
+body .draft-room .league-preview-card:nth-child(3){background:#3a5f9f;border-color:#d9b864}
+body .draft-room .league-preview-card:hover,body .draft-room .league-preview-card:focus-visible{border-color:#d9b864}
+body .draft-room .league-preview-card>span,body .draft-room .league-preview-card small{color:#b6c9e5}
+body .draft-room .league-board-title em{color:#d5b76b}
+body .draft-room .league-hero-stats{border-color:#dce4f2}
+body .draft-room .rules-peek,body .draft-room .season-pathway{background:#fff;border-color:#dfe6f2}
+body .draft-room .roster-board,body .draft-room .fee-flow,body .draft-room .daily-awards{border-color:#dde5f1;border-radius:14px;box-shadow:none}
+body .draft-room .roster-slot{background:#f8faff;border-color:#dce5f2}
+body .draft-room .roster-slot.selected{background:#eaf0ff;border-color:#93abe1}
+body .draft-room .band-column{border-color:#dde5f1}body .draft-room .band-player.selected{background:#eaf0ff;border-color:#8fa9e0}
+body .draft-room .submit-lineup,body .draft-room .award-pay-button{background:#345cdb;color:#fff}
+body .draft-room :is(a,button,input):focus-visible{outline:2px solid #527ae9;outline-offset:4px}
+body .rules-page{background:#f7f9fd;color:#18243c}body .rules-page section{border-color:#e0e7f3}
+@media(max-width:700px){body .draft-room .draft-hero{padding-top:32px}body .draft-room .hero-copy-grid{gap:25px}body .draft-room .draft-hero h1{letter-spacing:-.055em}body .draft-room .league-board{border-radius:14px}}
