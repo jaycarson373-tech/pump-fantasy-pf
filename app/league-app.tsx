@@ -604,6 +604,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
           />
         </div>
       </header>
+      <p className="pfl-token-address">PFL CA: <a href="https://solscan.io/token/PFLnhH2Rn2kd2maipS8ueJVCojHsrnraPLn3HAQoB8W" target="_blank" rel="noreferrer"><code>PFLnhH2Rn2kd2maipS8ueJVCojHsrnraPLn3HAQoB8W</code></a></p>
       <div className="league-strip">
         <span>
           <i />

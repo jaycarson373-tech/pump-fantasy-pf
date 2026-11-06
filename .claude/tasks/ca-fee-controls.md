@@ -1,0 +1,8 @@
+**Status:** in-progress
+**Owner:** codex--pf-ca-fee-controls
+**Branch:** codex/pfl-ca-fee-controls
+**Next:** Preserve Starting Seven, publish the corrected CA, and define the fee-funded burn allocation and limits before signing integration.
+
+Actor: Codex. Operator approved mint PFLnhH2Rn2kd2maipS8ueJVCojHsrnraPLn3HAQoB8W, 500000-token holder entry, preserving current Starting Seven, and GitHub/Vercel/Railway deployment credential workflow. Community player remains Season2 work; do not deploy the older PR11 over Starting Seven. Base e65187e from origin/codex/pfl-starting-seven. User named a deployer key file for treasury/fees; file remains unopened pending a concrete bounded key operation. Fee burn means buy and burn PFL using creator fees. Allocation and per-run/day limits requested, not yet supplied. Existing Starting Seven split is30/50/20; prior branch40/45/15 does not govern this source. Shared library execution is still in an unmerged branch, so do not silently install it or write a duplicate trading implementation.
+
+Actor: Codex. Live /rules readback confirms30/50/20 all allocated to rewards and purchased PFL distributed as prizes, no burn allocation. User selected live ratios; therefore no reward funds may be burned without a revised allocation. Runtime buyback/burn and deployer upload remain unperformed. Reusable ON/OFF/status shell rule integrated into Projects26 at7adc884 (53kitchecks passed,39donor skips). CA presentation and env example updated while retaining Starting Seven. Verification Node24.22.1:66unit tests, ESLint, explicit tsc and production build all exit0. GitHub runner inspection403; hosted zero-dollar budget unverified, so ready/merge blocked by repository CI policy.
