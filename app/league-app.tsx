@@ -324,6 +324,14 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
     [refreshing, setRefreshing] = useState(false),
     [clock, setClock] = useState({ now: 0, offset: 0 });
   const [requestedRound, setRequestedRound] = useState("");
+  const [copyStatus, setCopyStatus] = useState("");
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+    },
+    [],
+  );
   const traderDialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     if (inspect) traderDialog.current?.showModal();
@@ -530,8 +538,24 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
       setBusy(false);
     }
   }
-  const dexUrl = data.tokenMint
-    ? `https://dexscreener.com/solana/${encodeURIComponent(data.tokenMint)}`
+  const configuredMint =
+    data.tokenMint || process.env.NEXT_PUBLIC_FANTASY_CA || "";
+  const publicMint = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(configuredMint.trim())
+    ? configuredMint.trim()
+    : "";
+  async function copyContract() {
+    if (!publicMint) return;
+    try {
+      await navigator.clipboard.writeText(publicMint);
+      setCopyStatus("Copied");
+    } catch {
+      setCopyStatus("Copy failed");
+    }
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => setCopyStatus(""), 2200);
+  }
+  const dexUrl = publicMint
+    ? `https://dexscreener.com/solana/${encodeURIComponent(publicMint)}`
     : "https://dexscreener.com/solana";
   const phase = !round
     ? "Opening draft"
@@ -590,6 +614,35 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
           ))}
         </nav>
         <div className="header-actions">
+          {publicMint && (
+            <button
+              className="contract-copy"
+              type="button"
+              onClick={() => void copyContract()}
+              aria-label={`Copy PFL contract address ${publicMint}`}
+            >
+              <span className="contract-short">
+                {copyStatus ||
+                  `${publicMint.slice(0, 4)}…${publicMint.slice(-4)}`}
+              </span>
+              <svg
+                aria-hidden="true"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+              >
+                <rect x="8" y="8" width="12" height="12" rx="2" />
+                <path d="M16 8V4H4v12h4" />
+              </svg>
+              <span className="contract-full">{publicMint}</span>
+              <span className="sr-only" role="status">
+                {copyStatus}
+              </span>
+            </button>
+          )}
           <a
             className="x-social"
             href="https://x.com/PFLeague_fun"
@@ -619,7 +672,9 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
             : "WEEKLY DRAFTS"}
         </span>
         <span>HOLD 500,000+ $PFL</span>
-        <span>{countdown}</span>
+        <Link className="strip-draft-link" href="/draft">
+          Draft your top 7 <Arrow />
+        </Link>
       </div>
       <main>
         {data.scoringDelayed && ["leaderboard", "team"].includes(page) && (
