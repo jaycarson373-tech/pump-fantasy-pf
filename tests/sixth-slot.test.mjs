@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { calculateDailyWinner } from '../lib/server/daily-scoring.ts';
+const players = Array.from({length:6}, (_,i)=>({id:`p${i}`,wallet:`w${i}`,rank:i===5?51:i*10+1}));
+const picks=players.map(p=>p.id);
+const before=Object.fromEntries(players.map(p=>[p.wallet,10]));
+const after={...before,w5:25};
+test('six-player season scores the community player equally',()=>assert.deepEqual(calculateDailyWinner([{wallet:'entrant',picks}],players,before,after,6),{kind:'winner',wallet:'entrant',score:15}));
+test('six-player season rejects five picks',()=>assert.deepEqual(calculateDailyWinner([{wallet:'entrant',picks:picks.slice(0,5)}],players,before,after,6),{kind:'awaiting-data'}));
+test('six-player season cannot award with missing community observation',()=>assert.deepEqual(calculateDailyWinner([{wallet:'entrant',picks}],players,before,{w0:10,w1:10,w2:10,w3:10,w4:10},6),{kind:'awaiting-data'}));
+test('different player IDs cannot score the same wallet twice',()=>assert.deepEqual(calculateDailyWinner([{wallet:'entrant',picks:picks.slice(0,5)}],players.map(p=>({...p,wallet:'duplicate'})),{duplicate:1},{duplicate:9},5),{kind:'awaiting-data'}));
+import { squadSizeForSeason, validateSquad, fetchPickedCommunityPnl } from '../lib/community-roster.ts';
+test('only canonical season two onward requires a sixth pick',()=>{assert.equal(squadSizeForSeason('season-1'),5);assert.equal(squadSizeForSeason('season-2'),6);assert.equal(squadSizeForSeason('wallet-test-2'),5);});
+test('squad validates five bands and exactly one community identity',()=>{assert.equal(validateSquad(picks,players,6),true);assert.equal(validateSquad(picks.slice(0,5),players,6),false);assert.equal(validateSquad(picks,players.map(p=>({...p,rank:51})),6),false);assert.equal(validateSquad(picks,players.map(p=>({...p,wallet:'same'})),6),false);});
+test('community fetch deduplicates picked wallets, stays sequential, and preserves missing',async()=>{let active=0;const calls=[];const fetcher=async wallet=>{assert.equal(active++,0);calls.push(wallet);await Promise.resolve();active--;if(wallet==='bad')throw Error('HTTP403');return {pnl_usd:7,observedAt:new Date().toISOString()};};const roster=[{id:'a',wallet:'good',rank:51},{id:'b',wallet:'good',rank:52},{id:'c',wallet:'bad',rank:53},{id:'d',wallet:'ignored',rank:54},{id:'e',wallet:'ranked',rank:1}];assert.deepEqual(await fetchPickedCommunityPnl(roster,['a','b','c','e'],fetcher),{good:7});assert.deepEqual(calls,['good','bad']);});
+test('stale, nonfinite and missing community observations are never zero',async()=>{assert.deepEqual(await fetchPickedCommunityPnl(players,picks,async()=>({pnl_usd:NaN,observedAt:new Date().toISOString()})),{});assert.deepEqual(await fetchPickedCommunityPnl(players,picks,async()=>({pnl_usd:1,observedAt:'2020-01-01T00:00:00Z'})),{});});
+test('community request budget rejects the complete snapshot before fetching',async()=>{const many=Array.from({length:101},(_,i)=>({id:`c${i}`,wallet:`w${i}`,rank:51+i}));let calls=0;await assert.rejects(fetchPickedCommunityPnl(many,many.map(p=>p.id),async()=>{calls++;return {pnl_usd:0,observedAt:new Date().toISOString()};}),/request bound/);assert.equal(calls,0);});

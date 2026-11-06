@@ -1,3 +1,6 @@
+import { fetchPickedCommunityPnl, squadSizeForSeason } from "../community-roster";
+import { fetchCommunityPnl } from "./community-data";
+import { saveCommunityRosterSnapshot } from "./community-roster";
 import "server-only";
 import { collectCreatorFees } from "./creator-fees";
 import { getPayoutConfiguration } from "./automatic-payout";
@@ -15,7 +18,7 @@ import { getDraftRoster } from "./roster-cache";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_GRACE_MS = 15 * 60 * 1000;
-type Season = { id: string; title: string; status: string; opens_at: string | null; locked_at: string | null; closes_at: string | null; daily_prize_lamports: string | number; mint_address: string | null; prize_mode: string };
+type Season = { squad_size: number; id: string; title: string; status: string; opens_at: string | null; locked_at: string | null; closes_at: string | null; daily_prize_lamports: string | number; mint_address: string | null; prize_mode: string };
 type EntryRow = { wallet: string; picks: string[] };
 type ScoreSnapshot = { boundary: number; captured_at: string; pnl_by_wallet: Record<string, number>; missing_wallets: string[] };
 
@@ -27,7 +30,7 @@ async function activeSeason() {
   const configured = await queryRows<{ value: string }>("select value from pf_app_config where key = 'active_season_id' limit 1");
   const seasonId = configured[0]?.value || process.env.PF_ACTIVE_SEASON_ID;
   if (!seasonId) return null;
-  const rows = await queryRows<Season>("select id, title, status, opens_at, locked_at, closes_at, daily_prize_lamports, mint_address, prize_mode from pf_seasons where id = $1 limit 1", [seasonId]);
+  const rows = await queryRows<Season>("select squad_size, id, title, status, opens_at, locked_at, closes_at, daily_prize_lamports, mint_address, prize_mode from pf_seasons where id = $1 limit 1", [seasonId]);
   return rows[0] ?? null;
 }
 
@@ -35,8 +38,8 @@ async function recordAward(season: Season, day: 1 | 2, previous: ScoreSnapshot, 
   const existing = await queryRows<{ id: string }>("select id from pf_daily_awards where season_id = $1 and day_number = $2 limit 1", [season.id, day]);
   if (existing.length) return;
   const entries = await queryRows<EntryRow>("select wallet, picks from pf_entries where season_id = $1 order by created_at asc, wallet asc", [season.id]);
-  const players = await queryRows<{ id: string; wallet: string }>("select id, wallet from pf_players where season_id = $1", [season.id]);
-  const result = calculateDailyWinner(entries, players, previous.pnl_by_wallet, current.pnl_by_wallet);
+  const players = await queryRows<{ id: string; rank: number; wallet: string }>("select id, rank, wallet from pf_players where season_id = $1", [season.id]);
+  const result = calculateDailyWinner(entries, players, previous.pnl_by_wallet, current.pnl_by_wallet, season.squad_size);
   if (result.kind === "no-eligible-entries") {
     await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_lamports) values ($1, $2, 'no_eligible_entries', $3) on conflict (season_id, day_number) do nothing", [season.id, day, season.daily_prize_lamports]);
     return;
@@ -82,10 +85,12 @@ async function captureBoundary(season: Season, boundary: 0 | 1 | 2) {
   const board = await fetchPumpLeaderboard(100, { fresh: true });
   if (board.players.length < 50 || new Set(board.players.map((player) => player.wallet)).size !== board.players.length || board.players.some((player) => !validWallet(player.wallet) || !Number.isFinite(player.pnl_usd))) throw new Error("Pump.fun returned an incomplete or invalid scoring snapshot.");
   const entries = await queryRows<EntryRow>("select wallet, picks from pf_entries where season_id = $1", [season.id]);
-  const players = await queryRows<{ id: string; wallet: string }>("select id, wallet from pf_players where season_id = $1", [season.id]);
+  const players = await queryRows<{ id: string; rank: number; wallet: string }>("select id, rank, wallet from pf_players where season_id = $1", [season.id]);
   const walletById = new Map(players.map((player) => [player.id, player.wallet]));
   const pickedWallets = new Set(entries.flatMap((entry) => entry.picks.map((id) => walletById.get(id)).filter((wallet): wallet is string => Boolean(wallet))));
-  const values = snapshotMap(board.players);
+  const communityValues = await fetchPickedCommunityPnl(players, entries.flatMap(entry => entry.picks), fetchCommunityPnl);
+  const communityWallets = new Set(players.filter(player => player.rank > 50).map(player => player.wallet));
+  const values = { ...snapshotMap(board.players.filter(player => !communityWallets.has(player.wallet))), ...communityValues };
   const missing = [...pickedWallets].filter((wallet) => values[wallet] === undefined);
   const capturedAt = new Date().toISOString();
   const inserted = await queryRows<{ boundary: number }>("insert into pf_score_snapshots (season_id, boundary, captured_at, source_url, pnl_by_wallet, missing_wallets) values ($1, $2, $3, $4, $5::jsonb, $6::jsonb) on conflict (season_id, boundary) do nothing returning boundary", [season.id, boundary, capturedAt, "https://pump.fun/leaderboard", JSON.stringify(values), JSON.stringify(missing)]);
@@ -150,13 +155,15 @@ export async function tickSeason() {
       if (!current.length) return { ok: true, action: "already-rolled", seasonId: season.id };
       const existing = await transactionQuery<{ id: string }>("select id from pf_seasons");
       const nextId = nextSeasonId(existing.map((row) => row.id));
+      const squadSize = squadSizeForSeason(nextId);
       const nextNumber = Number(nextId.slice("season-".length));
       const nextPrizeLamports = nextPrize.toString();
       const nextWindow = seasonWindowFromOpen(Date.now());
       const inserted = await transactionQuery<{ id: string }>("insert into pf_seasons (id, title, status, opens_at, locked_at, closes_at, daily_prize_lamports, source_url, mint_address, prize_mode) values ($1, $2, 'draft', null, null, null, $3, $4, $5, $6) on conflict (id) do nothing returning id", [nextId, `Season ${nextNumber}`, nextPrizeLamports, "https://pump.fun/leaderboard", season.mint_address, season.prize_mode]);
       if (!inserted.length) throw new Error("Could not reserve the next season ID safely.");
       await saveRosterSnapshot(nextId, board.players, new Date(board.snapshotAt), transactionQuery);
-      const opened = await transactionQuery<{ id: string }>("update pf_seasons set status = 'open', opens_at = $2, locked_at = $3, closes_at = $4 where id = $1 and status = 'draft' returning id", [nextId, nextWindow.opensAt, nextWindow.lockedAt, nextWindow.closesAt]);
+      if (squadSize === 6) await saveCommunityRosterSnapshot(nextId, board.players.map(player => player.wallet), transactionQuery);
+      const opened = await transactionQuery<{ id: string }>("update pf_seasons set status = 'open', opens_at = $2, locked_at = $3, closes_at = $4, squad_size=$5 where id = $1 and status = 'draft' returning id", [nextId, nextWindow.opensAt, nextWindow.lockedAt, nextWindow.closesAt, squadSize]);
       if (!opened.length) throw new Error("Could not open the next season safely.");
       const completed = await transactionQuery<{ id: string }>("update pf_seasons set status = 'complete' where id = $1 and status = 'open' returning id", [season.id]);
       if (!completed.length) throw new Error("The previous season changed during rollover.");

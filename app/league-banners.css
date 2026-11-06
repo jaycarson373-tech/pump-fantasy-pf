@@ -1,0 +1,22 @@
+.pfl-banners { --banner-duration: 32s; position: relative; color: var(--ink, #15161a); background: var(--paper, #f7f7f4); }
+.pfl-banners .pfl-banner-controls { display: flex; justify-content: flex-end; padding: 4px clamp(16px, 4.7vw, 74px); border-bottom: 1px solid var(--line, #e6e7e3); }
+.pfl-banners .pfl-banner-controls button { min-height: 28px; padding: 3px 10px; border: 1px solid currentColor; border-radius: 4px; color: inherit; background: transparent; cursor: pointer; font: 600 10px/1.4 var(--font-geist-mono, monospace); }
+.pfl-banners .pfl-banner-row { overflow: hidden; border-bottom: 1px solid var(--line, #e6e7e3); font: 600 11px/1.5 var(--font-geist-mono, monospace); }
+.pfl-banners .pfl-banner-player { background: var(--green, #86efac); color: var(--green-ink, #07391d); --banner-duration: 40s; }
+.pfl-banners .pfl-banner-season { background: var(--ink, #15161a); color: var(--paper, #f7f7f4); --banner-duration: 36s; }
+.pfl-banners .pfl-banner-track { display: flex; width: max-content; min-width: 200%; animation: pfl-banner-scroll var(--banner-duration) linear infinite; }
+.pfl-banners .pfl-banner-group { box-sizing: border-box; min-width: 50%; flex: 1 0 auto; display: flex; justify-content: space-around; align-items: center; gap: clamp(24px, 4vw, 64px); padding: 10px 32px; white-space: nowrap; }
+.pfl-banners .pfl-banner-group strong { font-weight: 800; letter-spacing: .09em; }
+.pfl-banners .pfl-banner-action { color: inherit; font-weight: 750; text-decoration: underline; text-underline-offset: 3px; }
+.pfl-banners a:focus-visible, .pfl-banners button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.pfl-banners:hover .pfl-banner-track, .pfl-banners:focus-within .pfl-banner-track, .pfl-banners[data-paused="true"] .pfl-banner-track { animation-play-state: paused; }
+/* Expose every item while paused or using a keyboard, even on narrow screens. */
+.pfl-banners:focus-within .pfl-banner-track, .pfl-banners[data-paused="true"] .pfl-banner-track { width: 100%; min-width: 0; animation: none; }
+.pfl-banners:focus-within .pfl-banner-group, .pfl-banners[data-paused="true"] .pfl-banner-group { min-width: 0; flex-wrap: wrap; justify-content: center; white-space: normal; gap: 10px 24px; text-align: center; }
+.pfl-banners:focus-within .pfl-banner-group[aria-hidden="true"], .pfl-banners[data-paused="true"] .pfl-banner-group[aria-hidden="true"] { display: none; }
+@keyframes pfl-banner-scroll { to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) {
+  .pfl-banners .pfl-banner-track { width: 100%; min-width: 0; animation: none; }
+  .pfl-banners .pfl-banner-group { min-width: 0; flex-wrap: wrap; justify-content: center; white-space: normal; gap: 10px 24px; text-align: center; }
+  .pfl-banners .pfl-banner-group[aria-hidden="true"] { display: none; }
+}

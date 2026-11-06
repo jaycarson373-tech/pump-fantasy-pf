@@ -1,3 +1,4 @@
+import { COMMUNITY_FETCH_LIMIT, squadSizeForSeason } from "../community-roster";
 import "server-only";
 import { getBackendConfig } from "./config";
 import { getActiveSeasonId, queryRows } from "./database";
@@ -41,10 +42,10 @@ export async function getSeasonLaunchReadiness(): Promise<SeasonLaunchReadiness>
   const blockers: string[] = [];
   if (!config.ready || !validWallet(config.mint || "")) blockers.push("Configure the backend, RPC, session secret and valid FANTASY mint address before opening the draft.");
   try {
-    const migrationRows = await queryRows<{ applied: boolean }>("select count(*)=3 as applied from pf_schema_migrations where name in ('202610140002_creator_fee_pools.sql','202611060001_season_fee_rewards.sql','202611060002_saved_draft_roster.sql')");
-    if (!migrationRows[0]?.applied) blockers.push("Apply the creator-fee, season-reward and roster-cache migrations before opening a season.");
+    const migrationRows = await queryRows<{ applied: boolean }>("select count(*)=5 as applied from pf_schema_migrations where name in ('202610140002_creator_fee_pools.sql','202611060001_season_fee_rewards.sql','202611060002_saved_draft_roster.sql','202611060004_community_players.sql','202611060005_sixth_slot.sql')");
+    if (!migrationRows[0]?.applied) blockers.push("Apply the creator-fee, season-reward, roster-cache, community-player and sixth-slot migrations before opening a season.");
   } catch {
-    blockers.push("Could not verify the creator-fee-pools migration in the database.");
+    blockers.push("Could not verify the required season and community-player migrations in the database.");
   }
   // Creator-fee drafts may open before mint creation. Holder checks still verify
   // the mint and balance on every submission; collection/payouts keep their gates.
@@ -109,6 +110,12 @@ export async function getSeasonLaunchReadiness(): Promise<SeasonLaunchReadiness>
   if (players.length !== 50 || players.some((player, index) => player.rank !== index + 1 || !validWallet(player.wallet) || !Number.isFinite(player.pnl_usd)) || new Set(players.map((player) => player.wallet)).size !== 50) {
     blockers.push("The saved roster must contain 50 unique wallets ranked 1–50 before opening entries.");
     return { ...blocked(blockers), season, prizeWallet, dailyPrizeLamports: prizeText, requiredBalanceLamports: requiredBalance.toString(), currentBalanceLamports: currentBalance?.toString() ?? null };
+  }
+
+  if (season && squadSizeForSeason(season.id) === 6) {
+    const community = await queryRows<{ wallet: string }>("select wallet from pf_community_players where not(wallet=any($1::text[])) limit $2", [players.map(player => player.wallet), COMMUNITY_FETCH_LIMIT + 1]);
+    if (community.length > COMMUNITY_FETCH_LIMIT) return { ...blocked([`The eligible community roster exceeds scoring capacity (${COMMUNITY_FETCH_LIMIT}). Increase the reviewed scoring capacity before opening this season.`]), season };
+    if (!community.length) return { ...blocked(["Register an eligible community player outside the top 50 before opening this season."]), season };
   }
 
   return {

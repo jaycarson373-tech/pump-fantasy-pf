@@ -21,16 +21,18 @@ export function calculateDailyWinner(
   players: ScoringPlayer[],
   previousPnl: Record<string, number>,
   currentPnl: Record<string, number>,
+  squadSize: number = 5,
 ): DailyWinnerResult {
+  if (squadSize !== 5 && squadSize !== 6) return { kind: "awaiting-data" };
   if (!entries.length) return { kind: "no-eligible-entries" };
 
   const walletById = new Map(players.map((player) => [player.id, player.wallet]));
   const totals: Array<{ wallet: string; score: number }> = [];
 
   for (const entry of entries) {
-    if (entry.picks.length !== 5 || new Set(entry.picks).size !== 5) return { kind: "awaiting-data" };
+    if (entry.picks.length !== squadSize || new Set(entry.picks).size !== squadSize) return { kind: "awaiting-data" };
     const pickedWallets = entry.picks.map((id) => walletById.get(id));
-    if (pickedWallets.some((wallet) => !wallet)) return { kind: "awaiting-data" };
+    if (pickedWallets.some((wallet) => !wallet) || new Set(pickedWallets).size !== squadSize) return { kind: "awaiting-data" };
 
     let score = 0;
     for (const wallet of pickedWallets as string[]) {

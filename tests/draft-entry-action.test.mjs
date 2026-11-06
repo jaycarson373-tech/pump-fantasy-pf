@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { canStartDraftEntry, createDraftEntryAction } from '../lib/draft-entry-action.ts';
 
-const ready = { busy: false, pickCount: 5, authenticated: false, eligible: false, draftOpen: true, rosterReady: true };
+const ready = { busy: false, pickCount: 5, requiredPicks: 5, authenticated: false, eligible: false, draftOpen: true, rosterReady: true };
 test('five picks in an open draft can start wallet verification before eligibility', () => {
   assert.equal(canStartDraftEntry(ready), true);
   assert.equal(canStartDraftEntry({ ...ready, authenticated: true, eligible: true }), true);
@@ -44,4 +44,11 @@ test('leaving the draft while verification is pending cancels its submission', a
   resolveVerification(true);
   await request;
   assert.equal(submissions, 0);
+});
+
+test('trusted six-player seasons require six picks and complete roster data', () => {
+  assert.equal(canStartDraftEntry({ ...ready, requiredPicks: 6, pickCount: 5 }), false);
+  assert.equal(canStartDraftEntry({ ...ready, requiredPicks: 6, pickCount: 6 }), true);
+  assert.equal(canStartDraftEntry({ ...ready, requiredPicks: 6, pickCount: 6, rosterReady: false }), false);
+  assert.equal(canStartDraftEntry({ ...ready, requiredPicks: 0 }), false);
 });
