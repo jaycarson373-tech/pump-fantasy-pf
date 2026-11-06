@@ -8,13 +8,19 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { TIERS, tierFor, type Trader } from "../lib/league/engine";
+import {
+  TIERS,
+  tierFor,
+  type Trader as VerifiedTrader,
+} from "../lib/league/engine";
 import {
   WalletControl,
   type AuthState,
   type WalletVerification,
 } from "./wallet-control";
 import "./starting-seven.css";
+import draftCatalog from "../data/pumpfun-monthly-top100.json";
+type Trader = Omit<VerifiedTrader, "trades"> & { trades: number | null };
 type Page =
   "home" | "draft" | "team" | "leaderboard" | "rewards" | "rules" | "champion";
 type Round = {
@@ -101,6 +107,7 @@ type State = {
   champions?: SeasonRow[];
 };
 const EMPTY_PLAYERS: Trader[] = [];
+const CATALOG_PLAYERS: Trader[] = draftCatalog.players;
 const pages: [Page, string, string][] = [
   ["home", "Home", "/"],
   ["draft", "Draft", "/draft"],
@@ -358,11 +365,12 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
       }
     } catch {
       if (id === requestId.current)
-        setData({
+        setData((previous) => ({
+          ...previous,
           status: "unavailable",
           message:
             "League data is temporarily unavailable. Your saved draft is safe.",
-        });
+        }));
     } finally {
       if (id === requestId.current) setRefreshing(false);
     }
@@ -384,12 +392,12 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
     return () => clearInterval(t);
   }, []);
   const round = data.round,
-    players = data.players ?? EMPTY_PLAYERS,
+    players = data.round ? (data.players ?? EMPTY_PLAYERS) : CATALOG_PLAYERS,
     key = `pfl-seven:${round?.id ?? "preseason"}:${auth.wallet ?? "guest"}`;
   const picks = selection.key === key ? selection.picks : [],
     captain = selection.key === key ? selection.captain : "";
   useEffect(() => {
-    if (hydratedKey.current === key || !round) return;
+    if (hydratedKey.current === key || !players.length) return;
 
     let next = { key, picks: [] as string[], captain: "" };
     try {
@@ -411,7 +419,8 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
     else if (auth.wallet) {
       try {
         const guest = JSON.parse(
-          localStorage.getItem(`pfl-seven:${round.id}:guest`) ?? "null",
+          localStorage.getItem(`pfl-seven:${round?.id ?? "preseason"}:guest`) ??
+            "null",
         );
         if (guest && Array.isArray(guest.picks) && next.picks.length === 0)
           next = {
@@ -431,11 +440,13 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
     }, 0);
     return () => clearTimeout(hydration);
   }, [key, round, data.roster, players, auth.wallet]);
-  const editable =
+  const entryOpen =
+    data.status !== "unavailable" &&
     !!round &&
     round.status === "open" &&
     clock.now >= Date.parse(round.opens_at) &&
     clock.now < Date.parse(round.locks_at);
+  const editable = !round || entryOpen;
   function change(nextPicks: string[], nextCaptain = captain) {
     const next = {
       key,
@@ -506,6 +517,13 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
   }
   async function submit() {
     if (!editable || picks.length !== 7 || !captain) return;
+    if (!round) {
+      change(picks, captain);
+      setNotice(
+        "Draft saved on this device. Competition entry is confirmed only after wallet verification and server submission.",
+      );
+      return;
+    }
     setBusy(true);
     setNotice("");
     const originalRound = round?.id,
@@ -536,8 +554,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
       setBusy(false);
     }
   }
-  const configuredMint =
-    "PFLnhH2Rn2kd2maipS8ueJVCojHsrnraPLn3HAQoB8W";
+  const configuredMint = "PFLnhH2Rn2kd2maipS8ueJVCojHsrnraPLn3HAQoB8W";
   const publicMint = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(configuredMint.trim())
     ? configuredMint.trim()
     : "";
@@ -623,18 +640,6 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                 {copyStatus ||
                   `${publicMint.slice(0, 4)}…${publicMint.slice(-4)}`}
               </span>
-              <svg
-                aria-hidden="true"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.7"
-              >
-                <rect x="8" y="8" width="12" height="12" rx="2" />
-                <path d="M16 8V4H4v12h4" />
-              </svg>
               <span className="contract-full">{publicMint}</span>
               <span className="sr-only" role="status">
                 {copyStatus}
@@ -848,7 +853,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
               </div>
               <div className="lock-clock">
                 <small>
-                  {editable ? "DRAFT LOCKS IN" : "LEAGUE CLOCK · UTC"}
+                  {!round ? "OPENING DRAFT" : entryOpen ? "DRAFT LOCKS IN" : "LEAGUE CLOCK · UTC"}
                 </small>
                 <b>{countdown}</b>
                 <span>{phase}</span>
@@ -907,7 +912,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                     {TIERS[tier].max}
                   </span>
                 </div>
-                {data.status === "loading" ? (
+                {data.status === "loading" && players.length === 0 ? (
                   <div
                     className="league-skeleton"
                     aria-label="Loading traders"
@@ -942,7 +947,9 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                           <span>
                             <strong>{p.name}</strong>
                             <small>
-                              {p.trades.toLocaleString()} qualifying trades
+                              {p.trades === null
+                                ? tierFor(p.rank).name
+                                : `${p.trades.toLocaleString()} qualifying trades`}
                             </small>
                           </span>
                         </button>
@@ -985,7 +992,7 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                 )}
                 <div className="source-line">
                   {players.length
-                    ? `${players.length} verified traders · snapshot ${new Date(round!.pool_observed_at!).toLocaleString()}`
+                    ? `${players.length} traders · ${round ? "Round snapshot" : "Pump monthly snapshot"} · ${new Date(round?.pool_observed_at ?? draftCatalog.capturedAt).toLocaleString()}`
                     : ""}
                   <button onClick={() => void refresh()} disabled={refreshing}>
                     {refreshing ? "Refreshing…" : "Refresh field"}
@@ -1036,9 +1043,11 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
                           ? "Complete your seven"
                           : !captain
                             ? "Choose your captain"
-                            : data.roster
-                              ? "Save changes"
-                              : "Submit lineup"}
+                            : !round
+                              ? "Save draft"
+                              : data.roster
+                                ? "Save changes"
+                                : "Submit lineup"}
                     <Arrow />
                   </button>
                   <button
@@ -1494,7 +1503,11 @@ export function LeagueApp({ page = "home" }: { page?: Page }) {
               </div>
               <div>
                 <dt>Qualifying trades</dt>
-                <dd>{inspect.trades}</dd>
+                <dd>
+                  {inspect.trades === null
+                    ? "Not supplied by source"
+                    : inspect.trades}
+                </dd>
               </div>
             </dl>
             <a href={inspect.sourceUrl} target="_blank" rel="noreferrer">
