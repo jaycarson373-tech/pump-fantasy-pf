@@ -4,7 +4,7 @@ import { FantasyApp } from "../fantasy-app";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Draft Room | PumpFun Fantasy League",
+  title: "Draft Room | Pump Fantasy League",
   description: "Build and submit your five-trader Pump.fun fantasy squad.",
   robots: { index: false, follow: false },
 };

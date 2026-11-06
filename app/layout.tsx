@@ -16,18 +16,18 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.pumpfunfantasy.xyz"),
-  title: "PumpFun Fantasy League | Draft your five",
+  title: "Pump Fantasy League | Draft your five",
   description:
-    "Hold 500,000 FANTASY. Draft five traders in one hour. Compete across 48 hours of Pump.fun PnL.",
+    "Hold 500,000 PFL. Draft five traders in one hour. Compete across 48 hours of Pump.fun PnL.",
   icons: { icon: "/brand/pump-fantasy-shield-32-v2.png", shortcut: "/brand/pump-fantasy-shield-32-v2.png", apple: "/apple-icon.png" },
   openGraph: {
-    title: "PumpFun Fantasy League",
+    title: "Pump Fantasy League",
     description: "Draft one trader from each rank band. Build your five and follow the PnL race.",
     images: [{ url: "/brand/fantasy-league-social.png", width: 1500, height: 500 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "PumpFun Fantasy League",
+    title: "Pump Fantasy League",
     description: "Draft one trader from each rank band. Build your five and follow the PnL race.",
     images: ["/brand/fantasy-league-social.png"],
   },

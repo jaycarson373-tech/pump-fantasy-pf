@@ -216,7 +216,7 @@ function WalletControl({ onAuthChange, verificationRef }: { onAuthChange: (state
                 <div><b>{connected.wallet.name}</b><small>{connected.account.address}</small></div>
                 <button onClick={disconnectWallet} disabled={disconnect.isRunning}>Disconnect</button>
               </div>
-              {auth.authenticated ? <div className={`holder-status ${auth.eligible ? "eligible" : "ineligible"}`}><b>{auth.eligible ? "ELIGIBLE HOLDER" : "HOLDER CHECK FAILED"}</b><span>{auth.balance ?? "Not checked"} $FANTASY · minimum {auth.minimumTokens ?? "not set"}</span></div> : (
+              {auth.authenticated ? <div className={`holder-status ${auth.eligible ? "eligible" : "ineligible"}`}><b>{auth.eligible ? "ELIGIBLE HOLDER" : "HOLDER CHECK FAILED"}</b><span>{auth.balance ?? "Not checked"} $PFL · minimum {auth.minimumTokens ?? "not set"}</span></div> : (
                 <button className="verify-wallet-button" onClick={() => verifyWallet()} disabled={authBusy || signMessage.isRunning}>{authBusy ? "Verifying wallet…" : auth.configured ? "Sign message · check token balance" : "Verify wallet to enter"}</button>
               )}
               </>
@@ -233,7 +233,7 @@ function WalletControl({ onAuthChange, verificationRef }: { onAuthChange: (state
             )}
             {connect.error ? <p className="wallet-error">{connect.error instanceof Error ? connect.error.message : "Wallet connection failed."}</p> : null}
             {authError ? <p className="wallet-error">{authError}</p> : null}
-            <small className="wallet-safety">Connecting is free. Pump Fantasy never asks for your recovery phrase.</small>
+            <small className="wallet-safety">Connecting is free. Pump Fantasy League never asks for your recovery phrase.</small>
           </div>
         </>
       )}
@@ -423,8 +423,8 @@ export function FantasyApp() {
   return (
     <main className="app-shell draft-room">
       <header className="topbar" id="top">
-        <a className="pf-brand" href="#top" aria-label="Pump Fantasy home">
-          <span className="pf-mark-image" role="img" aria-label="Pump Fantasy logo" /><strong>PumpFun Fantasy</strong><em>LEAGUE</em>
+        <a className="pf-brand" href="#top" aria-label="Pump Fantasy League home">
+          <span className="pf-mark-image" role="img" aria-label="Pump Fantasy League logo" /><strong>Pump Fantasy League</strong><em>$PFL</em>
         </a>
         <nav aria-label="Primary">
           <a className="active" href="#draft">Draft room</a>
@@ -439,11 +439,11 @@ export function FantasyApp() {
       <section className="league-live-strip" aria-label="League schedule and eligibility">
         <div><span className={`league-phase-dot ${draftOpen ? "open" : ""}`} /><span>{phaseName}</span><strong>{timerValue ?? "Not scheduled"}</strong></div>
         <div><span>DRAFT WINDOW</span><strong>60 minutes</strong></div>
-        <div><span>HOLDER ENTRY</span><strong>{walletTest ? "Wallet test" : "500,000 FANTASY"}</strong></div>
+        <div><span>HOLDER ENTRY</span><strong>{walletTest ? "Wallet test" : "500,000 PFL"}</strong></div>
         <div><span>DAILY PRIZE POOL</span><strong>{walletTest ? "No prizes · test draft" : Number(feePools.availableDailyLamports) > 0 ? `${(Number(feePools.availableDailyLamports) / 1e9).toLocaleString()} SOL` : "30% of creator fees"}</strong></div>
       </section>
       <section className="hero-light draft-hero">
-        <div className="draft-eyebrow"><span className="status-lamp" /> PUMP.FUN FANTASY <span className="eyebrow-divider">/</span> ONE-MONTH PNL <a className="pumpfun-pill" href="https://pump.fun/leaderboard?period=monthly" target="_blank" rel="noreferrer">1M LEADERBOARD</a></div>
+        <div className="draft-eyebrow"><span className="status-lamp" /> PUMP FANTASY LEAGUE <span className="eyebrow-divider">/</span> ONE-MONTH PNL <a className="pumpfun-pill" href="https://pump.fun/leaderboard?period=monthly" target="_blank" rel="noreferrer">1M LEADERBOARD</a></div>
         <div className="hero-copy-grid">
           <div>
             <h1>Draft the leaderboard.<br /><span>Compete on PnL.</span></h1>
@@ -474,7 +474,7 @@ export function FantasyApp() {
       </section>
 
       <section className="league-rule-summary" aria-label="How the league works">
-        <div><b>01</b><span><strong>{walletTest ? "Sign in for the test draft" : "Hold 500k FANTASY"}</strong><small>Connect your wallet and sign in.</small></span></div>
+        <div><b>01</b><span><strong>{walletTest ? "Sign in for the test draft" : "Hold 500k PFL"}</strong><small>Connect your wallet and sign in.</small></span></div>
         <div><b>02</b><span><strong>Draft in one hour</strong><small>One trader per band. Submit your five.</small></span></div>
         <div><b>03</b><span><strong>Compete for 48 hours</strong><small>Picks lock. Daily PnL decides the winner.</small></span></div>
       </section>
@@ -519,7 +519,7 @@ export function FantasyApp() {
                 return <div className="roster-slot" key={band}><i>{String(band + 1).padStart(2, "0")}</i><span><b>{player?.display_name || (player ? shortAddress(player.wallet) : "Open pick")}</b><small>{player ? `Rank #${player.rank} · ${player.pnl_usd >= 0 ? "+" : ""}$${player.pnl_usd.toLocaleString("en-US", { maximumFractionDigits: 0 })} 1M PnL` : `Choose from ranks ${band * 10 + 1}–${band * 10 + 10}`}</small></span></div>;
               })}
             </div>
-            <div className="roster-note"><span className="note-mark">i</span><p>{rosterSize === 5 ? "Five traders drafted. Submit to enter. Local picks alone do not count." : "Pick one trader in each of the five rank bands. Your draft saves on this device."} {auth.authenticated ? `Wallet verified${auth.balance ? ` · ${auth.balance} $FANTASY` : ""}.` : "Connect a wallet holding at least 500,000 $FANTASY to verify eligibility."}</p></div>
+            <div className="roster-note"><span className="note-mark">i</span><p>{rosterSize === 5 ? "Five traders drafted. Submit to enter. Local picks alone do not count." : "Pick one trader in each of the five rank bands. Your draft saves on this device."} {auth.authenticated ? `Wallet verified${auth.balance ? ` · ${auth.balance} $PFL` : ""}.` : "Connect a wallet holding at least 500,000 $PFL to verify eligibility."}</p></div>
             <button className="clear-draft-button" type="button" onClick={() => { setSelected({}); setEntryMessage(""); }} disabled={rosterSize === 0 || picksLocked || entryBusy}>Clear draft</button>
             <button className="lock-button" disabled={!canStartDraftEntry({ busy: entryBusy, pickCount: rosterSize, authenticated: auth.authenticated, eligible: auth.eligible, draftOpen: seasonConfigured && draftOpen, rosterReady: playerDataReady && rosterMatchesSeason })} onClick={submitEntry}>{entryBusy ? "Saving squad…" : season.phase === "live" || season.phase === "complete" ? "Draft locked" : !seasonConfigured || !draftOpen ? "Draft opens at launch" : !playerDataReady || !rosterMatchesSeason ? "Loading season roster" : rosterSize !== 5 ? `Pick ${5 - rosterSize} more` : hasSavedSquad ? "Save squad changes" : "Submit squad"}</button>
             {hasSavedSquad ? <div className={`squad-save-state ${hasUnsavedChanges ? "dirty" : "saved"}`} role="status"><b>{hasUnsavedChanges ? "Changes not submitted" : "Squad submitted"}</b><span>{hasUnsavedChanges ? "Your previous submission still counts. Save your changes before the deadline." : picksLocked ? "Your final five are locked for this season." : `Saved ${savedAt ? new Date(savedAt).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) : "on the server"}. Edit and resubmit before the clock ends.`}</span></div> : null}
@@ -534,7 +534,7 @@ export function FantasyApp() {
         <div className="status-cards">
           <article><span className="status-index">01</span><i className="status-symbol">◎</i><h3>One-month top 50</h3><p>Captured from the Pump.fun 1M profit leaderboard. The five rank bands are fixed for each contest.</p><span className={`status-pill ${playerDataReady ? "active" : "pending"}`}>{playerDataReady ? "50 SNAPSHOT PLAYERS" : "ROSTER UNAVAILABLE"}</span></article>
           <article><span className="status-index">02</span><i className="status-symbol">⌁</i><h3>Daily PnL race</h3><p>For each pick, closing 1M PnL minus opening 1M PnL. Add all five changes; the highest score wins.</p><span className="status-pill pending">{standings.some((row) => row.scoringReady) ? "ROUND SCORES LOADED" : "SCORING STARTS AT DRAFT LOCK"}</span></article>
-          <article><span className="status-index">03</span><i className="status-symbol">▤</i><h3>Holder entry + prize</h3><p>Hold 500,000 FANTASY to submit. 30% of confirmed creator fees funds daily winners, 50% funds each 48-hour season winner, and 20% stays in championship bonus reserves.</p><span className="status-pill pending">{auth.eligible ? "TOKEN CHECK PASSED" : "500K FANTASY REQUIRED"}</span></article>
+          <article><span className="status-index">03</span><i className="status-symbol">▤</i><h3>Holder entry + prize</h3><p>Hold 500,000 PFL to submit. 30% of confirmed creator fees funds daily winners, 50% funds each 48-hour season winner, and 20% stays in championship bonus reserves.</p><span className="status-pill pending">{auth.eligible ? "TOKEN CHECK PASSED" : "500K PFL REQUIRED"}</span></article>
         </div>
         <div className="live-standings">
           <div className="standings-heading"><div><span className="section-label">DAILY LEADERBOARD</span><h3>Five picks. One score.</h3></div><small>{snapshotAt ? `SEASON FIELD · ${new Date(snapshotAt).toLocaleString()}` : "NO SOURCE SNAPSHOT"}</small></div>
@@ -552,21 +552,21 @@ export function FantasyApp() {
         <div className="how-heading"><span className="section-label">THE FORMAT</span><h2>The league rules.</h2><p>Simple roster building, transparent scoring, and results that can be checked.</p></div>
         <div className="how-grid">
           <article><span>01</span><i className="how-icon">01</i><h3>Build the field</h3><p>At season launch, the one-month Pump.fun top 50 is frozen into five bands of ten. That field stays fixed for all 48 hours.</p></article>
-          <article><span>02</span><i className="how-icon">02</i><h3>Pick your five</h3><p>Hold 500,000 FANTASY, connect and sign in, then pick one trader per band. Submit within 60 minutes. Changes only count after you resubmit.</p></article>
+          <article><span>02</span><i className="how-icon">02</i><h3>Pick your five</h3><p>Hold 500,000 PFL, connect and sign in, then pick one trader per band. Submit within 60 minutes. Changes only count after you resubmit.</p></article>
           <article><span>03</span><i className="how-icon">03</i><h3>Score the move</h3><p>Each pick scores its change in one-month PnL between the round’s opening and closing snapshots. Sum your five.</p></article>
           <article><span>04</span><i className="how-icon">04</i><h3>Pay the winner</h3><p>The top squad at each daily snapshot is recorded. A SOL award is shown as paid only after the onchain transfer is verified.</p></article>
         </div>
         <div className="docs-note"><div><span>SCORING RULE</span><h3>Measure the move.</h3></div><p>For each trader, take closing 1M PnL minus opening 1M PnL. Add the five results. The highest total wins. Day 1 compares the scoring start with hour 24; Day 2 compares hour 24 with hour 48. Negative changes count. Equal scores are ordered by wallet address. Missing PnL data holds settlement for review.</p></div>
       </section>
 
-      <section className="closing-cta"><span>PF</span><div><p>PUMP FANTASY</p><h2>Pick five.<br />Follow the PnL.</h2><a href="#draft">Build your squad</a></div></section>
+      <section className="closing-cta"><span>PF</span><div><p>PUMP FANTASY LEAGUE</p><h2>Pick five.<br />Follow the PnL.</h2><a href="#draft">Build your squad</a></div></section>
 
       <footer>
-        <a className="pf-brand" href="#top"><span className="pf-mark-image" role="img" aria-label="Pump Fantasy logo" /><strong>PumpFun Fantasy</strong><em>LEAGUE</em></a>
+        <a className="pf-brand" href="#top"><span className="pf-mark-image" role="img" aria-label="Pump Fantasy League logo" /><strong>Pump Fantasy League</strong><em>$PFL</em></a>
         <p>A fantasy draft for the pump.fun culture.</p>
         <div><a href="#draft">Draft room</a>
           <a href="/rules">Rules</a><a href="#status">Season status</a></div>
-        <small>Independent project; not affiliated with pump.fun. Trader rankings and one-month PnL come from Pump.fun and can change. A submitted squad is scored against the round’s opening snapshot. Connect a wallet holding $FANTASY to enter during an open draft window. Crypto assets are risky; this is not financial advice.</small>
+        <small>Independent project; not affiliated with pump.fun. Trader rankings and one-month PnL come from Pump.fun and can change. A submitted squad is scored against the round’s opening snapshot. Connect a wallet holding $PFL to enter during an open draft window. Crypto assets are risky; this is not financial advice.</small>
       </footer>
     </main>
   );
