@@ -37,3 +37,40 @@ export function collectedFeesFromBalances(
   }
   return gross;
 }
+
+type QuoteBalance = TokenBalance & { owner?: string; programId?: string; uiTokenAmount: { amount: string; decimals?: number } };
+type QuoteIdentity = { address: string; owner: string };
+type QuoteAsset = { mint: string; tokenProgram: string; decimals: number };
+function quoteBalanceAt(balances: QuoteBalance[] | null | undefined, index: number, owner: string, asset: QuoteAsset) {
+  const entries = balances?.filter(balance => balance.accountIndex === index) ?? [];
+  if (!entries.length) return 0n;
+  const [balance] = entries;
+  if (entries.length !== 1 || balance.mint !== asset.mint || balance.owner !== owner ||
+    balance.programId !== asset.tokenProgram || balance.uiTokenAmount.decimals !== asset.decimals || !/^\d+$/.test(balance.uiTokenAmount.amount)) {
+    throw new Error("Finalized reward token identity or balance is invalid; reconcile the receipt before crediting it.");
+  }
+  return BigInt(balance.uiTokenAmount.amount);
+}
+/** Match actual destination credit to the known route's net token withdrawals.
+ * Intermediate vaults may receive and empty in this same transaction. SOL gas and
+ * account rent do not enter token rewards. Exact persisted wire is checked first. */
+export function collectedTokenFeesFromBalances(
+  keys: string[],
+  meta: { err: unknown; preTokenBalances?: QuoteBalance[] | null; postTokenBalances?: QuoteBalance[] | null },
+  destination: QuoteIdentity,
+  sources: QuoteIdentity[],
+  asset: QuoteAsset,
+) {
+  if (meta.err) throw new Error("Fee collection failed onchain; do not credit rewards.");
+  const destinationIndex = keys.indexOf(destination.address);
+  if (destinationIndex < 0 || !meta.postTokenBalances?.some(balance => balance.accountIndex === destinationIndex)) throw new Error("Finalized reward destination is missing; reconcile the persisted claim.");
+  const delta = (identity: QuoteIdentity) => {
+    const index = keys.indexOf(identity.address);
+    if (index < 0) return 0n;
+    return quoteBalanceAt(meta.postTokenBalances, index, identity.owner, asset) - quoteBalanceAt(meta.preTokenBalances, index, identity.owner, asset);
+  };
+  const received = delta(destination);
+  const withdrawn = -sources.reduce((sum, source) => sum + delta(source), 0n);
+  if (received < 0n || received !== withdrawn) throw new Error("Finalized reward credit differs from its known source withdrawals; reconcile before crediting.");
+  return received;
+}

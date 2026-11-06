@@ -27,3 +27,20 @@ test('missing AMM balances add zero while failed or invalid claims cannot fund r
  assert.throws(() => collectedFeesFromBalances(['sol-vault'], {...meta,postBalances:[90000]},'sol-vault','absent','wsol'));
  assert.throws(() => collectedFeesFromBalances(['sol-vault'], {...meta,preBalances:[Number.MAX_SAFE_INTEGER+1]},'sol-vault','absent','wsol'));
 });
+
+test('PUMP finalized credit equals destination increase and matching known source withdrawals',async()=>{
+ const {collectedTokenFeesFromBalances}=await import('../lib/server/fee-accounting.ts');
+ const keys=['creator-ata','curve-ata','vault-ata','amm-ata','pool-ata','unrelated'];
+ const owners=['creator','curve','vault','amm','pool','stranger'];
+ const balance=(accountIndex,amount)=>({accountIndex,mint:'pump',owner:owners[accountIndex],programId:'token',uiTokenAmount:{amount:String(amount),decimals:6}});
+ const meta={err:null,preTokenBalances:[balance(1,100),balance(2,30),balance(3,20),balance(4,1000),balance(5,1)],postTokenBalances:[balance(0,70),balance(1,90),balance(2,0),balance(3,0),balance(4,990),balance(5,999)]};
+ const sources=keys.slice(1,5).map((address,i)=>({address,owner:owners[i+1]}));
+ const call=(m=meta)=>collectedTokenFeesFromBalances(keys,m,{address:keys[0],owner:owners[0]},sources,{mint:'pump',tokenProgram:'token',decimals:6});
+ assert.equal(call(),70n);
+ for(const field of ['mint','owner','programId']){const bad=structuredClone(meta);bad.postTokenBalances[0][field]='wrong';assert.throws(()=>call(bad));}
+ const bad=structuredClone(meta);bad.postTokenBalances[0].uiTokenAmount.decimals=9;assert.throws(()=>call(bad));
+ const extra=structuredClone(meta);extra.postTokenBalances[0].uiTokenAmount.amount='999';assert.throws(()=>call(extra),/source/);
+ assert.throws(()=>call({...meta,err:{failed:true}}));
+ assert.throws(()=>call({...meta,postTokenBalances:[]}));
+ const duplicate=structuredClone(meta);duplicate.postTokenBalances.push(duplicate.postTokenBalances[0]);assert.throws(()=>call(duplicate));
+});
