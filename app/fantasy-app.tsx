@@ -12,8 +12,9 @@ import {
   useWalletStatus,
   useWallets,
 } from "@solana/kit-plugin-wallet/react";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, useSyncExternalStore, type Ref } from "react";
 import { solanaClient } from "./solana-client";
+import { canStartDraftEntry, createDraftEntryAction } from "../lib/draft-entry-action";
 import top50Snapshot from "../data/pumpfun-one-month-top50.json";
 
 const subscribeHydration = () => () => {};
@@ -82,7 +83,15 @@ function ProjectHeaderLinks({ contractAddress }: { contractAddress: string }) {
   );
 }
 
-function WalletControl({ onAuthChange }: { onAuthChange: (state: AuthState) => void }) {
+type WalletVerification = { verify: () => Promise<boolean> };
+
+function assertConnectedWallet(address: string | undefined) {
+  if (!address || solanaClient.wallet.getState().connected?.account.address !== address) {
+    throw new Error("Wallet changed during verification. Submit your squad again.");
+  }
+}
+
+function WalletControl({ onAuthChange, verificationRef }: { onAuthChange: (state: AuthState) => void; verificationRef: Ref<WalletVerification> }) {
   const hydrated = useSyncExternalStore(subscribeHydration, clientHydrated, serverHydrated);
   const wallets = useWallets(solanaClient);
   const detectedWallet = useConnectedWallet(solanaClient);
@@ -97,13 +106,64 @@ function WalletControl({ onAuthChange }: { onAuthChange: (state: AuthState) => v
   const [authError, setAuthError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const address = connected?.account.address;
+  const pendingVerification = useRef<((verified: boolean) => void) | null>(null);
+  const authRevision = useRef(0);
+
+  useImperativeHandle(verificationRef, () => ({
+    async verify() {
+      if (auth.authenticated && auth.wallet === address) {
+        assertConnectedWallet(auth.wallet);
+        return auth.eligible;
+      }
+      if (address) {
+        const verified = await verifyWallet(address);
+        if (!verified) setOpen(true);
+        return verified;
+      }
+      setOpen(true);
+      return new Promise<boolean>((resolve) => { pendingVerification.current = resolve; });
+    },
+  }));
+
+  useEffect(() => () => {
+    pendingVerification.current?.(false);
+    pendingVerification.current = null;
+  }, []);
+
+  function closeWalletMenu() {
+    setOpen(false);
+    pendingVerification.current?.(false);
+    pendingVerification.current = null;
+  }
+
+  async function connectWallet(wallet: (typeof wallets)[number]) {
+    try {
+      await connect.dispatchAsync(wallet);
+      const active = solanaClient.wallet.getState().connected;
+      if (!active) throw new Error("Wallet connection failed.");
+      const resume = pendingVerification.current;
+      pendingVerification.current = null;
+      setOpen(false);
+      if (resume) {
+        const verified = await verifyWallet(active.account.address);
+        if (!verified) setOpen(true);
+        resume(verified);
+      }
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Wallet connection failed.");
+      pendingVerification.current?.(false);
+      pendingVerification.current = null;
+    }
+  }
 
   useEffect(() => {
     if (!address) {
       return;
     }
     let active = true;
+    const revision = authRevision.current;
     fetch("/api/auth/session", { cache: "no-store" }).then((response) => response.json()).then((result: AuthState) => {
+      if (revision !== authRevision.current) return;
       if (active && result.authenticated && result.wallet === address) {
         const balance = result.balance as unknown as { displayBalance?: string; minimumTokens?: string } | undefined;
         const next = { ...result, balance: balance?.displayBalance, minimumTokens: balance?.minimumTokens };
@@ -118,25 +178,32 @@ function WalletControl({ onAuthChange }: { onAuthChange: (state: AuthState) => v
     return () => { active = false; };
   }, [address, onAuthChange]);
 
-  async function verifyWallet() {
-    if (!address) return;
+  async function verifyWallet(walletAddress = address) {
+    if (!walletAddress) return false;
+    authRevision.current++;
     setAuthBusy(true);
     setAuthError("");
     try {
-      const challengeResponse = await fetch("/api/auth/challenge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: address }) });
+      const challengeResponse = await fetch("/api/auth/challenge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: walletAddress }) });
       const challenge = await challengeResponse.json();
       if (!challengeResponse.ok) throw new Error(challenge.error || "Could not create sign-in challenge.");
+      assertConnectedWallet(walletAddress);
       const message = new TextEncoder().encode(challenge.message);
       const signature = await signMessage.dispatchAsync(message);
       const signatureBase64 = btoa(String.fromCharCode(...signature));
-      const verifyResponse = await fetch("/api/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: address, message: challenge.message, signature: signatureBase64 }) });
+      const verifyResponse = await fetch("/api/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: walletAddress, message: challenge.message, signature: signatureBase64 }) });
       const result = await verifyResponse.json();
       if (!verifyResponse.ok) throw new Error(result.error || "Wallet verification failed.");
-      const next = { configured: true, authenticated: true, eligible: Boolean(result.eligible), wallet: result.wallet, balance: result.balance?.displayBalance, minimumTokens: result.balance?.minimumTokens };
+      assertConnectedWallet(walletAddress);
+      const balance = result.balance ?? {};
+      const next = { configured: true, authenticated: true, eligible: Boolean(result.eligible), wallet: result.wallet, balance: balance.displayBalance, minimumTokens: balance.minimumTokens };
+      authRevision.current++;
       setAuth(next);
       onAuthChange(next);
+      return next.eligible;
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Wallet verification failed.");
+      return false;
     } finally {
       setAuthBusy(false);
     }
@@ -154,7 +221,7 @@ function WalletControl({ onAuthChange }: { onAuthChange: (state: AuthState) => v
     <div className="wallet-control">
       <button
         className={`wallet-button ${connected ? "connected" : ""}`}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => open ? closeWalletMenu() : setOpen(true)}
         disabled={status === "pending" || status === "reconnecting"}
       >
         <span className="wallet-dot" />
@@ -163,11 +230,11 @@ function WalletControl({ onAuthChange }: { onAuthChange: (state: AuthState) => v
       </button>
       {open && (
         <>
-          <button className="modal-scrim" aria-label="Close wallet menu" onClick={() => setOpen(false)} />
+          <button className="modal-scrim" aria-label="Close wallet menu" onClick={closeWalletMenu} />
           <div className="wallet-menu">
             <div className="wallet-menu-head">
               <div><span>Solana wallet</span><strong>{connected ? "Wallet connected" : "Choose a wallet"}</strong></div>
-              <button aria-label="Close" onClick={() => setOpen(false)}>×</button>
+              <button aria-label="Close" onClick={closeWalletMenu}>×</button>
             </div>
             {connected ? (
               <>
@@ -177,13 +244,13 @@ function WalletControl({ onAuthChange }: { onAuthChange: (state: AuthState) => v
                 <button onClick={disconnectWallet} disabled={disconnect.isRunning}>Disconnect</button>
               </div>
               {auth.authenticated ? <div className={`holder-status ${auth.eligible ? "eligible" : "ineligible"}`}><b>{auth.eligible ? "ELIGIBLE HOLDER" : "HOLDER CHECK FAILED"}</b><span>{auth.balance ?? "Not checked"} $FANTASY · minimum {auth.minimumTokens ?? "not set"}</span></div> : (
-                <button className="verify-wallet-button" onClick={verifyWallet} disabled={authBusy || signMessage.isRunning}>{authBusy ? "Verifying wallet…" : auth.configured ? "Sign message · check token balance" : "Verify wallet to enter"}</button>
+                <button className="verify-wallet-button" onClick={() => verifyWallet()} disabled={authBusy || signMessage.isRunning}>{authBusy ? "Verifying wallet…" : auth.configured ? "Sign message · check token balance" : "Verify wallet to enter"}</button>
               )}
               </>
             ) : wallets.length ? (
               <div className="wallet-options">
                 {wallets.map((wallet) => (
-                  <button key={wallet.name} onClick={() => { connect.dispatch(wallet); setOpen(false); }} disabled={connect.isRunning}>
+                  <button key={wallet.name} onClick={() => connectWallet(wallet)} disabled={connect.isRunning}>
                     <span>{wallet.name.slice(0, 2).toUpperCase()}</span><b>{wallet.name}</b><i>Connect</i>
                   </button>
                 ))}
@@ -202,6 +269,8 @@ function WalletControl({ onAuthChange }: { onAuthChange: (state: AuthState) => v
 }
 
 export function FantasyApp() {
+  const walletVerification = useRef<WalletVerification>(null);
+  const entryAction = useRef(createDraftEntryAction());
   const [auth, setAuth] = useState<AuthState>({ configured: false, authenticated: false, eligible: false });
   const [players, setPlayers] = useState<BoardPlayer[]>(snapshotPlayers);
   const [selected, setSelected] = useState<Record<number, number>>({});
@@ -223,6 +292,11 @@ export function FantasyApp() {
   const [snapshotAt, setSnapshotAt] = useState<string | null>(null);
   const [leaderboardSource, setLeaderboardSource] = useState("Loading Pump.fun leaderboard");
   const onAuthChange = useCallback((state: AuthState) => setAuth(state), []);
+
+  useEffect(() => {
+    const action = entryAction.current;
+    return () => action.cancel();
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -252,6 +326,7 @@ export function FantasyApp() {
   const draftKey = `${draftScope}:${auth.wallet ?? "guest"}`;
 
   useEffect(() => {
+    if (entryBusy || hydratedDraftKey === draftKey) return;
     const restored: Record<number, number> = {};
     try {
       const saved = JSON.parse(window.localStorage.getItem(draftKey) ?? window.localStorage.getItem(guestDraftKey) ?? "{}") as Record<string, unknown>;
@@ -268,7 +343,7 @@ export function FantasyApp() {
       setHydratedDraftKey(draftKey);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [draftKey, guestDraftKey]);
+  }, [draftKey, guestDraftKey, entryBusy, hydratedDraftKey]);
 
   useEffect(() => {
     if (hydratedDraftKey !== draftKey) return;
@@ -301,7 +376,7 @@ export function FantasyApp() {
 
   useEffect(() => {
     let active = true;
-    if (!auth.authenticated || !season.seasonId || rosterSeasonId !== season.seasonId || hydratedDraftKey !== draftKey || serverEntryLoaded.current === draftKey) return;
+    if (entryBusy || !auth.authenticated || !season.seasonId || rosterSeasonId !== season.seasonId || hydratedDraftKey !== draftKey || serverEntryLoaded.current === draftKey) return;
     const ids = rosterIdentity.split(",");
     fetch("/api/entry", { cache: "no-store" }).then(async (response) => ({ ok: response.ok, body: await response.json() })).then(({ ok, body }) => {
       if (!active || !ok || body.seasonId !== season.seasonId || body.wallet !== auth.wallet) return;
@@ -319,20 +394,34 @@ export function FantasyApp() {
       }
     }).catch(() => {});
     return () => { active = false; };
-  }, [auth.authenticated, auth.wallet, draftKey, hydratedDraftKey, rosterIdentity, rosterSeasonId, season.seasonId]);
+  }, [auth.authenticated, auth.wallet, draftKey, hydratedDraftKey, rosterIdentity, rosterSeasonId, season.seasonId, entryBusy]);
 
   async function submitEntry() {
     const picks = [0, 1, 2, 3, 4].map((band) => players.find((player) => player.rank === selected[band])?.id);
     if (picks.some((pick) => !pick)) return;
     setEntryBusy(true);
     setEntryMessage("");
+    let verifiedWallet: string | undefined;
     try {
-      const response = await fetch("/api/entry", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ picks }) });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Could not save lineup.");
-      setSavedPicks(result.picks);
-      setSavedAt(new Date().toISOString());
-      setEntryMessage("Squad submitted. You can change picks and resubmit until the one-hour draft closes.");
+      await entryAction.current.run(async () => {
+        if (!await walletVerification.current?.verify()) return false;
+        verifiedWallet = solanaClient.wallet.getState().connected?.account.address;
+        if (!verifiedWallet) return false;
+        const walletDraftKey = `${draftScope}:${verifiedWallet}`;
+        // Carry these picks across guest → signed-in hydration, including save failures.
+        setHydratedDraftKey(walletDraftKey);
+        serverEntryLoaded.current = walletDraftKey;
+        setSelected(selected);
+        return true;
+      }, async () => {
+        assertConnectedWallet(verifiedWallet);
+        const response = await fetch("/api/entry", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ picks }) });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Could not save lineup.");
+        setSavedPicks(result.picks);
+        setSavedAt(new Date().toISOString());
+        setEntryMessage("Squad submitted. You can change picks and resubmit until the one-hour draft closes.");
+      });
     } catch (error) {
       setEntryMessage(error instanceof Error ? error.message : "Could not save lineup.");
     } finally {
@@ -371,7 +460,7 @@ export function FantasyApp() {
         </nav>
         <div className="header-right">
           <ProjectHeaderLinks contractAddress={season.mintAddress ?? PUBLIC_CONTRACT_ADDRESS} />
-          <WalletControl onAuthChange={onAuthChange} />
+          <WalletControl onAuthChange={onAuthChange} verificationRef={walletVerification} />
         </div>
       </header>
 
@@ -460,7 +549,7 @@ export function FantasyApp() {
             </div>
             <div className="roster-note"><span className="note-mark">i</span><p>{rosterSize === 5 ? "Five traders drafted. Submit to enter. Local picks alone do not count." : "Pick one trader in each of the five rank bands. Your draft saves on this device."} {auth.authenticated ? `Wallet verified${auth.balance ? ` · ${auth.balance} $FANTASY` : ""}.` : "Connect a wallet holding at least 500,000 $FANTASY to verify eligibility."}</p></div>
             <button className="clear-draft-button" type="button" onClick={() => { setSelected({}); setEntryMessage(""); }} disabled={rosterSize === 0 || picksLocked || entryBusy}>Clear draft</button>
-            <button className="lock-button" disabled={entryBusy || rosterSize !== 5 || !auth.eligible || !seasonConfigured || !draftOpen || !playerDataReady || !rosterMatchesSeason} onClick={submitEntry}>{entryBusy ? "Saving squad…" : season.phase === "live" || season.phase === "complete" ? "Draft locked" : !seasonConfigured || !draftOpen ? "Draft opens at launch" : !playerDataReady || !rosterMatchesSeason ? "Loading season roster" : !auth.eligible ? "Connect & verify $FANTASY" : rosterSize !== 5 ? `Pick ${5 - rosterSize} more` : hasSavedSquad ? "Save squad changes" : "Submit squad"}</button>
+            <button className="lock-button" disabled={!canStartDraftEntry({ busy: entryBusy, pickCount: rosterSize, authenticated: auth.authenticated, eligible: auth.eligible, draftOpen: seasonConfigured && draftOpen, rosterReady: playerDataReady && rosterMatchesSeason })} onClick={submitEntry}>{entryBusy ? "Saving squad…" : season.phase === "live" || season.phase === "complete" ? "Draft locked" : !seasonConfigured || !draftOpen ? "Draft opens at launch" : !playerDataReady || !rosterMatchesSeason ? "Loading season roster" : rosterSize !== 5 ? `Pick ${5 - rosterSize} more` : hasSavedSquad ? "Save squad changes" : "Submit squad"}</button>
             {hasSavedSquad ? <div className={`squad-save-state ${hasUnsavedChanges ? "dirty" : "saved"}`} role="status"><b>{hasUnsavedChanges ? "Changes not submitted" : "Squad submitted"}</b><span>{hasUnsavedChanges ? "Your previous submission still counts. Save your changes before the deadline." : picksLocked ? "Your final five are locked for this season." : `Saved ${savedAt ? new Date(savedAt).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}) : "on the server"}. Edit and resubmit before the clock ends.`}</span></div> : null}
             {entryMessage ? <p className="entry-message" role="status">{entryMessage}</p> : null}
             <small className="no-signature">Wallet message signature only. No transaction or token transfer.</small>
