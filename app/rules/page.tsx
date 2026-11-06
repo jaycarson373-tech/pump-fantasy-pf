@@ -32,11 +32,11 @@ export default function Rules() {
     </section>
     <section>
       <h2>03 — Follow the prize pools</h2>
-      <p>Confirmed creator fees fund three separate allocations:</p>
-      <div className="rules-overview" aria-label="Creator fee allocation">
-        <div><b>30%</b><span>Daily payouts</span></div>
-        <div><b>50%</b><span>Season leaderboard</span></div>
-        <div><b>20%</b><span>Championship bonus</span></div>
+      <p>Planned creator-fee allocation — awaiting activation:</p>
+      <div className="rules-overview" aria-label="Planned creator fee allocation">
+        <div><b>40%</b><span>Daily payouts</span></div>
+        <div><b>45%</b><span>Season leaderboard</span></div>
+        <div><b>15%</b><span>Championship bonus</span></div>
       </div>
       <p>The top squad at each daily cutoff wins that day’s pool. The highest total PnL change wins the season pool. A reward is marked paid only after the exact SOL transfer is finalized.</p>
       <details><summary>Pool cutoffs and championship reserves</summary><p>Only finalized creator-fee receipts enter the pools. The daily pool freezes at its cutoff; the season pool freezes at the 48-hour close. Later receipts enter the next pool. If there are no eligible entries, the allocation carries forward. Missing scoring data holds the allocation for review.</p><p>Daily and season payouts cannot spend championship reserves. Championship bonuses require separate published rules before release. Rounding remainders stay in the championship reserve. Rewards depend on available funds; there is no fixed prize or guaranteed yield.</p></details>
