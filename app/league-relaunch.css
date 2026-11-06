@@ -67,7 +67,7 @@
 .league-rule-summary > div > b { color:#14f195; font:600 22px/1 var(--font-geist-mono),monospace; }
 .league-rule-summary strong { display:block; font-size:14px; }
 .league-rule-summary small { display:block; color:#a7c0b0; font-size:11px; margin-top:6px; }
-.draft-room .fee-flow > .reward-split { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+.draft-room .fee-flow > .reward-split { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
 .reward-split article { border:1px solid #dce5de; padding:22px; border-radius:12px; display:grid; gap:9px; background:#f6fcf8; }
 .draft-room .reward-split article b { color:#0a9c61; font-size:46px; letter-spacing:-.06em; padding:0; border:0; background:none; }
 .reward-split strong { font-size:18px; }

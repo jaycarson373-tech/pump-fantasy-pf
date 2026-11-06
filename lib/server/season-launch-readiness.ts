@@ -40,8 +40,8 @@ export async function getSeasonLaunchReadiness(): Promise<SeasonLaunchReadiness>
   const blockers: string[] = [];
   if (!config.ready) blockers.push("Backend, RPC, session secret, and live FANTASY mint must be configured.");
   try {
-    const migrationRows = await queryRows<{ applied: boolean }>("select exists (select 1 from pf_schema_migrations where name = '202610140002_creator_fee_pools.sql') as applied");
-    if (!migrationRows[0]?.applied) blockers.push("Apply the creator-fee-pools migration before opening a season.");
+    const migrationRows = await queryRows<{ applied: boolean }>("select count(*)=2 as applied from pf_schema_migrations where name in ('202610140002_creator_fee_pools.sql','202611060001_season_fee_rewards.sql')");
+    if (!migrationRows[0]?.applied) blockers.push("Apply the creator-fee and season-reward migrations before opening a season.");
   } catch {
     blockers.push("Could not verify the creator-fee-pools migration in the database.");
   }

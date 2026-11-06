@@ -16,7 +16,7 @@ import { getTransferSolInstruction } from "@solana-program/system";
 import { getBackendConfig } from "./config";
 import { queryRows } from "./database";
 import { validWallet } from "./http";
-import { getFeeTreasury } from "./fee-treasury";
+import { getAwardFeeAllocation, getFeeTreasury } from "./fee-treasury";
 import { getNativeSolBalance, verifyMainnetRpc } from "./solana";
 import { explicitPayoutCap, finalizedPayoutDisposition, RESERVED_AWARD_STATUSES, seasonAwardFits } from "./payout-policy";
 import { payoutSigner, signPayout } from "./payout-signer";
@@ -28,6 +28,7 @@ const DEFAULT_SEASON_CAP_LAMPORTS = "2000000000";
 type Award = {
   id: string;
   season_id: string;
+  award_kind: "daily" | "season";
   winner_wallet: string | null;
   prize_lamports: string;
   status: string;
@@ -143,11 +144,11 @@ async function prepareAward(award: Award, config: PayoutConfiguration) {
   let treasuryMinimum = amount + 5_000n;
   if (rewardSeason?.prize_mode === "creator-fees") {
     if (!rewardSeason.mint_address) return "missing-reward-mint";
-    const allocation = await queryRows<{ amount: string }>("select coalesce(sum(daily_lamports),0)::text as amount from pf_creator_fee_receipts where award_id=$1 and mint_address=$2", [award.id, rewardSeason.mint_address]);
-    if (BigInt(allocation[0]?.amount ?? 0) !== amount) throw new Error("Daily award does not match its confirmed 65% fee allocation.");
+    const allocation = await getAwardFeeAllocation(award.id, rewardSeason.mint_address, award.award_kind);
+    if (allocation !== amount) throw new Error("Award does not match its assigned fee pool. Reconcile its receipt allocation before payout.");
     const treasury = await getFeeTreasury(rewardSeason.mint_address);
-    // Keep all other daily allocations and the entire 35% reserve intact.
-    treasuryMinimum = treasury.daily - treasury.paid + treasury.reserve + 5_000n;
+    // All unpaid daily/season allocations and championship reserves stay covered.
+    treasuryMinimum = treasury.gross - treasury.paid + 5_000n;
   }
   const balance = await getNativeSolBalance(prizeWallet);
   if (balance < treasuryMinimum) return "awaiting-payout-funding";
@@ -176,9 +177,9 @@ async function prepareAward(award: Award, config: PayoutConfiguration) {
 export async function processNextAutomaticPayout() {
   const config = await getPayoutConfiguration();
   if (!config.enabled) return { action: "payout-disabled" as const, blockers: config.blockers };
-  const prepared = await queryRows<Award>("select id, season_id, winner_wallet, prize_lamports, status, payment_signature, payment_tx_base64, payment_blockhash, payment_last_valid_block_height, payment_network from pf_daily_awards where status in ('payment_prepared','payment_unknown') order by created_at asc limit 1");
+  const prepared = await queryRows<Award>("select id, season_id, award_kind, winner_wallet, prize_lamports, status, payment_signature, payment_tx_base64, payment_blockhash, payment_last_valid_block_height, payment_network from pf_daily_awards where status in ('payment_prepared','payment_unknown') order by created_at asc limit 1");
   if (prepared[0]) return { action: await processPrepared(prepared[0]), awardId: prepared[0].id };
-  const pending = await queryRows<Award>("select id, season_id, winner_wallet, prize_lamports, status, payment_signature, payment_tx_base64, payment_blockhash, payment_last_valid_block_height, payment_network from pf_daily_awards where status = 'pending_payment' order by created_at asc limit 1");
+  const pending = await queryRows<Award>("select id, season_id, award_kind, winner_wallet, prize_lamports, status, payment_signature, payment_tx_base64, payment_blockhash, payment_last_valid_block_height, payment_network from pf_daily_awards where status = 'pending_payment' order by created_at asc limit 1");
   if (!pending[0]) return { action: "no-pending-award" as const };
   return { action: await prepareAward(pending[0], config), awardId: pending[0].id };
 }

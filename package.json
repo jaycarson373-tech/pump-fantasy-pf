@@ -11,6 +11,7 @@
     "start": "next start",
     "lint": "eslint . --ignore-pattern .next",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "test:fees": "node --conditions=react-server scripts/test-fee-ledger.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "check:live": "node scripts/check-live-readiness.mjs"
   },

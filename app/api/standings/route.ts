@@ -1,4 +1,5 @@
 import { getFeeTreasury } from "../../../lib/server/fee-treasury";
+import { DAILY_FEE_BPS, SEASON_FEE_BPS, REWARD_RESERVE_BPS } from "../../../lib/server/fee-accounting";
 import { NextResponse } from "next/server";
 import { getBackendConfig } from "../../../lib/server/config";
 import { getActiveSeasonId, queryRows } from "../../../lib/server/database";
@@ -43,13 +44,13 @@ export async function GET() {
       const score = complete ? roster.reduce((sum, player) => sum + (player.contest_change_usd ?? 0), 0) : null;
       return { wallet: entry.wallet, picks: roster, score, scoringReady: complete };
     }).sort((a, b) => (b.score ?? Number.NEGATIVE_INFINITY) - (a.score ?? Number.NEGATIVE_INFINITY) || a.wallet.localeCompare(b.wallet));
-    const allAwards = await queryRows<{ id: string; season_id: string; day_number: number; winner_wallet: string | null; score_usd: string | null; prize_lamports: string; status: string; payment_signature: string | null; paid_at: string | null }>("select id, season_id, day_number, winner_wallet, score_usd, prize_lamports, status, payment_signature, paid_at from pf_daily_awards order by created_at desc limit 10");
+    const allAwards = await queryRows<{ id: string; season_id: string; award_kind: "daily" | "season"; day_number: number | null; winner_wallet: string | null; score_usd: string | null; prize_lamports: string; status: string; payment_signature: string | null; paid_at: string | null }>("select id, season_id, award_kind, day_number, winner_wallet, score_usd, prize_lamports, status, payment_signature, paid_at from pf_daily_awards order by created_at desc limit 10");
     const mint = getBackendConfig().mint;
     const treasury = mint ? await getFeeTreasury(mint) : null;
     return NextResponse.json({
       configured: true,
       rewardMode: process.env.PF_REWARD_MODE === "creator-fees" ? "creator-fees" : "fixed",
-      feePools: { dailyBps: 6500, reserveBps: 3500, collectedLamports: treasury?.gross.toString() ?? "0", availableDailyLamports: treasury?.available.toString() ?? "0", reserveLamports: treasury?.reserve.toString() ?? "0", paidLamports: treasury?.paid.toString() ?? "0" },
+      feePools: { dailyBps: Number(DAILY_FEE_BPS), seasonBps: Number(SEASON_FEE_BPS), reserveBps: Number(REWARD_RESERVE_BPS), collectedLamports: treasury?.gross.toString() ?? "0", availableDailyLamports: treasury?.available.toString() ?? "0", availableSeasonLamports: treasury?.seasonAvailable.toString() ?? "0", reserveLamports: treasury?.reserve.toString() ?? "0", paidLamports: treasury?.paid.toString() ?? "0" },
       seasonId,
       phase,
       prizeLamports: season?.daily_prize_lamports ?? "0",

@@ -40,7 +40,7 @@ async function resumeClaim(claim:Claim){
     await withTransaction(async query=>{
       const previous=await query<{mint_address:string;gross_lamports:string}>("select mint_address,gross_lamports from pf_creator_fee_receipts where signature=$1",[claim.signature]);
       if(previous[0]&&(previous[0].mint_address!==claim.mint_address||BigInt(previous[0].gross_lamports)!==gross))throw new Error("Creator-fee receipt conflicts with its original attribution.");
-      if(gross>0n)await query("insert into pf_creator_fee_receipts(signature,mint_address,gross_lamports,daily_lamports,reserve_lamports) values($1,$2,$3,$4,$5) on conflict(signature) do nothing",[claim.signature,claim.mint_address,gross.toString(),allocation.daily.toString(),allocation.reserve.toString()]);
+      if(gross>0n)await query("insert into pf_creator_fee_receipts(signature,mint_address,gross_lamports,daily_lamports,season_lamports,reserve_lamports) values($1,$2,$3,$4,$5,$6) on conflict(signature) do nothing",[claim.signature,claim.mint_address,gross.toString(),allocation.daily.toString(),allocation.season.toString(),allocation.reserve.toString()]);
       await query("update pf_creator_claims set status='finalized' where signature=$1",[claim.signature]);
     });return "claim-finalized";
   }
@@ -69,7 +69,7 @@ export async function collectCreatorFees(){
   if(token&&(vaults.value[1]?.owner!==TOKEN||token.mint!==WSOL||token.owner!==a.ammAuthority||!/^\d+$/.test(token.tokenAmount?.amount||"")))throw new Error("Invalid AMM creator vault identity.");
   const ammAmount=BigInt(token?.tokenAmount?.amount||"0");
   if(curveAmount+ammAmount<50000n)return "no-claimable-fees";
-  const treasury=await getFeeTreasury(mint),protectedBalance=treasury.daily-treasury.paid+treasury.reserve+2_500_000n;
+  const treasury=await getFeeTreasury(mint),protectedBalance=treasury.gross-treasury.paid+2_500_000n;
   const balance=await rpc<{value:number}>("getBalance",[creator,{commitment:"confirmed"}]);
   if(BigInt(balance.value)<protectedBalance)return "collection-needs-gas";
   const instructions=await directCollectionInstructions(creator,{curve:curveAmount>0n,amm:ammAmount>0n});

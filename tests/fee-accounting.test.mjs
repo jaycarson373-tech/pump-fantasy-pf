@@ -2,14 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { splitCreatorFees, collectedFeesFromBalances } from '../lib/server/fee-accounting.ts';
 
-test('one SOL of confirmed fees reserves 0.35 SOL and funds 0.65 SOL for daily rewards', () => {
- assert.deepEqual(splitCreatorFees(1_000_000_000n), {gross:1_000_000_000n,daily:650_000_000n,reserve:350_000_000n});
+test('one SOL funds 30% daily, 50% season, and 20% championship reserves', () => {
+ assert.deepEqual(splitCreatorFees(1_000_000_000n), {gross:1_000_000_000n,daily:300_000_000n,season:500_000_000n,reserve:200_000_000n});
 });
 test('rounding cannot spend any of the reserve or manufacture lamports', () => {
  for (const amount of [0n,1n,9n,99n,10001n,9007199254740993n]) {
   const split = splitCreatorFees(amount);
-  assert.equal(split.daily + split.reserve, amount);
-  assert.ok(split.daily * 10000n <= amount * 6500n);
+  assert.equal(split.daily + split.season + split.reserve, amount);
+  assert.ok(split.daily * 10000n <= amount * 3000n);
+  assert.ok(split.season * 10000n <= amount * 5000n);
+  assert.ok(split.reserve * 10000n >= amount * 2000n);
  }
  assert.throws(() => splitCreatorFees(-1n));
 });

@@ -1,10 +1,12 @@
-export const DAILY_FEE_BPS = 6500n;
-export const REWARD_RESERVE_BPS = 3500n;
+export const DAILY_FEE_BPS = 3000n;
+export const SEASON_FEE_BPS = 5000n;
+export const REWARD_RESERVE_BPS = 2000n;
 
 export function splitCreatorFees(gross: bigint) {
   if (gross < 0n) throw new Error("Creator fees cannot be negative.");
   const daily = gross * DAILY_FEE_BPS / 10000n;
-  return { gross, daily, reserve: gross - daily };
+  const season = gross * SEASON_FEE_BPS / 10000n;
+  return { gross, daily, season, reserve: gross - daily - season };
 }
 
 type TokenBalance = { accountIndex: number; mint: string; uiTokenAmount: { amount: string } };
