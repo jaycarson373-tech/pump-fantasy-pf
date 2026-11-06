@@ -1,6 +1,5 @@
-const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.pumpfunfantasy.xyz";
-const secret = process.env.PF_DATA_INGEST_SECRET;
-
+// Public Starting Seven evidence only. No credentials, signing or season mutation.
+const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.pfleague.fun";
 let baseUrl;
 try {
   baseUrl = new URL(configuredUrl).origin;
@@ -8,85 +7,39 @@ try {
   console.error("NEXT_PUBLIC_SITE_URL must be a valid absolute URL.");
   process.exit(2);
 }
-
-async function get(path, headers = {}) {
+async function get(path) {
   try {
     const response = await fetch(new URL(path, baseUrl), {
-      headers,
-      cache: "no-store",
-      signal: AbortSignal.timeout(12_000),
+      cache: "no-store", signal: AbortSignal.timeout(12_000),
     });
     const text = await response.text();
-    let body;
-    try {
-      body = JSON.parse(text);
-    } catch {
-      body = null;
-    }
+    let body = null;
+    try { body = JSON.parse(text); } catch { /* HTML is expected for public pages. */ }
     return { status: response.status, body };
-  } catch (error) {
-    return { status: 0, body: null, error: error instanceof Error ? error.message : "Request failed" };
+  } catch {
+    return { status: 0, body: null };
   }
 }
-
-function report(label, passed, detail) {
+let blocked = false;
+function report(label, passed, detail = "") {
+  if (!passed) blocked = true;
   console.log(`${passed ? "PASS" : "BLOCK"}  ${label}${detail ? ` — ${detail}` : ""}`);
 }
-
-console.log(`Pump Fantasy launch preflight · ${baseUrl}`);
-const [site, draftRoom, health, players, entry, standings] = await Promise.all([
-  get("/"),
-  get("/draft"),
-  get("/api/health"),
-  get("/api/players"),
-  get("/api/entry"),
-  get("/api/standings"),
-]);
-
-const siteOk = site.status === 200;
-report("Public site responds", siteOk, site.error || `HTTP ${site.status}`);
-const draftRouteOk = draftRoom.status === 200;
-report("Draft room route responds", draftRouteOk, draftRoom.error || `HTTP ${draftRoom.status}`);
-
-const healthBody = health.body;
-const serviceOk = health.status === 200 && healthBody?.service === "pump-fantasy";
-report("Railway health endpoint", serviceOk, health.error || `HTTP ${health.status}`);
-for (const [label, key] of [
-  ["Backend configuration", "backendConfigured"],
-  ["Database and migrations", "databaseConfigured"],
-  ["Wallet and token checks", "walletChecksConfigured"],
-  ["FANTASY mint initialized", "tokenMintInitialized"],
-  ["Season configured", "activeSeasonConfigured"],
-  ["Automatic reward collection and payout configured", "payoutConfigured"],
-]) {
-  report(label, healthBody?.[key] === true);
-}
-
-const board = players.body;
-const rosterOk = players.status === 200 && board?.live === true && Array.isArray(board.players) && board.players.length === 50 && board.players.every((player, index) => player.rank === index + 1 && typeof player.wallet === "string" && Number.isFinite(player.pnl_usd)) && new Set(board.players.map((player) => player.wallet)).size === 50;
-report("Live Pump.fun top-50 roster", rosterOk, board?.source || `HTTP ${players.status}`);
-
-const entryBody = entry.body;
-const entryServiceOk = entry.status === 200 && entryBody?.configured === true && ["inactive", "scheduled", "draft", "live", "complete"].includes(entryBody?.phase);
-report("Entry API and season schedule", entryServiceOk, entryBody?.phase || `HTTP ${entry.status}`);
-if (entryServiceOk) report("Draft held for operator start", entryBody.phase === "inactive", entryBody.phase === "inactive" ? "closed until go-live" : `season is ${entryBody.phase}`);
-
-const standingsBody = standings.body;
-const standingsOk = standings.status === 200 && standingsBody?.configured === true;
-report("Scoring and season status API", standingsOk, standingsBody?.phase || `HTTP ${standings.status}`);
-
-let preflightReady = false;
-if (secret) {
-  const preflight = await get("/api/admin/season/preflight", { authorization: `Bearer ${secret}` });
-  preflightReady = preflight.status === 200 && preflight.body?.ready === true;
-  report("Protected launch preflight", preflightReady, preflight.error || `HTTP ${preflight.status}`);
-  if (Array.isArray(preflight.body?.blockers)) {
-    for (const blocker of preflight.body.blockers) console.log(`  • ${blocker}`);
-  }
-} else {
-  report("Protected launch preflight", false, "set PF_DATA_INGEST_SECRET in this shell to check prize funding and start readiness");
-}
-
-const ready = siteOk && draftRouteOk && serviceOk && healthBody?.backendConfigured === true && healthBody?.walletChecksConfigured === true && healthBody?.tokenMintInitialized === true && rosterOk && entryServiceOk && standingsOk && preflightReady;
-console.log(ready ? "\nREADY: preflight passed. The season has not been started by this check." : "\nNOT READY: resolve the blockers above. This check is read-only; it never opens a season or sends a transaction.");
-process.exitCode = ready ? 0 : 1;
+console.log(`Starting Seven public preflight · ${baseUrl}`);
+const [site, draft, response] = await Promise.all([get("/"), get("/draft"), get("/api/league")]);
+report("Public site responds", site.status === 200, `HTTP ${site.status}`);
+report("Draft room responds", draft.status === 200, `HTTP ${draft.status}`);
+const league = response.body;
+const available = response.status === 200 && league && league.status !== "unavailable";
+report("Starting Seven API", available, `HTTP ${response.status}`);
+report("Server season and round", Boolean(available && league.season && league.round));
+const players = Array.isArray(league?.players) ? league.players : [];
+report("Published competition Top 100", players.length === 100 && new Set(players.map(p => p.id)).size === 100);
+const rewards = league?.rewards;
+report("Actual PUMP reward units", rewards?.asset === "PUMP" && rewards?.tokenDecimals === 6 && rewards?.fees?.asset === "PUMP");
+report("Claims enabled", rewards?.payoutsActive === true);
+report("Finalized payout evidence", Array.isArray(rewards?.history) && rewards.history.length > 0);
+console.log(blocked
+  ? "NOT READY: public evidence is incomplete. No season or transaction was started."
+  : "PUBLIC EVIDENCE PRESENT: independently verify funded receipts and wallet walkthrough before release.");
+process.exitCode = blocked ? 1 : 0;

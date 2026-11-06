@@ -1,4 +1,5 @@
 import "server-only";
+import type { RewardAsset } from "../reward-asset";
 import { collectCreatorFees } from "./creator-fees";
 import { getPayoutConfiguration } from "./automatic-payout";
 import { queryRows, withAdvisoryLock, withTransaction } from "./database";
@@ -15,7 +16,7 @@ import { getDraftRoster } from "./roster-cache";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SNAPSHOT_GRACE_MS = 15 * 60 * 1000;
-type Season = { id: string; title: string; status: string; opens_at: string | null; locked_at: string | null; closes_at: string | null; daily_prize_lamports: string | number; mint_address: string | null; prize_mode: string };
+type Season = { reward_asset: RewardAsset; id: string; title: string; status: string; opens_at: string | null; locked_at: string | null; closes_at: string | null; daily_prize_raw: string | number; mint_address: string | null; prize_mode: string };
 type EntryRow = { wallet: string; picks: string[] };
 type ScoreSnapshot = { boundary: number; captured_at: string; pnl_by_wallet: Record<string, number>; missing_wallets: string[] };
 
@@ -27,7 +28,7 @@ async function activeSeason() {
   const configured = await queryRows<{ value: string }>("select value from pf_app_config where key = 'active_season_id' limit 1");
   const seasonId = configured[0]?.value || process.env.PF_ACTIVE_SEASON_ID;
   if (!seasonId) return null;
-  const rows = await queryRows<Season>("select id, title, status, opens_at, locked_at, closes_at, daily_prize_lamports, mint_address, prize_mode from pf_seasons where id = $1 limit 1", [seasonId]);
+  const rows = await queryRows<Season>("select id, title, status, opens_at, locked_at, closes_at, daily_prize_raw, mint_address, prize_mode, reward_asset from pf_seasons where id = $1 limit 1", [seasonId]);
   return rows[0] ?? null;
 }
 
@@ -38,27 +39,27 @@ async function recordAward(season: Season, day: 1 | 2, previous: ScoreSnapshot, 
   const players = await queryRows<{ id: string; wallet: string }>("select id, wallet from pf_players where season_id = $1", [season.id]);
   const result = calculateDailyWinner(entries, players, previous.pnl_by_wallet, current.pnl_by_wallet);
   if (result.kind === "no-eligible-entries") {
-    await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_lamports) values ($1, $2, 'no_eligible_entries', $3) on conflict (season_id, day_number) do nothing", [season.id, day, season.daily_prize_lamports]);
+    await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_raw, reward_asset) values ($1, $2, 'no_eligible_entries', $3, $4) on conflict (season_id, day_number) do nothing", [season.id, day, season.daily_prize_raw, season.reward_asset]);
     return;
   }
   if (result.kind === "awaiting-data") {
-    await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_lamports) values ($1, $2, 'awaiting_data', $3) on conflict (season_id, day_number) do nothing", [season.id, day, season.daily_prize_lamports]);
+    await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_raw, reward_asset) values ($1, $2, 'awaiting_data', $3, $4) on conflict (season_id, day_number) do nothing", [season.id, day, season.daily_prize_raw, season.reward_asset]);
     return;
   }
   if (season.prize_mode === "creator-fees") {
     if (!season.mint_address || !season.locked_at) throw new Error("Creator-fee season is missing its mint or cutoff.");
     const cutoff = new Date(Date.parse(season.locked_at) + day * DAY_MS).toISOString();
     await withTransaction(async (query) => {
-      const receipts = await query<{ signature: string; daily_lamports: string }>("select signature,daily_lamports from pf_creator_fee_receipts where competition_format='legacy' and mint_address=$1 and award_id is null and collected_at <= $2 for update", [season.mint_address, cutoff]);
-      const prize = receipts.reduce((sum, receipt) => sum + BigInt(receipt.daily_lamports), 0n);
-      const awards = await query<{ id: string }>("insert into pf_daily_awards(season_id,day_number,winner_wallet,score_usd,prize_lamports,status) values($1,$2,$3,$4,$5,$6) on conflict(season_id,day_number) do nothing returning id", [season.id,day,result.wallet,result.score,prize.toString(),prize > 0n ? "pending_payment" : "no_creator_fees"]);
+      const receipts = await query<{ signature: string; daily_raw: string }>("select signature,daily_raw from pf_creator_fee_receipts where competition_format='legacy' and mint_address=$1 and reward_asset=$3 and award_id is null and collected_at <= $2 for update", [season.mint_address, cutoff, season.reward_asset]);
+      const prize = receipts.reduce((sum, receipt) => sum + BigInt(receipt.daily_raw), 0n);
+      const awards = await query<{ id: string }>("insert into pf_daily_awards(season_id,day_number,winner_wallet,score_usd,prize_raw,status,reward_asset) values($1,$2,$3,$4,$5,$6, $7) on conflict(season_id,day_number) do nothing returning id", [season.id,day,result.wallet,result.score,prize.toString(),prize > 0n ? "pending_payment" : "no_creator_fees", season.reward_asset]);
       if (awards[0] && receipts.length) await query("update pf_creator_fee_receipts set award_id=$1 where signature=any($2::text[]) and award_id is null", [awards[0].id, receipts.map((receipt) => receipt.signature)]);
     });
     return;
   }
-  const prize = BigInt(season.daily_prize_lamports || 0);
+  const prize = BigInt(season.daily_prize_raw || 0);
   const status = prize > 0n ? "pending_payment" : "awaiting_funding";
-  await queryRows("insert into pf_daily_awards (season_id, day_number, winner_wallet, score_usd, prize_lamports, status) values ($1, $2, $3, $4, $5, $6) on conflict (season_id, day_number) do nothing", [season.id, day, result.wallet, result.score, prize.toString(), status]);
+  await queryRows("insert into pf_daily_awards (season_id, day_number, winner_wallet, score_usd, prize_raw, status, reward_asset) values ($1, $2, $3, $4, $5, $6, $7) on conflict (season_id, day_number) do nothing", [season.id, day, result.wallet, result.score, prize.toString(), status, season.reward_asset]);
 }
 
 async function reconcileStoredAward(season: Season, boundary: AwardBoundary, snapshot?: ScoreSnapshot) {
@@ -115,12 +116,12 @@ export async function tickSeason() {
     if (now >= dayOneAt && now <= dayOneAt + SNAPSHOT_GRACE_MS && await captureBoundary(season, 1)) snapshots.push("day-one-close");
     else if (now > dayOneAt + SNAPSHOT_GRACE_MS) {
       await reconcileStoredAward(season, 1);
-      await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_lamports) values ($1, 1, 'awaiting_data', $2) on conflict (season_id, day_number) do nothing", [season.id, season.daily_prize_lamports]);
+      await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_raw, reward_asset) values ($1, 1, 'awaiting_data', $2, $3) on conflict (season_id, day_number) do nothing", [season.id, season.daily_prize_raw, season.reward_asset]);
     }
     if (now >= closesAt && now <= closesAt + SNAPSHOT_GRACE_MS && await captureBoundary(season, 2)) snapshots.push("day-two-close");
     else if (now > closesAt + SNAPSHOT_GRACE_MS) {
       await reconcileStoredAward(season, 2);
-      await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_lamports) values ($1, 2, 'awaiting_data', $2) on conflict (season_id, day_number) do nothing", [season.id, season.daily_prize_lamports]);
+      await queryRows("insert into pf_daily_awards (season_id, day_number, status, prize_raw, reward_asset) values ($1, 2, 'awaiting_data', $2, $3) on conflict (season_id, day_number) do nothing", [season.id, season.daily_prize_raw, season.reward_asset]);
     }
     await settleSeasonAward(season);
     const payout = await processNextAutomaticPayout();
@@ -133,7 +134,7 @@ export async function tickSeason() {
       const payoutConfig = await getPayoutConfiguration();
       if (payoutConfig.blockers.length) return { ok: true, action: "awaiting-reward-configuration", seasonId: season.id };
     }
-    const nextPrize = BigInt(season.daily_prize_lamports || 0);
+    const nextPrize = BigInt(season.daily_prize_raw || 0);
     const prizeWallet = process.env.PF_PRIZE_WALLET_ADDRESS || "";
     if (nextPrize > 0n) {
       if (!validWallet(prizeWallet)) return { ok: true, action: "awaiting-prize-wallet", seasonId: season.id };
@@ -151,9 +152,9 @@ export async function tickSeason() {
       const existing = await transactionQuery<{ id: string }>("select id from pf_seasons");
       const nextId = nextSeasonId(existing.map((row) => row.id));
       const nextNumber = Number(nextId.slice("season-".length));
-      const nextPrizeLamports = nextPrize.toString();
+      const nextPrizeRaw = nextPrize.toString();
       const nextWindow = seasonWindowFromOpen(Date.now());
-      const inserted = await transactionQuery<{ id: string }>("insert into pf_seasons (id, title, status, opens_at, locked_at, closes_at, daily_prize_lamports, source_url, mint_address, prize_mode) values ($1, $2, 'draft', null, null, null, $3, $4, $5, $6) on conflict (id) do nothing returning id", [nextId, `Season ${nextNumber}`, nextPrizeLamports, "https://pump.fun/leaderboard", season.mint_address, season.prize_mode]);
+      const inserted = await transactionQuery<{ id: string }>("insert into pf_seasons (id, title, status, opens_at, locked_at, closes_at, daily_prize_raw, source_url, mint_address, prize_mode, reward_asset) values ($1, $2, 'draft', null, null, null, $3, $4, $5, $6, $7) on conflict (id) do nothing returning id", [nextId, `Season ${nextNumber}`, nextPrizeRaw, "https://pump.fun/leaderboard", season.mint_address, season.prize_mode, season.reward_asset]);
       if (!inserted.length) throw new Error("Could not reserve the next season ID safely.");
       await saveRosterSnapshot(nextId, board.players, new Date(board.snapshotAt), transactionQuery);
       const opened = await transactionQuery<{ id: string }>("update pf_seasons set status = 'open', opens_at = $2, locked_at = $3, closes_at = $4 where id = $1 and status = 'draft' returning id", [nextId, nextWindow.opensAt, nextWindow.lockedAt, nextWindow.closesAt]);

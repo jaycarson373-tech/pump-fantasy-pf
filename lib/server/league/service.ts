@@ -1,4 +1,8 @@
 import "server-only";
+import { collectCreatorFees } from "../creator-fees";
+import { assetDetails, rewardAsset } from "../../reward-asset";
+import { verifyRewardAsset } from "../reward-chain";
+import { processLeagueClaims } from "./claims";
 import { allocateReceipts, prepareRewards } from "./rewards";
 import { queryRows, withTransaction, withAdvisoryLock } from "../database";
 import { getBackendConfig } from "../config";
@@ -44,6 +48,7 @@ export type Season = {
   title: string;
   number: number;
   mint: string;
+  reward_mint: string | null;
   starts_at: string;
   ends_at: string;
   weeks: number;
@@ -97,6 +102,9 @@ export async function createSeason(input: {
   if (!mint)
     throw Error("Configure the verified PFL mint before creating a season");
   await verifyTokenMint(mint);
+  const asset = rewardAsset(process.env.PF_REWARD_ASSET ?? "SOL");
+  const rewardMint = asset === "PUMP" ? assetDetails(asset).mint : null;
+  if (rewardMint) await verifyRewardAsset("PUMP");
   if (
     !/^[a-zA-Z0-9_-]{1,64}$/.test(input.id) ||
     !input.title ||
@@ -119,7 +127,7 @@ export async function createSeason(input: {
     if (overlap.length)
       throw Error("Season calendar overlaps another league season");
     await q(
-      "insert into pfl_seasons(id,title,number,mint,starts_at,ends_at,weeks) values($1,$2,$3,$4,$5,$6,$7)",
+      "insert into pfl_seasons(id,title,number,mint,starts_at,ends_at,weeks,reward_mint) values($1,$2,$3,$4,$5,$6,$7,$8)",
       [
         input.id,
         input.title,
@@ -128,6 +136,7 @@ export async function createSeason(input: {
         calendar[0].locksAt,
         calendar.at(-1)!.endsAt,
         calendar.length,
+        rewardMint,
       ],
     );
     for (const w of calendar)
@@ -345,6 +354,8 @@ export async function tickLeague() {
     if (!season) return { action: "idle" };
     if (season.mint !== getBackendConfig().mint)
       throw Error("Configured mint does not match the season");
+    await processLeagueClaims(season);
+    await collectCreatorFees();
     await allocateReceipts(season);
     const rounds = await currentRounds(season.id);
     for (const round of rounds) {
@@ -428,10 +439,8 @@ export async function tickLeague() {
       season.id,
       pending.length ? "active" : "complete",
     ]);
-    await prepareRewards({
-      ...season,
-      status: pending.length ? "active" : "complete",
-    });
+    const updatedSeason = { ...season, status: pending.length ? "active" : "complete" };
+    await prepareRewards(updatedSeason);
     await queryRows(
       "insert into pfl_jobs(id,status,last_error) values('league-worker','completed',null) on conflict(id) do update set status='completed',last_error=null,updated_at=now()",
     );

@@ -26,16 +26,20 @@ const walletA = '11111111111111111111111111111111';
 const walletB = '22222222222222222222222222222222';
 const cutoff = new Date(Date.now() - 60_000).toISOString();
 
-async function claim(signature, mint) {
+async function claim(signature, mint, asset) {
+  if (asset) {
+    await db.query("insert into pf_creator_claims(signature,mint_address,creator_wallet,transaction_base64,last_valid_block_height,status,reward_asset) values($1,$2,$3,'local-fixture',1,'finalized',$4)", [signature,mint,walletA,asset]);
+    return;
+  }
   await db.query("insert into pf_creator_claims(signature,mint_address,creator_wallet,transaction_base64,last_valid_block_height,status) values($1,$2,$3,'local-fixture',1,'finalized')", [signature,mint,walletA]);
 }
-async function receipt(signature, mint, at = cutoff) {
-  await claim(signature,mint);
+async function receipt(signature, mint, at = cutoff, asset = 'SOL') {
+  await claim(signature,mint,asset);
   const split=splitCreatorFees(1_000_000_000n);
-  await db.query('insert into pf_creator_fee_receipts(signature,mint_address,gross_lamports,daily_lamports,season_lamports,reserve_lamports,collected_at) values($1,$2,$3,$4,$5,$6,$7)', [signature,mint,...['gross','daily','season','reserve'].map(key=>split[key].toString()),at]);
+  await db.query('insert into pf_creator_fee_receipts(signature,mint_address,gross_raw,daily_raw,season_raw,reserve_raw,collected_at,reward_asset) values($1,$2,$3,$4,$5,$6,$7,$8)', [signature,mint,...['gross','daily','season','reserve'].map(key=>split[key].toString()),at,asset]);
 }
-async function season(id, withEntries = true, withClosing = true) {
-  await db.query("insert into pf_seasons(id,title,status,mint_address,prize_mode,closes_at) values($1,'Local fee test','open',$1,'creator-fees',$2)",[id,cutoff]);
+async function season(id, withEntries = true, withClosing = true, asset = 'SOL') {
+  await db.query("insert into pf_seasons(id,title,status,mint_address,prize_mode,closes_at,reward_asset) values($1,'Local fee test','open',$1,'creator-fees',$2,$3)",[id,cutoff,asset]);
   const players=Array.from({length:10},(_,index)=>({id:`${id}-${index}`,wallet:"123456789A"[index].repeat(32)}));
   for (const [index, player] of players.entries()) await db.query("insert into pf_players(id,season_id,rank,wallet,pnl_usd,source_url,snapshot_at) values($1,$2,$3,$4,0,'local-fixture',now())", [player.id,id,(index%5)*10+Math.floor(index/5)+1,player.wallet]);
   if (withEntries) for (const [index,wallet] of [walletA,walletB].entries()) await db.query('insert into pf_entries(season_id,wallet,picks,token_balance_raw) values($1,$2,$3,0)',[id,wallet,JSON.stringify(players.slice(index*5,index*5+5).map(p=>p.id))]);
@@ -43,7 +47,7 @@ async function season(id, withEntries = true, withClosing = true) {
     const values=Object.fromEntries(players.map((player,index)=>[player.wallet,boundary===0?0:([100,110][boundary-1]*(index<5?1:0)+[0,60][boundary-1]*(index>=5?1:0))]));
     await db.query("insert into pf_score_snapshots(season_id,boundary,captured_at,source_url,pnl_by_wallet) values($1,$2,now(),'local-fixture',$3)",[id,boundary,JSON.stringify(values)]);
   }
-  return {id,mint_address:id,prize_mode:'creator-fees',closes_at:cutoff};
+  return {id,mint_address:id,prize_mode:'creator-fees',closes_at:cutoff,reward_asset:asset};
 }
 async function migrateFromLegacy() {
   const existing=await db.query("select to_regclass('public.pf_seasons') as present");
@@ -58,35 +62,35 @@ async function migrateFromLegacy() {
   await db.query("insert into pf_creator_fee_receipts(signature,mint_address,gross_lamports,daily_lamports,reserve_lamports) values('legacy','legacy-mint',100,65,35)");
   execFileSync(process.execPath,['scripts/migrate.mjs'],{stdio:'pipe'});
   execFileSync(process.execPath,['scripts/migrate.mjs'],{stdio:'pipe'});
-  const legacy=(await db.query("select daily_lamports,season_lamports,reserve_lamports,split_version from pf_creator_fee_receipts where signature='legacy'")).rows[0];
-  assert.deepEqual(legacy,{daily_lamports:'65',season_lamports:'0',reserve_lamports:'35',split_version:1});
+  const legacy=(await db.query("select daily_raw,season_raw,reserve_raw,split_version from pf_creator_fee_receipts where signature='legacy'")).rows[0];
+  assert.deepEqual(legacy,{daily_raw:'65',season_raw:'0',reserve_raw:'35',split_version:1});
 }
-async function settlementChecks() {
-  const s=await season('winner');
-  await receipt('on-time',s.id);
-  await receipt('late',s.id,new Date(Date.parse(cutoff)+1).toISOString());
-  await receipt('different-mint','another-mint');
+async function settlementChecks(asset = 'SOL') {
+  const s=await season(`winner-${asset}`,true,true,asset);
+  await receipt(`on-time-${asset}`,s.id,cutoff,asset);
+  await receipt(`late-${asset}`,s.id,new Date(Date.parse(cutoff)+1).toISOString(),asset);
+  await receipt(`different-mint-${asset}`,'another-mint',cutoff,asset);
   await Promise.all([settleSeasonAward(s),settleSeasonAward(s)]);
   await settleSeasonAward(s);
   const awards=(await db.query("select * from pf_daily_awards where season_id=$1 and award_kind='season'",[s.id])).rows;
   assert.equal(awards.length,1,'Concurrent/replayed settlement awards once');
   const a=awards[0];
   assert.equal(a.winner_wallet,walletA,'Overall winner differs from day-two winner');
-  assert.equal(Number(a.score_usd),550);assert.equal(a.prize_lamports,'500000000');
+  assert.equal(Number(a.score_usd),550);assert.equal(a.prize_raw,'500000000');
   assert.equal(a.status,'pending_payment');assert.equal(a.day_number,null);
-  assert.equal(await getAwardFeeAllocation(a.id,s.id,'season'),500_000_000n);
-  assert.equal(await getAwardFeeAllocation(a.id,s.id,'daily'),0n);
-  assert.equal(await getAwardFeeAllocation(a.id,'another-mint','season'),0n);
-  const daily=(await db.query("insert into pf_daily_awards(season_id,day_number,prize_lamports,status) values($1,1,300000000,'pending_payment') returning id",[s.id])).rows[0];
-  await db.query("update pf_creator_fee_receipts set award_id=$1 where signature='on-time'",[daily.id]);
-  assert.equal(await getAwardFeeAllocation(daily.id,s.id,'daily'),300_000_000n);
+  assert.equal(await getAwardFeeAllocation(a.id,s.id,'season',asset),500_000_000n);
+  assert.equal(await getAwardFeeAllocation(a.id,s.id,'daily',asset),0n);
+  assert.equal(await getAwardFeeAllocation(a.id,'another-mint','season',asset),0n);
+  const daily=(await db.query("insert into pf_daily_awards(season_id,day_number,prize_raw,status,reward_asset) values($1,1,300000000,'pending_payment',$2) returning id",[s.id,asset])).rows[0];
+  await db.query("update pf_creator_fee_receipts set award_id=$1 where signature=$2",[daily.id,`on-time-${asset}`]);
+  assert.equal(await getAwardFeeAllocation(daily.id,s.id,'daily',asset),300_000_000n);
   await db.query("update pf_daily_awards set status='paid' where id=any($1::uuid[])",[[a.id,daily.id]]);
-  const treasury=await getFeeTreasury(s.id);
+  const treasury=await getFeeTreasury(s.id,asset);
   assert.equal(treasury.paid,800_000_000n);
   assert.equal(treasury.gross-treasury.paid,1_200_000_000n,'Remaining pools and championship reserves stay protected');
   assert.equal(treasury.reserve,400_000_000n);
   assert.equal(treasury.seasonAvailable,500_000_000n,'Post-cutoff receipt stays available');
-  await assert.rejects(db.query("update pf_creator_fee_receipts set season_lamports=900000000 where signature='late'"),/constraint/);
+  await assert.rejects(db.query("update pf_creator_fee_receipts set season_raw=900000000 where signature=$1",[`late-${asset}`]),/constraint/);
 }
 async function holdAndCarryChecks() {
   const missing=await season('missing',true,false);
@@ -119,15 +123,16 @@ async function workerCheck() {
   try { tick=await tickSeason(); }
   finally { globalThis.fetch=realFetch; }
   assert.equal(tick.value.payout.action,'payout-disabled');
-  const awards=(await db.query('select award_kind,day_number,prize_lamports from pf_daily_awards where season_id=$1',[s.id])).rows;
+  const awards=(await db.query('select award_kind,day_number,prize_raw from pf_daily_awards where season_id=$1',[s.id])).rows;
   assert.equal(awards.length,3,'The real worker records two daily awards plus the season award');
-  assert.equal(awards.find(a=>a.award_kind==='season').prize_lamports,'500000000');
+  assert.equal(awards.find(a=>a.award_kind==='season').prize_raw,'500000000');
   assert.equal((await getFeeTreasury(s.id)).paid,0n,'No signing or transfers run in this test');
 }
 try {
   await db.connect();
   await migrateFromLegacy();
   await settlementChecks();
+  await settlementChecks('PUMP');
   await holdAndCarryChecks();
   await workerCheck();
   process.stdout.write('PASS: legacy migration, 30/50/20 conservation, 48h winner, concurrency/replay, cutoff/mint isolation, independent allocations, paid accounting, reserves, missing data holds, empty carry, pre-close/test guards, real worker settlement with payouts disabled.\n');

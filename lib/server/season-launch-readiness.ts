@@ -15,7 +15,7 @@ export type SeasonLaunchReadiness = {
   blockers: string[];
   season: Season | null;
   prizeWallet: string | null;
-  dailyPrizeLamports: string | null;
+  dailyPrizeRaw: string | null;
   requiredBalanceLamports: string | null;
   currentBalanceLamports: string | null;
   players: FantasyPlayer[];
@@ -27,7 +27,7 @@ const blocked = (blockers: string[]): SeasonLaunchReadiness => ({
   blockers,
   season: null,
   prizeWallet: null,
-  dailyPrizeLamports: null,
+  dailyPrizeRaw: null,
   requiredBalanceLamports: null,
   currentBalanceLamports: null,
   players: [],
@@ -39,9 +39,10 @@ export async function getSeasonLaunchReadiness(): Promise<SeasonLaunchReadiness>
   const config = getBackendConfig();
   const feeMode = process.env.PF_REWARD_MODE === "creator-fees";
   const blockers: string[] = [];
+  if (process.env.PF_REWARD_ASSET === "PUMP") blockers.push("PUMP seasons use the Starting Seven league launch flow; legacy seasons remain SOL-only.");
   if (!config.ready || !validWallet(config.mint || "")) blockers.push("Configure the backend, RPC, session secret and valid FANTASY mint address before opening the draft.");
   try {
-    const migrationRows = await queryRows<{ applied: boolean }>("select count(*)=3 as applied from pf_schema_migrations where name in ('202610140002_creator_fee_pools.sql','202611060001_season_fee_rewards.sql','202611060002_saved_draft_roster.sql')");
+    const migrationRows = await queryRows<{ applied: boolean }>("select count(*)=4 as applied from pf_schema_migrations where name in ('202610140002_creator_fee_pools.sql','202611060001_season_fee_rewards.sql','202611060002_saved_draft_roster.sql','202611060005_reward_assets.sql')");
     if (!migrationRows[0]?.applied) blockers.push("Apply the creator-fee, season-reward and roster-cache migrations before opening a season.");
   } catch {
     blockers.push("Could not verify the creator-fee-pools migration in the database.");
@@ -90,11 +91,11 @@ export async function getSeasonLaunchReadiness(): Promise<SeasonLaunchReadiness>
   try {
     if (!feeMode) currentBalance = await getNativeSolBalance(prizeWallet);
   } catch {
-    return { ...blocked(["Could not verify the prize wallet balance through the configured Solana RPC."]), season, prizeWallet, dailyPrizeLamports: prizeText, requiredBalanceLamports: requiredBalance.toString() };
+    return { ...blocked(["Could not verify the prize wallet balance through the configured Solana RPC."]), season, prizeWallet, dailyPrizeRaw: prizeText, requiredBalanceLamports: requiredBalance.toString() };
   }
   if (currentBalance !== null && currentBalance < requiredBalance) {
     blockers.push("Prize wallet needs the required SOL funding before opening a fixed-prize season.");
-    return { ...blocked(blockers), season, prizeWallet, dailyPrizeLamports: prizeText, requiredBalanceLamports: requiredBalance.toString(), currentBalanceLamports: currentBalance?.toString() ?? null };
+    return { ...blocked(blockers), season, prizeWallet, dailyPrizeRaw: prizeText, requiredBalanceLamports: requiredBalance.toString(), currentBalanceLamports: currentBalance?.toString() ?? null };
   }
 
   let players: FantasyPlayer[];
@@ -104,11 +105,11 @@ export async function getSeasonLaunchReadiness(): Promise<SeasonLaunchReadiness>
     players = board.players;
     observedAt = board.snapshotAt;
   } catch {
-    return { ...blocked(["Could not load the saved draft roster. Restore its 50-player snapshot before opening."]), season, prizeWallet, dailyPrizeLamports: prizeText, requiredBalanceLamports: requiredBalance.toString(), currentBalanceLamports: currentBalance?.toString() ?? null };
+    return { ...blocked(["Could not load the saved draft roster. Restore its 50-player snapshot before opening."]), season, prizeWallet, dailyPrizeRaw: prizeText, requiredBalanceLamports: requiredBalance.toString(), currentBalanceLamports: currentBalance?.toString() ?? null };
   }
   if (players.length !== 50 || players.some((player, index) => player.rank !== index + 1 || !validWallet(player.wallet) || !Number.isFinite(player.pnl_usd)) || new Set(players.map((player) => player.wallet)).size !== 50) {
     blockers.push("The saved roster must contain 50 unique wallets ranked 1–50 before opening entries.");
-    return { ...blocked(blockers), season, prizeWallet, dailyPrizeLamports: prizeText, requiredBalanceLamports: requiredBalance.toString(), currentBalanceLamports: currentBalance?.toString() ?? null };
+    return { ...blocked(blockers), season, prizeWallet, dailyPrizeRaw: prizeText, requiredBalanceLamports: requiredBalance.toString(), currentBalanceLamports: currentBalance?.toString() ?? null };
   }
 
   return {
@@ -116,7 +117,7 @@ export async function getSeasonLaunchReadiness(): Promise<SeasonLaunchReadiness>
     blockers: [],
     season,
     prizeWallet,
-    dailyPrizeLamports: prizeText,
+    dailyPrizeRaw: prizeText,
     requiredBalanceLamports: requiredBalance.toString(),
     currentBalanceLamports: currentBalance?.toString() ?? null,
     players,

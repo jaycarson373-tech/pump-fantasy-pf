@@ -1,19 +1,18 @@
-/** Disposable PostgreSQL-WASM verification. Never uses DATABASE_URL or production data. */
+/** Actual isolated PostgreSQL verification. No credentials, RPC or signing. */
 import {readdir,readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
-import {resolve} from 'node:path';
-import {pathToFileURL} from 'node:url';
-const root=process.env.PGLITE_PACKAGE;
-if(!root)throw Error('Set PGLITE_PACKAGE to an isolated @electric-sql/pglite installation');
-const {PGlite}=await import(pathToFileURL(resolve(root,'dist/index.js')));
-const {pgcrypto}=await import(pathToFileURL(resolve(root,'dist/contrib/pgcrypto.js')));
-const db=new PGlite({extensions:{pgcrypto}});
+import pg from 'pg';
+const url=new URL(process.env.DATABASE_URL);
+assert.ok(['127.0.0.1','localhost'].includes(url.hostname)&&url.pathname.startsWith('/pf_league_test'),'Use a fresh local pf_league_test database.');
+const db=new pg.Client({connectionString:url.href});
+await db.connect();
+assert.equal((await db.query("select to_regclass('pf_seasons') present")).rows[0].present,null,'This test never erases an existing schema.');
 let checks=0;
 const ok=async(sql,params=[])=>{const r=await db.query(sql,params);checks++;return r;};
 const rejects=async(sql,params=[])=>{await assert.rejects(()=>db.query(sql,params));checks++;};
 try{
- for(const f of (await readdir('db/migrations')).filter(f=>f.endsWith('.sql')).sort()){await db.exec(await readFile(`db/migrations/${f}`,'utf8'));console.log('Applied',f);}
- await ok("insert into pfl_seasons(id,title,number,mint,starts_at,ends_at,weeks) values('test','Test only',999,'mint',now(),now()+interval '28 days',4)");
+ for(const f of (await readdir('db/migrations')).filter(f=>f.endsWith('.sql')).sort()){await db.query(await readFile(`db/migrations/${f}`,'utf8'));console.log('Applied',f);}
+ await ok("insert into pfl_seasons(id,title,number,mint,starts_at,ends_at,weeks,reward_mint) values('test','Test only',999,'mint',now(),now()+interval '28 days',4,null)");
  await ok("insert into pfl_rounds(id,season_id,week,opens_at,locks_at,ends_at,status) values('test-w1','test',1,now()-interval '1 day',now()+interval '1 day',now()+interval '8 days','open')");
  const picks=JSON.stringify(['a','b','c','d','e','f','g']);
  await ok("insert into pfl_rosters(round_id,wallet,picks,captain,balance_raw) values('test-w1','test-wallet',$1,'a',250001)",[picks]);
@@ -30,17 +29,19 @@ try{
  await rejects("update pfl_days set points='{}' where round_id='test-w1'");
  await rejects("delete from pfl_days where round_id='test-w1'");
  await ok("insert into pf_creator_claims(signature,mint_address,creator_wallet,transaction_base64,last_valid_block_height,status) values('test-receipt','mint','test-wallet','test-only',1,'finalized')");
- await ok("insert into pf_creator_fee_receipts(signature,mint_address,gross_lamports,daily_lamports,season_lamports,reserve_lamports) values('test-receipt','mint',100,30,50,20)");
- await rejects("insert into pfl_fee_allocations values('test-receipt','test',30,50,21,now())");
- await ok("insert into pfl_fee_allocations values('test-receipt','test',30,50,20,now())");
- await rejects("insert into pfl_fee_allocations values('test-receipt','test',30,50,20,now())");
+ await ok("insert into pf_creator_fee_receipts(signature,mint_address,gross_raw,daily_raw,season_raw,reserve_raw) values('test-receipt','mint',100,30,50,20)");
+ await rejects("insert into pfl_fee_allocations(receipt_signature,season_id,daily_raw,season_raw,champion_raw,created_at) values('test-receipt','test',30,50,21,now())");
+ await ok("insert into pfl_fee_allocations(receipt_signature,season_id,daily_raw,season_raw,champion_raw,created_at) values('test-receipt','test',30,50,20,now())");
+ await rejects("insert into pfl_fee_allocations(receipt_signature,season_id,daily_raw,season_raw,champion_raw,created_at) values('test-receipt','test',30,50,20,now())");
  await rejects("update pf_creator_fee_receipts set competition_format='legacy' where signature='test-receipt'");
  await rejects("update pf_creator_fee_receipts set award_id=gen_random_uuid() where signature='test-receipt'");
  await rejects("delete from pfl_fee_allocations where receipt_signature='test-receipt'");
  const {rows}=await ok("select count(*)::int n from pf_creator_fee_receipts where competition_format='legacy' and signature='test-receipt'");assert.equal(rows[0].n,0);
  const {rows:es}=await ok("insert into pfl_entitlements(season_id,round_id,wallet,pool,period,amount_raw) values('test','test-w1','test-wallet','daily','test-day',10) returning id");
  await rejects("insert into pfl_entitlements(season_id,round_id,wallet,pool,period,amount_raw) values('test','test-w1','test-wallet','daily','test-day',10)");
- await ok("insert into pfl_claims(entitlement_id,status) values($1,'prepared')",[es[0].id]);
+ await ok("update pfl_entitlements set status='available' where id=$1",[es[0].id]);
+ await rejects("insert into pfl_claims(entitlement_id,status) values($1,'prepared')",[es[0].id]);
+ await ok("insert into pfl_claims(entitlement_id,status,signature,transaction_base64,blockhash,last_valid_block_height,source_wallet,amount_raw,mint,prepared_at) values($1,'prepared','fixture-signature','fixture-wire','fixture-blockhash',1,'fixture-source',10,'mint',now())",[es[0].id]);
  await rejects("insert into pfl_claims(entitlement_id,status) values($1,'prepared')",[es[0].id]);
  await rejects("update pfl_rosters set wallet='different-wallet' where wallet='test-wallet'");
  await rejects("insert into pfl_conversions(signature,receipt_signature,pool,sol_raw,token_raw,mint,status) values('too-large','test-receipt','daily',31,100,'mint','pending')");
@@ -51,4 +52,4 @@ try{
  await ok("insert into pfl_settlements values('test','daily','test-day',100,10,'fixture-hash',now())");
  await rejects("insert into pfl_settlements values('test','daily','test-day',100,10,'fixture-hash',now())");
  console.log(`${checks} database checks passed; disposable database only.`);
-}finally{await db.close();}
+}finally{await db.end();}

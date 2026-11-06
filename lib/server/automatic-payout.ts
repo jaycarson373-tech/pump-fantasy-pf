@@ -30,7 +30,8 @@ type Award = {
   season_id: string;
   award_kind: "daily" | "season";
   winner_wallet: string | null;
-  prize_lamports: string;
+  prize_raw: string;
+  reward_asset: string;
   status: string;
   payment_signature: string | null;
   payment_tx_base64: string | null;
@@ -46,6 +47,14 @@ export type PayoutConfiguration = { enabled: boolean; blockers: string[]; signer
 export async function getPayoutConfiguration(): Promise<PayoutConfiguration> {
   const config = getBackendConfig();
   const enabled = process.env.PF_AUTO_PAYOUT_ENABLED === "true";
+  if (!enabled) return {
+    enabled,
+    blockers: ["Set PF_AUTO_PAYOUT_ENABLED=true only after reviewing the signer and payout limits."],
+    signerAddress: null,
+    perAwardCap: null,
+    seasonCap: null,
+    rpcUrl: config.rpcUrl ?? null,
+  };
   const blockers: string[] = [];
   const signer = await payoutSigner().catch(() => {
     blockers.push("Invalid payout keypair or wallet mismatch. Configure PF_PAYOUT_SIGNER_KEYPAIR_JSON for the prize wallet.");
@@ -54,7 +63,6 @@ export async function getPayoutConfiguration(): Promise<PayoutConfiguration> {
   const prizeWallet = process.env.PF_PRIZE_WALLET_ADDRESS || "";
   const perAwardCap = explicitPayoutCap(process.env.PF_AUTO_PAYOUT_MAX_AWARD_LAMPORTS ?? DEFAULT_AWARD_CAP_LAMPORTS);
   const seasonCap = explicitPayoutCap(process.env.PF_AUTO_PAYOUT_MAX_SEASON_LAMPORTS ?? DEFAULT_SEASON_CAP_LAMPORTS);
-  if (!enabled) blockers.push("Set PF_AUTO_PAYOUT_ENABLED=true only after reviewing the signer and payout limits.");
   if (!signer) blockers.push("Configure PF_PAYOUT_SIGNER_KEYPAIR_JSON as a server-only secret matching the prize wallet.");
   if (!validWallet(prizeWallet)) blockers.push("Set PF_PRIZE_WALLET_ADDRESS to the payout wallet public address.");
   if (signer && validWallet(prizeWallet) && signer.address !== prizeWallet) blockers.push("Payout signer does not match PF_PRIZE_WALLET_ADDRESS.");
@@ -89,6 +97,7 @@ async function markPaid(award: Award) {
 }
 
 async function processPrepared(award: Award) {
+  if (award.reward_asset !== "SOL") throw new Error("Legacy prepared payout has an unsupported reward asset; reconcile its recorded transaction.");
   if (!award.payment_signature || !award.payment_tx_base64 || !award.payment_last_valid_block_height || award.payment_network !== "mainnet-beta") {
     await queryRows("update pf_daily_awards set status = 'payment_unknown', payment_updated_at = now() where id = $1 and status = 'payment_prepared'", [award.id]);
     return "payment-unknown";
@@ -121,9 +130,10 @@ async function processPrepared(award: Award) {
 
 async function prepareAward(award: Award, config: PayoutConfiguration) {
   if (award.status !== "pending_payment") return null;
+  if (award.reward_asset !== "SOL") throw new Error("Legacy payouts require a SOL award; use the league claim flow for PUMP rewards.");
   if (!config.enabled || config.blockers.length || !config.perAwardCap || !config.seasonCap) return "payout-disabled";
   if (!award.winner_wallet || !validWallet(award.winner_wallet)) throw new Error("Award recipient is invalid.");
-  const amount = BigInt(award.prize_lamports);
+  const amount = BigInt(award.prize_raw);
   if (amount <= 0n || amount > config.perAwardCap) {
     await queryRows("update pf_daily_awards set status = 'payment_failed', payment_updated_at = now() where id = $1 and status = 'pending_payment'", [award.id]);
     return "payout-cap-exceeded";
@@ -132,7 +142,7 @@ async function prepareAward(award: Award, config: PayoutConfiguration) {
     await queryRows("update pf_daily_awards set status = 'payment_failed', payment_updated_at = now() where id = $1 and status = 'pending_payment'", [award.id]);
     return "invalid-payout-recipient";
   }
-  const seasonReserved = await queryRows<{ total: string }>("select coalesce(sum(prize_lamports), 0)::text as total from pf_daily_awards where season_id = $1 and status = any($2::text[]) and (status <> 'payment_failed' or payment_signature is not null)", [award.season_id, [...RESERVED_AWARD_STATUSES]]);
+  const seasonReserved = await queryRows<{ total: string }>("select coalesce(sum(prize_raw), 0)::text as total from pf_daily_awards where season_id = $1 and status = any($2::text[]) and (status <> 'payment_failed' or payment_signature is not null)", [award.season_id, [...RESERVED_AWARD_STATUSES]]);
   if (!seasonAwardFits(config.seasonCap, BigInt(seasonReserved[0]?.total || "0"), amount)) {
     await queryRows("update pf_daily_awards set status = 'payment_failed', payment_updated_at = now() where id = $1 and status = 'pending_payment'", [award.id]);
     return "season-cap-exceeded";
@@ -148,7 +158,7 @@ async function prepareAward(award: Award, config: PayoutConfiguration) {
     if (allocation !== amount) throw new Error("Award does not match its assigned fee pool. Reconcile its receipt allocation before payout.");
     const treasury = await getFeeTreasury(rewardSeason.mint_address);
     // All unpaid daily/season allocations and championship reserves stay covered.
-    treasuryMinimum = treasury.gross - treasury.paid + 5_000n;
+    treasuryMinimum = treasury.gross - treasury.paid + treasury.leagueSolReserved + 5_000n;
   }
   const balance = await getNativeSolBalance(prizeWallet);
   if (balance < treasuryMinimum) return "awaiting-payout-funding";
@@ -177,9 +187,9 @@ async function prepareAward(award: Award, config: PayoutConfiguration) {
 export async function processNextAutomaticPayout() {
   const config = await getPayoutConfiguration();
   if (!config.enabled) return { action: "payout-disabled" as const, blockers: config.blockers };
-  const prepared = await queryRows<Award>("select id, season_id, award_kind, winner_wallet, prize_lamports, status, payment_signature, payment_tx_base64, payment_blockhash, payment_last_valid_block_height, payment_network from pf_daily_awards where status in ('payment_prepared','payment_unknown') order by created_at asc limit 1");
+  const prepared = await queryRows<Award>("select id, season_id, award_kind, reward_asset, winner_wallet, prize_raw, status, payment_signature, payment_tx_base64, payment_blockhash, payment_last_valid_block_height, payment_network from pf_daily_awards where status in ('payment_prepared','payment_unknown') order by created_at asc limit 1");
   if (prepared[0]) return { action: await processPrepared(prepared[0]), awardId: prepared[0].id };
-  const pending = await queryRows<Award>("select id, season_id, award_kind, winner_wallet, prize_lamports, status, payment_signature, payment_tx_base64, payment_blockhash, payment_last_valid_block_height, payment_network from pf_daily_awards where status = 'pending_payment' order by created_at asc limit 1");
+  const pending = await queryRows<Award>("select id, season_id, award_kind, reward_asset, winner_wallet, prize_raw, status, payment_signature, payment_tx_base64, payment_blockhash, payment_last_valid_block_height, payment_network from pf_daily_awards where status = 'pending_payment' order by created_at asc limit 1");
   if (!pending[0]) return { action: "no-pending-award" as const };
   return { action: await prepareAward(pending[0], config), awardId: pending[0].id };
 }

@@ -20,7 +20,7 @@ export async function GET() {
     const seasonId = await getActiveSeasonId();
     if (!seasonId) return NextResponse.json({ configured: false, standings: [], awards: [] });
     const [seasons, entries, players, scoreSnapshots] = await Promise.all([
-      queryRows<SeasonSchedule & { id: string; daily_prize_lamports: string }>("select id, status, opens_at, locked_at, closes_at, daily_prize_lamports from pf_seasons where id = $1 limit 1", [seasonId]),
+      queryRows<SeasonSchedule & { id: string; daily_prize_raw: string; reward_asset: string }>("select id, status, opens_at, locked_at, closes_at, daily_prize_raw, reward_asset from pf_seasons where id = $1 limit 1", [seasonId]),
       queryRows<EntryRow>("select wallet, picks from pf_entries where season_id = $1 order by created_at asc", [seasonId]),
       queryRows<{ id: string; rank: number; display_name: string | null; wallet: string; pnl_usd: string }>("select id, rank, display_name, wallet, pnl_usd from pf_players where season_id = $1 order by rank asc", [seasonId]),
       queryRows<Snapshot>("select boundary, captured_at, pnl_by_wallet, missing_wallets from pf_score_snapshots where season_id = $1 and boundary in (0, 1, 2) order by boundary asc", [seasonId]),
@@ -44,16 +44,17 @@ export async function GET() {
       const score = complete ? roster.reduce((sum, player) => sum + (player.contest_change_usd ?? 0), 0) : null;
       return { wallet: entry.wallet, picks: roster, score, scoringReady: complete };
     }).sort((a, b) => (b.score ?? Number.NEGATIVE_INFINITY) - (a.score ?? Number.NEGATIVE_INFINITY) || a.wallet.localeCompare(b.wallet));
-    const allAwards = await queryRows<{ id: string; season_id: string; award_kind: "daily" | "season"; day_number: number | null; winner_wallet: string | null; score_usd: string | null; prize_lamports: string; status: string; payment_signature: string | null; paid_at: string | null }>("select id, season_id, award_kind, day_number, winner_wallet, score_usd, prize_lamports, status, payment_signature, paid_at from pf_daily_awards order by created_at desc limit 10");
+    const allAwards = await queryRows<{ id: string; season_id: string; award_kind: "daily" | "season"; day_number: number | null; winner_wallet: string | null; score_usd: string | null; prize_raw: string; reward_asset: string; status: string; payment_signature: string | null; paid_at: string | null }>("select id, season_id, award_kind, day_number, winner_wallet, score_usd, prize_raw, reward_asset, status, payment_signature, paid_at from pf_daily_awards order by created_at desc limit 10");
     const mint = getBackendConfig().mint;
     const treasury = mint ? await getFeeTreasury(mint) : null;
     return NextResponse.json({
       configured: true,
       rewardMode: process.env.PF_REWARD_MODE === "creator-fees" ? "creator-fees" : "fixed",
-      feePools: { dailyBps: Number(DAILY_FEE_BPS), seasonBps: Number(SEASON_FEE_BPS), reserveBps: Number(REWARD_RESERVE_BPS), collectedLamports: treasury?.gross.toString() ?? "0", availableDailyLamports: treasury?.available.toString() ?? "0", availableSeasonLamports: treasury?.seasonAvailable.toString() ?? "0", reserveLamports: treasury?.reserve.toString() ?? "0", paidLamports: treasury?.paid.toString() ?? "0" },
+      feePools: { rewardAsset: "SOL", dailyBps: Number(DAILY_FEE_BPS), seasonBps: Number(SEASON_FEE_BPS), reserveBps: Number(REWARD_RESERVE_BPS), collectedRaw: treasury?.gross.toString() ?? "0", availableDailyRaw: treasury?.available.toString() ?? "0", availableSeasonRaw: treasury?.seasonAvailable.toString() ?? "0", reserveRaw: treasury?.reserve.toString() ?? "0", paidRaw: treasury?.paid.toString() ?? "0" },
       seasonId,
       phase,
-      prizeLamports: season?.daily_prize_lamports ?? "0",
+      rewardAsset: season?.reward_asset ?? "SOL",
+      prizeRaw: season?.daily_prize_raw ?? "0",
       prizeWallet: process.env.PF_PRIZE_WALLET_ADDRESS ?? null,
       scoreSnapshotAt: baseline?.captured_at ?? null,
       standings,
